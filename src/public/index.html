@@ -672,6 +672,18 @@
     <div id="insightsList"></div>
   </div>
 
+  <!-- Pipeline Efficiency -->
+  <div id="pipelineSection" class="insights-section" style="display:none">
+    <div class="section-header animate">
+      <div class="section-icon" style="background:linear-gradient(135deg,#CCFBF1,#99F6E4)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2.5" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
+      <div class="section-title">Pipeline Efficiency</div>
+    </div>
+    <div class="stats-row" id="pipelineStats"></div>
+    <div id="pipelineBreakdown" style="margin:16px 0"></div>
+  </div>
+
   <!-- Charts -->
   <div class="charts-grid animate delay-3">
     <div class="chart-card">
@@ -1207,6 +1219,7 @@ function render() {
   document.getElementById('app').style.display = 'block';
   renderStats();
   renderInsights();
+  renderPipeline();
   renderDailyChart();
   renderModelChart();
   renderRatioChart();
@@ -1311,6 +1324,93 @@ async function createIssueFromInsight(insightId, btn) {
     btn.disabled = false;
     btn.textContent = 'Create Issue';
   }
+}
+
+// Pipeline Efficiency
+function renderPipeline() {
+  const orch = RAW_DATA.orchestrator;
+  const section = document.getElementById('pipelineSection');
+  if (!orch || !orch.summary || orch.summary.totalRuns === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+  const s = orch.summary;
+
+  // Stat cards
+  const completionColor = s.completionRate >= 70 ? 'var(--emerald)' : s.completionRate >= 40 ? 'var(--amber)' : '#EF4444';
+  const qualityColor = s.avgQualityIterations <= 2 ? 'var(--emerald)' : s.avgQualityIterations <= 4 ? 'var(--amber)' : '#EF4444';
+  const testColor = s.avgTestIterations <= 2 ? 'var(--emerald)' : s.avgTestIterations <= 4 ? 'var(--amber)' : '#EF4444';
+
+  document.getElementById('pipelineStats').innerHTML = [
+    { label: 'Pipeline Runs', value: s.totalRuns, sub: `${s.completedRuns} completed`, color: 'var(--indigo)' },
+    { label: 'Completion Rate', value: s.completionRate + '%', sub: `${s.errorRuns} errors, ${s.maxIterationsRuns} max-iter`, color: completionColor },
+    { label: 'Avg Quality Loops', value: s.avgQualityIterations, sub: 'iterations per run', color: qualityColor },
+    { label: 'Avg Test Loops', value: s.avgTestIterations, sub: 'iterations per run', color: testColor },
+  ].map(c => `<div class="stat-card animate delay-2">
+    <div class="stat-label">${c.label}</div>
+    <div class="stat-value" style="color:${c.color}">${c.value}</div>
+    <div class="stat-sub">${c.sub}</div>
+  </div>`).join('');
+
+  // State breakdown + top churners
+  const stateGroups = {};
+  orch.runs.forEach(r => { stateGroups[r.state] = (stateGroups[r.state] || 0) + 1; });
+  const stateHtml = Object.entries(stateGroups)
+    .sort((a, b) => b[1] - a[1])
+    .map(([state, count]) => {
+      const pct = Math.round((count / s.totalRuns) * 100);
+      const color = state === 'completed' ? 'var(--emerald)' : state === 'error' ? '#EF4444' : 'var(--amber)';
+      return `<div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+        <div style="width:120px;font-size:12px;font-weight:600;color:var(--text-secondary)">${state}</div>
+        <div style="flex:1;height:20px;background:var(--bg-secondary);border-radius:4px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width 0.5s"></div>
+        </div>
+        <div style="font-size:12px;font-weight:700;width:50px;text-align:right">${count} (${pct}%)</div>
+      </div>`;
+    }).join('');
+
+  const churnerHtml = s.topChurners.length > 0
+    ? `<div style="margin-top:16px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text-secondary)">Top Churners</div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <tr style="color:var(--text-tertiary)"><th style="text-align:left;padding:4px 8px">Issue</th><th>Quality</th><th>Test</th><th>State</th></tr>
+        ${s.topChurners.map(r => `<tr style="border-top:1px solid var(--border)">
+          <td style="padding:4px 8px;font-weight:600">#${r.issue}</td>
+          <td style="text-align:center;color:${r.qualityIterations > 3 ? '#EF4444' : 'var(--text-secondary)'}">${r.qualityIterations}</td>
+          <td style="text-align:center;color:${r.testIterations > 3 ? '#EF4444' : 'var(--text-secondary)'}">${r.testIterations}</td>
+          <td style="text-align:center;font-size:11px">${r.state}</td>
+        </tr>`).join('')}
+      </table></div>`
+    : '';
+
+  const bottleneckHtml = s.stageAvgs.length > 0
+    ? `<div style="margin-top:16px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text-secondary)">Stage Durations (avg)</div>
+      ${s.stageAvgs.filter(st => st.avgSeconds > 0).map(st => {
+        const maxSec = s.stageAvgs[0].avgSeconds;
+        const pct = Math.round((st.avgSeconds / maxSec) * 100);
+        const mins = Math.round(st.avgSeconds / 60);
+        return `<div style="display:flex;align-items:center;gap:8px;margin:3px 0">
+          <div style="width:100px;font-size:11px;font-weight:600;color:var(--text-secondary)">${st.name}</div>
+          <div style="flex:1;height:16px;background:var(--bg-secondary);border-radius:4px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:var(--teal);border-radius:4px"></div>
+          </div>
+          <div style="font-size:11px;font-weight:600;width:40px;text-align:right">${mins}m</div>
+        </div>`;
+      }).join('')}</div>`
+    : '';
+
+  document.getElementById('pipelineBreakdown').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="chart-card" style="padding:16px">
+        <h3 style="font-size:14px;margin:0 0 12px">Run Outcomes</h3>
+        ${stateHtml}
+      </div>
+      <div class="chart-card" style="padding:16px">
+        <h3 style="font-size:14px;margin:0 0 12px">Performance</h3>
+        ${bottleneckHtml}
+        ${churnerHtml}
+      </div>
+    </div>`;
 }
 
 // Daily chart
