@@ -657,19 +657,32 @@
     Tokens are how AI measures text -- roughly 1 token = 1 word. Hover over any label with a <span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(0,0,0,0.08);font-size:10px;font-weight:700;vertical-align:middle;">?</span> for an explanation.
   </div>
 
-  <!-- Insights -->
+  <!-- Pipeline Insights (actionable) -->
   <div id="insightsSection" class="insights-section" style="display:none">
     <div class="section-header animate">
       <div class="section-icon" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A)">
         <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 4 12.75V17a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.25A7 7 0 0 1 12 2z"/><path d="M9 21h6"/></svg>
       </div>
-      <div class="section-title">Insights</div>
+      <div class="section-title">Pipeline Insights</div>
     </div>
     <div class="insight-repo-config">
       <label>Target repo</label>
       <input type="text" id="issueTargetRepo" value="stevegrocott/claude-pipeline" placeholder="owner/repo">
+      <label>Local repo path</label>
+      <input type="text" id="issueRepoPath" placeholder="~/projects/claude-pipeline">
     </div>
     <div id="insightsList"></div>
+  </div>
+
+  <!-- Usage Tips (behavioral) -->
+  <div id="tipsSection" class="insights-section" style="display:none">
+    <div class="section-header animate">
+      <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <div class="section-title">Usage Tips</div>
+    </div>
+    <div id="tipsList"></div>
   </div>
 
   <!-- Pipeline Efficiency -->
@@ -925,6 +938,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
     const totalWasted = shortExpensive.reduce((s, p) => s + p.totalTokens, 0);
     const examples = [...new Set(shortExpensive.map(p => p.prompt.trim()))].slice(0, 4);
     insights.push({
+      id: 'vague-prompts',
       type: 'warning',
       title: 'Short, vague messages are costing you the most',
       description: `${shortExpensive.length} times you sent a short message like ${examples.map(e => '"' + e + '"').join(', ')} -- and each time, Claude used over 100K tokens to respond. That adds up to ${fmt(totalWasted)} tokens total.`,
@@ -944,6 +958,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
       const avgGrowth = (growthData.reduce((s, g) => s + g.ratio, 0) / growthData.length).toFixed(1);
       const worstSession = growthData.sort((a, b) => b.ratio - a.ratio)[0];
       insights.push({
+        id: 'context-growth',
         type: 'warning',
         title: 'The longer you chat, the more each message costs',
         description: `In ${growthData.length} conversations, messages near the end cost ${avgGrowth}x more than at the start. Your longest ("${(worstSession.session.firstPrompt || '').substring(0, 50)}...") grew ${worstSession.ratio.toFixed(1)}x.`,
@@ -960,6 +975,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
     const longTokens = sessions.filter(s => s.queryCount > 200).reduce((s, ses) => s + ses.totalTokens, 0);
     const longPct = ((longTokens / Math.max(totals.totalTokens, 1)) * 100).toFixed(0);
     insights.push({
+      id: 'marathon-sessions',
       type: 'info',
       title: `Just ${longCount} long conversations used ${longPct}% of all your tokens`,
       description: `You have ${longCount} conversations with over 200 messages each, consuming ${fmt(longTokens)} tokens (${longPct}%). Your typical conversation is about ${medianTurns} messages.`,
@@ -972,6 +988,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
     const outputPct = (totals.totalOutputTokens / totals.totalTokens) * 100;
     if (outputPct < 2) {
       insights.push({
+        id: 'input-heavy',
         type: 'info',
         title: `${outputPct.toFixed(1)}% of your tokens are Claude actually writing`,
         description: `Out of ${fmt(totals.totalTokens)} total tokens, only ${fmt(totals.totalOutputTokens)} are from Claude writing. The other ${(100 - outputPct).toFixed(1)}% is re-reading context.`,
@@ -996,6 +1013,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
     if (days.length >= 3) {
       days.sort((a, b) => b.avg - a.avg);
       insights.push({
+        id: 'day-pattern',
         type: 'neutral',
         title: `You use Claude the most on ${days[0].day}s`,
         description: `Your ${days[0].day} conversations average ${fmt(Math.round(days[0].avg))} tokens each, compared to ${fmt(Math.round(days[days.length - 1].avg))} on ${days[days.length - 1].day}s.`,
@@ -1011,6 +1029,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
     if (simpleOpus.length >= 3) {
       const wastedTokens = simpleOpus.reduce((s, ses) => s + ses.totalTokens, 0);
       insights.push({
+        id: 'model-mismatch',
         type: 'warning',
         title: `${simpleOpus.length} simple conversations used Opus unnecessarily`,
         description: `These had fewer than 10 messages and used ${fmt(wastedTokens)} tokens on Opus. Sonnet or Haiku would give similar results at lower cost.`,
@@ -1033,6 +1052,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
         return s + (ses.queryCount - userMsgs) / Math.max(userMsgs, 1);
       }, 0) / toolHeavy.length;
       insights.push({
+        id: 'tool-heavy',
         type: 'info',
         title: `${toolHeavy.length} conversations had ${Math.round(avgRatio)}x more tool calls than messages`,
         description: `Each tool call re-reads the entire conversation. These ${toolHeavy.length} conversations used ${fmt(totalToolTokens)} tokens total.`,
@@ -1053,8 +1073,9 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
       const [topProject, topTokens] = sorted[0];
       const pct = ((topTokens / Math.max(totals.totalTokens, 1)) * 100).toFixed(0);
       if (pct >= 60) {
-        const projName = topProject.replace(/^C--Users-[^-]+-?/, '').replace(/^Projects-?/, '').replace(/-/g, '/') || '~';
+        const projName = topProject.replace(/^-?Users-[^-]+-projects-/, '').replace(/^C--Users-[^-]+-projects-/, '') || topProject;
         insights.push({
+          id: 'project-dominance',
           type: 'info',
           title: `${pct}% of your tokens went to one project: ${projName}`,
           description: `"${projName}" used ${fmt(topTokens)} out of ${fmt(totals.totalTokens)} total tokens.`,
@@ -1074,6 +1095,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
       const ratio = (longAvg / Math.max(shortAvg, 1)).toFixed(1);
       if (ratio >= 2) {
         insights.push({
+          id: 'conversation-efficiency',
           type: 'warning',
           title: `Each message costs ${ratio}x more in long conversations`,
           description: `Short conversations (~${fmt(shortAvg)} tokens/msg) vs long ones (~${fmt(longAvg)} tokens/msg).`,
@@ -1090,6 +1112,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
       const avgStartTokens = Math.round(heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0) / heavyStarts.length);
       const totalOverhead = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0);
       insights.push({
+        id: 'heavy-context',
         type: 'info',
         title: `${heavyStarts.length} conversations started with ${fmt(avgStartTokens)}+ tokens of context`,
         description: `Before you type anything, Claude reads CLAUDE.md and project files. Across ${heavyStarts.length} conversations, that's ${fmt(totalOverhead)} tokens on setup alone.`,
@@ -1208,7 +1231,9 @@ function applyDateFilter() {
     dateRange: { from: from || DATA.totals.dateRange?.from, to: to || DATA.totals.dateRange?.to },
   };
 
-  const insights = clientGenerateInsights(sessions, topPrompts, totals);
+  const clientInsights = clientGenerateInsights(sessions, topPrompts, totals);
+  const serverInsights = (DATA.insights || []).filter(i => !clientInsights.some(c => c.id === i.id));
+  const insights = [...clientInsights, ...serverInsights];
   FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, insights };
   render();
 }
@@ -1218,6 +1243,7 @@ function render() {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   renderStats();
+  initRepoConfig();
   renderInsights();
   renderPipeline();
   renderDailyChart();
@@ -1253,37 +1279,54 @@ function renderStats() {
     </div>`).join('');
 }
 
-// Insights
+// Insights — split into actionable pipeline insights and behavioral usage tips
+const ACTIONABLE_IDS = new Set(['quality-churn', 'test-churn', 'low-completion-rate', 'stage-bottleneck', 'error-pattern', 'tool-heavy']);
+
+function renderInsightCard(ins, i, showButton) {
+  const emojis = { warning: '\u26A0\uFE0F', info: '\uD83D\uDCA1', neutral: '\uD83D\uDCC5' };
+  const detailHtml = ins.description ? `<div class="insight-detail">${escapeHtml(ins.description)}</div>` : '';
+  const actionHtml = ins.action ? `<div class="insight-action-tip">${escapeHtml(ins.action)}</div>` : '';
+  const buttonHtml = showButton ? `<div class="insight-create-issue">
+      <button id="btn-${ins.id}" onclick="event.stopPropagation(); generateIssueFromInsight('${ins.id}', this)">Generate Issue</button>
+      <button id="btn-fallback-${ins.id}" onclick="event.stopPropagation(); createIssueFromInsight('${ins.id}', this)" style="font-size:11px;opacity:0.6" title="Create with static template (no AI research)">Quick Create</button>
+      <span class="issue-status" id="status-${ins.id}"></span>
+    </div>` : '';
+  return `<div class="insight-card ${ins.type} animate delay-${Math.min(i + 2, 5)}" onclick="this.classList.toggle('expanded')">
+    <div class="insight-top">
+      <div class="insight-indicator">${emojis[ins.type] || ''}</div>
+      <div class="insight-title">${escapeHtml(ins.title)}</div>
+      <div class="insight-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></div>
+    </div>
+    <div class="insight-expand">
+      ${detailHtml}
+      ${actionHtml}
+      ${buttonHtml}
+    </div>
+  </div>`;
+}
+
 function renderInsights() {
   const insights = FILTERED.insights || [];
-  const section = document.getElementById('insightsSection');
-  if (!insights.length) { section.style.display = 'none'; return; }
 
-  section.style.display = 'block';
-  const icons = { warning: '!', info: 'i', neutral: '~' };
-  const emojis = { warning: '\u26A0\uFE0F', info: '\uD83D\uDCA1', neutral: '\uD83D\uDCC5' };
+  // Pipeline insights — actionable, with Create Issue buttons
+  const actionable = insights.filter(ins => ACTIONABLE_IDS.has(ins.id));
+  const insightsSection = document.getElementById('insightsSection');
+  if (actionable.length > 0) {
+    insightsSection.style.display = 'block';
+    document.getElementById('insightsList').innerHTML = actionable.map((ins, i) => renderInsightCard(ins, i, true)).join('');
+  } else {
+    insightsSection.style.display = 'none';
+  }
 
-  const skipIds = new Set(['day-pattern', 'project-dominance']);
-  document.getElementById('insightsList').innerHTML = insights.map((ins, i) => {
-    const detailHtml = ins.description ? `<div class="insight-detail">${escapeHtml(ins.description)}</div>` : '';
-    const actionHtml = ins.action ? `<div class="insight-action-tip">${escapeHtml(ins.action)}</div>` : '';
-    const buttonHtml = !skipIds.has(ins.id) ? `<div class="insight-create-issue">
-        <button id="btn-${ins.id}" onclick="event.stopPropagation(); createIssueFromInsight('${ins.id}', this)">Create Issue</button>
-        <span class="issue-status" id="status-${ins.id}"></span>
-      </div>` : '';
-    return `<div class="insight-card ${ins.type} animate delay-${Math.min(i + 2, 5)}" onclick="this.classList.toggle('expanded')">
-      <div class="insight-top">
-        <div class="insight-indicator">${emojis[ins.type] || ''}</div>
-        <div class="insight-title">${escapeHtml(ins.title)}</div>
-        <div class="insight-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></div>
-      </div>
-      <div class="insight-expand">
-        ${detailHtml}
-        ${actionHtml}
-        ${buttonHtml}
-      </div>
-    </div>`;
-  }).join('');
+  // Usage tips — behavioral observations, no buttons
+  const tips = insights.filter(ins => !ACTIONABLE_IDS.has(ins.id));
+  const tipsSection = document.getElementById('tipsSection');
+  if (tips.length > 0) {
+    tipsSection.style.display = 'block';
+    document.getElementById('tipsList').innerHTML = tips.map((ins, i) => renderInsightCard(ins, i, false)).join('');
+  } else {
+    tipsSection.style.display = 'none';
+  }
 }
 
 async function createIssueFromInsight(insightId, btn) {
@@ -1316,19 +1359,123 @@ async function createIssueFromInsight(insightId, btn) {
       statusEl.className = 'issue-status error';
       statusEl.textContent = data.error;
       btn.disabled = false;
-      btn.textContent = 'Create Issue';
+      btn.textContent = 'Quick Create';
     }
   } catch (err) {
     statusEl.className = 'issue-status error';
     statusEl.textContent = 'Network error: ' + err.message;
     btn.disabled = false;
-    btn.textContent = 'Create Issue';
+    btn.textContent = 'Quick Create';
   }
+}
+
+async function generateIssueFromInsight(insightId, btn) {
+  const repo = document.getElementById('issueTargetRepo').value.trim();
+  const repoPath = document.getElementById('issueRepoPath').value.trim();
+
+  if (!repo) { alert('Please set a target repo'); return; }
+  if (!repoPath) {
+    alert('Please set a local repo path (the directory where the target repo is cloned)');
+    return;
+  }
+
+  const statusEl = document.getElementById('status-' + insightId);
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+  statusEl.className = 'issue-status';
+  statusEl.innerHTML = '';
+
+  try {
+    const resp = await fetch('/api/generate-issue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ insightId, repo, repoPath }),
+    });
+    const data = await resp.json();
+
+    if (resp.status === 409) {
+      statusEl.className = 'issue-status error';
+      statusEl.textContent = 'Another generation is already running';
+      btn.disabled = false;
+      btn.textContent = 'Generate Issue';
+      return;
+    }
+
+    if (data.error) {
+      statusEl.className = 'issue-status error';
+      statusEl.textContent = data.error;
+      btn.disabled = false;
+      btn.textContent = 'Generate Issue';
+      return;
+    }
+
+    if (data.jobId) {
+      btn.textContent = 'Researching...';
+      statusEl.innerHTML = 'Claude is exploring the codebase...';
+      pollGenerateJob(data.jobId, insightId, btn, statusEl);
+    }
+  } catch (err) {
+    statusEl.className = 'issue-status error';
+    statusEl.textContent = 'Network error: ' + err.message;
+    btn.disabled = false;
+    btn.textContent = 'Generate Issue';
+  }
+}
+
+function pollGenerateJob(jobId, insightId, btn, statusEl) {
+  const stages = ['Researching...', 'Evaluating approaches...', 'Planning tasks...', 'Creating issue...'];
+  let stageIdx = 0;
+  const stageInterval = setInterval(() => {
+    stageIdx = Math.min(stageIdx + 1, stages.length - 1);
+    btn.textContent = stages[stageIdx];
+  }, 30000);
+
+  const poll = setInterval(async () => {
+    try {
+      const resp = await fetch(`/api/generate-issue/status/${jobId}`);
+      const data = await resp.json();
+
+      if (data.status === 'completed') {
+        clearInterval(poll);
+        clearInterval(stageInterval);
+        statusEl.className = 'issue-status';
+        if (data.result && data.result.issueUrl) {
+          const num = data.result.issueUrl.split('/').pop();
+          statusEl.innerHTML = `Generated: <a href="${data.result.issueUrl}" target="_blank">#${num}</a>`;
+          btn.textContent = 'Generated';
+        } else {
+          statusEl.innerHTML = 'Completed (check target repo for new issue)';
+          btn.textContent = 'Done';
+        }
+      } else if (data.status === 'failed') {
+        clearInterval(poll);
+        clearInterval(stageInterval);
+        statusEl.className = 'issue-status error';
+        statusEl.textContent = data.error || 'Generation failed';
+        btn.disabled = false;
+        btn.textContent = 'Generate Issue';
+      }
+    } catch {
+      // Network blip — keep polling
+    }
+  }, 5000);
+}
+
+// Persist repo config in localStorage
+function initRepoConfig() {
+  const repoInput = document.getElementById('issueTargetRepo');
+  const pathInput = document.getElementById('issueRepoPath');
+  const savedRepo = localStorage.getItem('claude-spend-target-repo');
+  const savedPath = localStorage.getItem('claude-spend-repo-path');
+  if (savedRepo) repoInput.value = savedRepo;
+  if (savedPath) pathInput.value = savedPath;
+  repoInput.addEventListener('change', () => localStorage.setItem('claude-spend-target-repo', repoInput.value));
+  pathInput.addEventListener('change', () => localStorage.setItem('claude-spend-repo-path', pathInput.value));
 }
 
 // Pipeline Efficiency
 function renderPipeline() {
-  const orch = RAW_DATA.orchestrator;
+  const orch = DATA.orchestrator;
   const section = document.getElementById('pipelineSection');
   if (!orch || !orch.summary || orch.summary.totalRuns === 0) {
     section.style.display = 'none';

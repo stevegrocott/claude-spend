@@ -323,4 +323,14 @@ function mapInsightToIssue(insight) {
   };
 }
 
-module.exports = { mapInsightToIssue };
+/**
+ * Returns the raw mapping for an insight ID (targetFiles, labels, tasks, etc.)
+ * @param {string} insightId
+ * @returns {Object|null}
+ */
+function getInsightMapping(insightId) {
+  if (!insightId || SKIP_IDS.has(insightId)) return null;
+  return INSIGHT_MAPPINGS[insightId] || null;
+}
+
+module.exports = { mapInsightToIssue, getInsightMapping };
