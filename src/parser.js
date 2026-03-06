@@ -327,6 +327,10 @@ async function parseAllSessions() {
   // Generate insights
   const insights = generateInsights(sessions, allPrompts, grandTotals);
 
+  // Parse orchestrator logs from project directories
+  const orchestrator = parseOrchestratorLogs();
+  const orchestratorInsights = generateOrchestratorInsights(orchestrator);
+
   return {
     sessions,
     dailyUsage,
@@ -334,8 +338,213 @@ async function parseAllSessions() {
     projectBreakdown,
     topPrompts,
     totals: grandTotals,
-    insights,
+    insights: [...insights, ...orchestratorInsights],
+    orchestrator,
   };
+}
+
+function emptySummary() {
+  return { totalRuns: 0, completedRuns: 0, errorRuns: 0, maxIterationsRuns: 0, completionRate: 0, avgQualityIterations: 0, avgTestIterations: 0, stageAvgs: [], topChurners: [] };
+}
+
+function parseOrchestratorLogs() {
+  const runs = [];
+
+  // Scan ~/projects/*/ for orchestrator log directories
+  const projectsRoot = path.join(os.homedir(), 'projects');
+  if (!fs.existsSync(projectsRoot)) return { runs: [], summary: emptySummary() };
+
+  let projectDirNames;
+  try { projectDirNames = fs.readdirSync(projectsRoot); } catch { return { runs: [], summary: emptySummary() }; }
+
+  const logPatterns = ['logs/implement-issue', 'logs/test-fix-loop'];
+
+  for (const projName of projectDirNames) {
+    const projPath = path.join(projectsRoot, projName);
+    try { if (!fs.statSync(projPath).isDirectory()) continue; } catch { continue; }
+
+    for (const pattern of logPatterns) {
+      const logsDir = path.join(projPath, pattern);
+      if (!fs.existsSync(logsDir)) continue;
+
+      let entries;
+      try { entries = fs.readdirSync(logsDir); } catch { continue; }
+
+      for (const entry of entries) {
+        const statusPath = path.join(logsDir, entry, 'status.json');
+        if (!fs.existsSync(statusPath)) continue;
+
+        try {
+          const raw = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+          const stages = raw.stages || {};
+
+          // Calculate stage durations
+          const stageDurations = {};
+          for (const [name, stage] of Object.entries(stages)) {
+            if (stage.started_at && stage.completed_at) {
+              stageDurations[name] = (new Date(stage.completed_at) - new Date(stage.started_at)) / 1000;
+            }
+          }
+
+          // Extract date from directory name (e.g., issue-17-20260221-090547)
+          const dateMatch = entry.match(/(\d{8})-(\d{6})$/);
+          const date = dateMatch
+            ? `${dateMatch[1].slice(0,4)}-${dateMatch[1].slice(4,6)}-${dateMatch[1].slice(6,8)}`
+            : null;
+
+          runs.push({
+            project: projName,
+            projectPath: projPath,
+            logType: pattern.split('/').pop(),
+            issue: raw.issue || null,
+            state: raw.state || 'unknown',
+            taskCount: (raw.tasks || []).length,
+            qualityIterations: raw.quality_iterations || stages.quality_loop?.iteration || 0,
+            testIterations: raw.test_iterations || stages.test_loop?.iteration || 0,
+            prReviewIterations: raw.pr_review_iterations || stages.pr_review?.iteration || 0,
+            stageDurations,
+            date,
+            dirName: entry,
+          });
+        } catch {
+          // Skip malformed status.json
+        }
+      }
+    }
+  }
+
+  // Sort by date descending
+  runs.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  // Generate summary
+  const validRuns = runs.filter(r => r.state !== 'initializing');
+  const completedRuns = validRuns.filter(r => r.state === 'completed');
+  const errorRuns = validRuns.filter(r => r.state === 'error');
+  const maxIterRuns = validRuns.filter(r => r.state.startsWith('max_iterations'));
+  const runsWithQuality = validRuns.filter(r => r.qualityIterations > 0);
+  const runsWithTests = validRuns.filter(r => r.testIterations > 0);
+
+  const avgQuality = runsWithQuality.length > 0
+    ? runsWithQuality.reduce((s, r) => s + r.qualityIterations, 0) / runsWithQuality.length
+    : 0;
+  const avgTests = runsWithTests.length > 0
+    ? runsWithTests.reduce((s, r) => s + r.testIterations, 0) / runsWithTests.length
+    : 0;
+
+  // Find stage bottlenecks
+  const stageTotals = {};
+  const stageCounts = {};
+  for (const run of validRuns) {
+    for (const [name, duration] of Object.entries(run.stageDurations)) {
+      stageTotals[name] = (stageTotals[name] || 0) + duration;
+      stageCounts[name] = (stageCounts[name] || 0) + 1;
+    }
+  }
+  const stageAvgs = Object.entries(stageTotals).map(([name, total]) => ({
+    name,
+    avgSeconds: Math.round(total / stageCounts[name]),
+    count: stageCounts[name],
+  })).sort((a, b) => b.avgSeconds - a.avgSeconds);
+
+  // Top churners (highest iteration counts)
+  const topChurners = [...validRuns]
+    .sort((a, b) => (b.qualityIterations + b.testIterations) - (a.qualityIterations + a.testIterations))
+    .slice(0, 5)
+    .filter(r => r.qualityIterations + r.testIterations > 0);
+
+  return {
+    runs,
+    summary: {
+      totalRuns: validRuns.length,
+      completedRuns: completedRuns.length,
+      errorRuns: errorRuns.length,
+      maxIterationsRuns: maxIterRuns.length,
+      completionRate: validRuns.length > 0 ? Math.round((completedRuns.length / validRuns.length) * 100) : 0,
+      avgQualityIterations: Math.round(avgQuality * 10) / 10,
+      avgTestIterations: Math.round(avgTests * 10) / 10,
+      stageAvgs,
+      topChurners,
+    },
+  };
+}
+
+function generateOrchestratorInsights(orchestrator) {
+  const insights = [];
+  const { summary, runs } = orchestrator;
+  if (!summary || summary.totalRuns < 3) return insights;
+
+  // 1. Quality loop churn
+  if (summary.avgQualityIterations > 2) {
+    const worst = summary.topChurners.filter(r => r.qualityIterations > 2);
+    const worstList = worst.map(r => `#${r.issue} (${r.qualityIterations} iterations)`).join(', ');
+    insights.push({
+      id: 'quality-churn',
+      type: 'warning',
+      title: `Quality loop averaging ${summary.avgQualityIterations} iterations per run`,
+      description: `Across ${summary.totalRuns} pipeline runs, the quality review loop averages ${summary.avgQualityIterations} iterations. Ideal is 1-2. Worst offenders: ${worstList || 'none over 2'}. Each extra iteration means the implementer's output didn't meet the reviewer's standards, costing a full re-review cycle.`,
+      action: 'Review the implementer prompt and code-quality-reviewer prompt. Common fixes: add specific coding standards to implementer prompt, reduce reviewer strictness on style-only issues, or improve the task descriptions to be more precise.',
+    });
+  }
+
+  // 2. Test loop churn
+  if (summary.avgTestIterations > 2) {
+    const worst = runs.filter(r => r.testIterations > 2).slice(0, 3);
+    const worstList = worst.map(r => `#${r.issue} (${r.testIterations} iterations)`).join(', ');
+    insights.push({
+      id: 'test-churn',
+      type: 'warning',
+      title: `Test loop averaging ${summary.avgTestIterations} iterations per run`,
+      description: `The test-fix loop averages ${summary.avgTestIterations} iterations across runs with test activity. Worst: ${worstList || 'n/a'}. Each iteration means tests failed after implementation, requiring a fix cycle.`,
+      action: 'Strengthen the implementer prompt to emphasize running tests before committing. Consider adding test command examples to task descriptions.',
+    });
+  }
+
+  // 3. Low completion rate
+  if (summary.completionRate < 50 && summary.totalRuns >= 5) {
+    const errorPct = Math.round((summary.errorRuns / summary.totalRuns) * 100);
+    const maxIterPct = Math.round((summary.maxIterationsRuns / summary.totalRuns) * 100);
+    insights.push({
+      id: 'low-completion-rate',
+      type: 'warning',
+      title: `Only ${summary.completionRate}% of pipeline runs complete successfully`,
+      description: `Out of ${summary.totalRuns} pipeline runs: ${summary.completedRuns} completed (${summary.completionRate}%), ${summary.errorRuns} errored (${errorPct}%), ${summary.maxIterationsRuns} hit max iterations (${maxIterPct}%). A healthy pipeline should complete >70% of runs.`,
+      action: 'Investigate error-state runs for common failure patterns. For max-iterations runs, consider increasing iteration limits or improving agent prompts to converge faster.',
+    });
+  }
+
+  // 4. Stage bottleneck
+  if (summary.stageAvgs.length > 0) {
+    const slowest = summary.stageAvgs[0];
+    if (slowest.avgSeconds > 300) { // > 5 minutes average
+      const mins = Math.round(slowest.avgSeconds / 60);
+      insights.push({
+        id: 'stage-bottleneck',
+        type: 'info',
+        title: `"${slowest.name}" stage averages ${mins} minutes — slowest pipeline stage`,
+        description: `The "${slowest.name}" stage averages ${mins} minutes across ${slowest.count} runs. ${summary.stageAvgs.slice(1, 4).map(s => `"${s.name}": ${Math.round(s.avgSeconds / 60)}m`).join(', ')}. Long stages increase token cost due to context accumulation.`,
+        action: 'Consider splitting large tasks in this stage, or check if the stage is doing unnecessary work (e.g., reading too many files, running full test suites instead of targeted tests).',
+      });
+    }
+  }
+
+  // 5. Error pattern
+  if (summary.errorRuns > 0 && (summary.errorRuns / summary.totalRuns) > 0.3) {
+    const errorExamples = runs.filter(r => r.state === 'error').slice(0, 5);
+    const zeroTaskErrors = errorExamples.filter(r => r.taskCount === 0);
+    const errorPct = Math.round((summary.errorRuns / summary.totalRuns) * 100);
+    const detail = zeroTaskErrors.length > 0
+      ? `${zeroTaskErrors.length} of ${summary.errorRuns} errors happened before any tasks were parsed (likely issue parsing or validation failures).`
+      : `Errors occurred during task execution.`;
+    insights.push({
+      id: 'error-pattern',
+      type: 'warning',
+      title: `${errorPct}% of pipeline runs end in error state`,
+      description: `${summary.errorRuns} out of ${summary.totalRuns} runs ended in error. ${detail} Error examples: ${errorExamples.map(r => `#${r.issue}`).join(', ')}.`,
+      action: 'Check orchestrator logs for the error-state runs. Zero-task errors usually mean issue parsing failed (malformed task list). Execution errors may need better error handling in the orchestrator.',
+    });
+  }
+
+  return insights;
 }
 
 function generateInsights(sessions, allPrompts, totals) {

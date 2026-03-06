@@ -144,6 +144,103 @@ const INSIGHT_MAPPINGS = {
       'Input/output ratio implications are documented for session planning',
     ],
   },
+
+  // --- Orchestrator-derived insights ---
+
+  'quality-churn': {
+    titlePrefix: 'Reduce quality loop churn in pipeline',
+    labels: ['spend-analysis', 'pipeline-efficiency'],
+    targetFiles: [
+      '.claude/skills/subagent-driven-development/implementer-prompt.md',
+      '.claude/skills/subagent-driven-development/code-quality-reviewer-prompt.md',
+    ],
+    section: 'Quality Loop Optimization',
+    tasks: [
+      { agent: 'default', size: 'M', desc: 'Review and tighten implementer-prompt.md to address common quality review failures' },
+      { agent: 'default', size: 'S', desc: 'Review code-quality-reviewer-prompt.md for overly strict or ambiguous criteria' },
+      { agent: 'default', size: 'S', desc: 'Add self-review checklist items to implementer prompt targeting common review feedback' },
+    ],
+    acceptanceCriteria: [
+      'Implementer prompt includes checklist targeting common quality review failures',
+      'Reviewer prompt distinguishes blocking issues from style preferences',
+      'Average quality loop iterations decreases in subsequent pipeline runs',
+    ],
+  },
+
+  'test-churn': {
+    titlePrefix: 'Reduce test loop churn in pipeline',
+    labels: ['spend-analysis', 'pipeline-efficiency'],
+    targetFiles: [
+      '.claude/skills/subagent-driven-development/implementer-prompt.md',
+      '.claude/skills/test-driven-development/SKILL.md',
+    ],
+    section: 'Test Loop Optimization',
+    tasks: [
+      { agent: 'default', size: 'M', desc: 'Add explicit test-running instructions to implementer-prompt.md' },
+      { agent: 'default', size: 'S', desc: 'Add test command examples to task description template in explore/SKILL.md' },
+      { agent: 'default', size: 'S', desc: 'Document common test failure patterns and preventive measures' },
+    ],
+    acceptanceCriteria: [
+      'Implementer prompt requires running tests before committing',
+      'Task descriptions include specific test commands',
+      'Average test loop iterations decreases in subsequent runs',
+    ],
+  },
+
+  'low-completion-rate': {
+    titlePrefix: 'Improve pipeline completion rate',
+    labels: ['spend-analysis', 'pipeline-efficiency'],
+    targetFiles: [
+      '.claude/scripts/implement-issue-orchestrator.sh',
+      '.claude/skills/explore/SKILL.md',
+    ],
+    section: 'Pipeline Reliability',
+    tasks: [
+      { agent: 'default', size: 'M', desc: 'Audit error-state runs in orchestrator logs to identify common failure patterns' },
+      { agent: 'default', size: 'S', desc: 'Add error recovery guidance to orchestrator' },
+      { agent: 'default', size: 'S', desc: 'Improve task description quality in explore/SKILL.md to reduce parse failures' },
+    ],
+    acceptanceCriteria: [
+      'Common error patterns documented with mitigations',
+      'Orchestrator has improved error handling',
+      'Completion rate increases above 50%',
+    ],
+  },
+
+  'stage-bottleneck': {
+    titlePrefix: 'Optimize slowest pipeline stage',
+    labels: ['spend-analysis', 'pipeline-efficiency'],
+    targetFiles: ['.claude/scripts/implement-issue-orchestrator.sh'],
+    section: 'Stage Performance',
+    tasks: [
+      { agent: 'default', size: 'M', desc: 'Analyze slowest stage for causes (task size, model tier, file reads)' },
+      { agent: 'default', size: 'S', desc: 'Add task-splitting or timeout guidance for long-running stages' },
+    ],
+    acceptanceCriteria: [
+      'Slowest stage cause identified and documented',
+      'Mitigation implemented (splitting, timeout, or model tier change)',
+    ],
+  },
+
+  'error-pattern': {
+    titlePrefix: 'Address recurring pipeline error patterns',
+    labels: ['spend-analysis', 'pipeline-efficiency'],
+    targetFiles: [
+      '.claude/scripts/implement-issue-orchestrator.sh',
+      '.claude/skills/explore/SKILL.md',
+    ],
+    section: 'Error Reduction',
+    tasks: [
+      { agent: 'default', size: 'M', desc: 'Categorize error-state runs by failure type (parse, validation, implementation, test)' },
+      { agent: 'default', size: 'S', desc: 'Add pre-flight validation for the most common error causes' },
+      { agent: 'default', size: 'S', desc: 'Update explore/SKILL.md task format to prevent parse failures' },
+    ],
+    acceptanceCriteria: [
+      'Error patterns categorized with frequency counts',
+      'Top error cause has pre-flight validation',
+      'Error rate decreases below 20%',
+    ],
+  },
 };
 
 // Non-actionable insight IDs that should return null
