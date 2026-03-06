@@ -297,7 +297,7 @@
   .insight-expand {
     max-height: 0; overflow: hidden; transition: max-height 0.3s ease;
   }
-  .insight-card.expanded .insight-expand { max-height: 300px; }
+  .insight-card.expanded .insight-expand { max-height: 500px; }
   .insight-detail {
     font-size: 13px; color: var(--text-secondary); line-height: 1.65;
     padding: 12px 0 4px 40px;
@@ -306,6 +306,31 @@
   .insight-action-tip {
     font-size: 13px; line-height: 1.6;
     padding: 8px 0 0 40px; color: var(--indigo); font-weight: 600;
+  }
+  .insight-create-issue {
+    padding: 8px 0 4px 40px; display: flex; align-items: center; gap: 8px;
+  }
+  .insight-create-issue button {
+    font-size: 12px; font-weight: 600; padding: 6px 14px;
+    border: 1px solid var(--indigo); border-radius: var(--radius-sm);
+    background: var(--white); color: var(--indigo); cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .insight-create-issue button:hover { background: var(--indigo); color: var(--white); }
+  .insight-create-issue button:disabled { opacity: 0.5; cursor: default; pointer-events: none; }
+  .insight-create-issue .issue-status {
+    font-size: 12px; font-weight: 500;
+  }
+  .insight-create-issue .issue-status a { color: var(--indigo); text-decoration: underline; }
+  .insight-create-issue .issue-status.duplicate { color: var(--amber); }
+  .insight-create-issue .issue-status.error { color: #EF4444; }
+  .insight-repo-config {
+    padding: 4px 0 8px 40px; display: flex; align-items: center; gap: 8px;
+  }
+  .insight-repo-config label { font-size: 11px; color: var(--text-tertiary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .insight-repo-config input {
+    font-size: 12px; padding: 4px 8px; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); width: 260px; font-family: var(--mono);
   }
 
   /* ---- CHARTS ---- */
@@ -639,6 +664,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 4 12.75V17a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.25A7 7 0 0 1 12 2z"/><path d="M9 21h6"/></svg>
       </div>
       <div class="section-title">Insights</div>
+    </div>
+    <div class="insight-repo-config">
+      <label>Target repo</label>
+      <input type="text" id="issueTargetRepo" value="stevegrocott/claude-pipeline" placeholder="owner/repo">
     </div>
     <div id="insightsList"></div>
   </div>
@@ -1221,9 +1250,14 @@ function renderInsights() {
   const icons = { warning: '!', info: 'i', neutral: '~' };
   const emojis = { warning: '\u26A0\uFE0F', info: '\uD83D\uDCA1', neutral: '\uD83D\uDCC5' };
 
+  const skipIds = new Set(['day-pattern', 'project-dominance']);
   document.getElementById('insightsList').innerHTML = insights.map((ins, i) => {
     const detailHtml = ins.description ? `<div class="insight-detail">${escapeHtml(ins.description)}</div>` : '';
     const actionHtml = ins.action ? `<div class="insight-action-tip">${escapeHtml(ins.action)}</div>` : '';
+    const buttonHtml = !skipIds.has(ins.id) ? `<div class="insight-create-issue">
+        <button id="btn-${ins.id}" onclick="event.stopPropagation(); createIssueFromInsight('${ins.id}', this)">Create Issue</button>
+        <span class="issue-status" id="status-${ins.id}"></span>
+      </div>` : '';
     return `<div class="insight-card ${ins.type} animate delay-${Math.min(i + 2, 5)}" onclick="this.classList.toggle('expanded')">
       <div class="insight-top">
         <div class="insight-indicator">${emojis[ins.type] || ''}</div>
@@ -1233,9 +1267,50 @@ function renderInsights() {
       <div class="insight-expand">
         ${detailHtml}
         ${actionHtml}
+        ${buttonHtml}
       </div>
     </div>`;
   }).join('');
+}
+
+async function createIssueFromInsight(insightId, btn) {
+  const repo = document.getElementById('issueTargetRepo').value.trim();
+  if (!repo) { alert('Please set a target repo'); return; }
+
+  const statusEl = document.getElementById('status-' + insightId);
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+  statusEl.className = 'issue-status';
+  statusEl.innerHTML = '';
+
+  try {
+    const resp = await fetch('/api/create-issue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ insightId, repo }),
+    });
+    const data = await resp.json();
+
+    if (data.duplicate) {
+      statusEl.className = 'issue-status duplicate';
+      statusEl.innerHTML = `Already exists: <a href="${data.existingUrl}" target="_blank">#${data.number}</a>`;
+      btn.textContent = 'Duplicate';
+    } else if (data.created) {
+      statusEl.className = 'issue-status';
+      statusEl.innerHTML = `Created: <a href="${data.url}" target="_blank">#${data.number}</a>`;
+      btn.textContent = 'Created';
+    } else if (data.error) {
+      statusEl.className = 'issue-status error';
+      statusEl.textContent = data.error;
+      btn.disabled = false;
+      btn.textContent = 'Create Issue';
+    }
+  } catch (err) {
+    statusEl.className = 'issue-status error';
+    statusEl.textContent = 'Network error: ' + err.message;
+    btn.disabled = false;
+    btn.textContent = 'Create Issue';
+  }
 }
 
 // Daily chart
