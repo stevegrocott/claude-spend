@@ -7,6 +7,27 @@ function getClaudeDir() {
   return path.join(os.homedir(), '.claude');
 }
 
+// Pricing model: USD per million tokens (MTok)
+const PRICING = {
+  haiku:  { input: 0.25,  output: 1.25 },
+  sonnet: { input: 3.0,   output: 15.0 },
+  opus:   { input: 15.0,  output: 75.0 },
+};
+
+function getModelPricing(model) {
+  const m = (model || '').toLowerCase();
+  if (m.includes('haiku'))  return PRICING.haiku;
+  if (m.includes('opus'))   return PRICING.opus;
+  if (m.includes('sonnet')) return PRICING.sonnet;
+  return null;
+}
+
+function calculateCost(inputTokens, outputTokens, model) {
+  const pricing = getModelPricing(model);
+  if (!pricing) return 0;
+  return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+}
+
 async function parseJSONLFile(filePath) {
   const lines = [];
   const stream = fs.createReadStream(filePath, { encoding: 'utf-8' });
@@ -70,6 +91,7 @@ function extractSessionData(entries) {
         inputTokens,
         outputTokens,
         totalTokens: inputTokens + outputTokens,
+        cost: calculateCost(inputTokens, outputTokens, model),
         tools,
       });
     }
@@ -128,10 +150,11 @@ async function parseAllSessions() {
       const queries = extractSessionData(entries);
       if (queries.length === 0) continue;
 
-      let inputTokens = 0, outputTokens = 0;
+      let inputTokens = 0, outputTokens = 0, estimatedCost = 0;
       for (const q of queries) {
         inputTokens += q.inputTokens;
         outputTokens += q.outputTokens;
+        estimatedCost += q.cost || 0;
       }
       const totalTokens = inputTokens + outputTokens;
 
@@ -190,30 +213,33 @@ async function parseAllSessions() {
         inputTokens,
         outputTokens,
         totalTokens,
+        estimatedCost,
       });
 
       // Daily
       if (date !== 'unknown') {
         if (!dailyMap[date]) {
-          dailyMap[date] = { date, inputTokens: 0, outputTokens: 0, totalTokens: 0, sessions: 0, queries: 0 };
+          dailyMap[date] = { date, inputTokens: 0, outputTokens: 0, totalTokens: 0, sessions: 0, queries: 0, estimatedCost: 0 };
         }
         dailyMap[date].inputTokens += inputTokens;
         dailyMap[date].outputTokens += outputTokens;
         dailyMap[date].totalTokens += totalTokens;
         dailyMap[date].sessions += 1;
         dailyMap[date].queries += queries.length;
+        dailyMap[date].estimatedCost += estimatedCost;
       }
 
       // Model
       for (const q of queries) {
         if (q.model === '<synthetic>' || q.model === 'unknown') continue;
         if (!modelMap[q.model]) {
-          modelMap[q.model] = { model: q.model, inputTokens: 0, outputTokens: 0, totalTokens: 0, queryCount: 0 };
+          modelMap[q.model] = { model: q.model, inputTokens: 0, outputTokens: 0, totalTokens: 0, queryCount: 0, estimatedCost: 0 };
         }
         modelMap[q.model].inputTokens += q.inputTokens;
         modelMap[q.model].outputTokens += q.outputTokens;
         modelMap[q.model].totalTokens += q.totalTokens;
         modelMap[q.model].queryCount += 1;
+        modelMap[q.model].estimatedCost += q.cost || 0;
       }
     }
   }
@@ -228,7 +254,7 @@ async function parseAllSessions() {
       projectMap[proj] = {
         project: proj,
         inputTokens: 0, outputTokens: 0, totalTokens: 0,
-        sessionCount: 0, queryCount: 0,
+        sessionCount: 0, queryCount: 0, estimatedCost: 0,
         modelMap: {},
         allPrompts: [],
       };
@@ -239,17 +265,19 @@ async function parseAllSessions() {
     p.totalTokens += session.totalTokens;
     p.sessionCount += 1;
     p.queryCount += session.queryCount;
+    p.estimatedCost += session.estimatedCost || 0;
 
     for (const q of session.queries) {
       if (q.model === '<synthetic>' || q.model === 'unknown') continue;
       if (!p.modelMap[q.model]) {
-        p.modelMap[q.model] = { model: q.model, inputTokens: 0, outputTokens: 0, totalTokens: 0, queryCount: 0 };
+        p.modelMap[q.model] = { model: q.model, inputTokens: 0, outputTokens: 0, totalTokens: 0, queryCount: 0, estimatedCost: 0 };
       }
       const m = p.modelMap[q.model];
       m.inputTokens += q.inputTokens;
       m.outputTokens += q.outputTokens;
       m.totalTokens += q.totalTokens;
       m.queryCount += 1;
+      m.estimatedCost += q.cost || 0;
     }
 
     // Per-project prompt grouping with tool tracking
@@ -295,6 +323,7 @@ async function parseAllSessions() {
     totalTokens: p.totalTokens,
     sessionCount: p.sessionCount,
     queryCount: p.queryCount,
+    estimatedCost: p.estimatedCost,
     modelBreakdown: Object.values(p.modelMap).sort((a, b) => b.totalTokens - a.totalTokens),
     topPrompts: (p.allPrompts || []).sort((a, b) => b.totalTokens - a.totalTokens).slice(0, 10),
   })).sort((a, b) => b.totalTokens - a.totalTokens);
@@ -311,6 +340,7 @@ async function parseAllSessions() {
     totalTokens: sessions.reduce((sum, s) => sum + s.totalTokens, 0),
     totalInputTokens: sessions.reduce((sum, s) => sum + s.inputTokens, 0),
     totalOutputTokens: sessions.reduce((sum, s) => sum + s.outputTokens, 0),
+    totalEstimatedCost: sessions.reduce((sum, s) => sum + (s.estimatedCost || 0), 0),
     avgTokensPerQuery: 0,
     avgTokensPerSession: 0,
     dateRange: dailyUsage.length > 0
@@ -327,8 +357,14 @@ async function parseAllSessions() {
   // Generate insights
   const insights = generateInsights(sessions, allPrompts, grandTotals);
 
+  // Build project->cost map for orchestrator run cost correlation
+  const projectCostMap = {};
+  for (const s of sessions) {
+    projectCostMap[s.project] = (projectCostMap[s.project] || 0) + (s.estimatedCost || 0);
+  }
+
   // Parse orchestrator logs from project directories
-  const orchestrator = parseOrchestratorLogs();
+  const orchestrator = parseOrchestratorLogs(projectCostMap);
   const orchestratorInsights = generateOrchestratorInsights(orchestrator);
 
   return {
@@ -347,8 +383,14 @@ function emptySummary() {
   return { totalRuns: 0, completedRuns: 0, errorRuns: 0, maxIterationsRuns: 0, completionRate: 0, avgQualityIterations: 0, avgTestIterations: 0, stageAvgs: [], topChurners: [] };
 }
 
-function parseOrchestratorLogs() {
+function parseOrchestratorLogs(projectCostMap = {}) {
   const runs = [];
+
+  // Encode a filesystem path to the format used in ~/.claude/projects/
+  // e.g. /Users/foo/bar -> -Users-foo-bar
+  function encodeProjectPath(p) {
+    return p.replace(/\//g, '-').replace(/^-/, '');
+  }
 
   // Scan ~/projects/*/ for orchestrator log directories
   const projectsRoot = path.join(os.homedir(), 'projects');
@@ -392,6 +434,21 @@ function parseOrchestratorLogs() {
             ? `${dateMatch[1].slice(0,4)}-${dateMatch[1].slice(4,6)}-${dateMatch[1].slice(6,8)}`
             : null;
 
+          // Calculate cost from worktree sessions
+          const runBaseDir = path.join(logsDir, entry);
+          let estimatedCost = 0;
+          const worktreesDir = path.join(runBaseDir, 'worktrees');
+          if (fs.existsSync(worktreesDir)) {
+            try {
+              const worktrees = fs.readdirSync(worktreesDir);
+              for (const wt of worktrees) {
+                const wtPath = path.join(worktreesDir, wt);
+                const encodedPath = encodeProjectPath(wtPath);
+                estimatedCost += projectCostMap[encodedPath] || 0;
+              }
+            } catch { /* skip */ }
+          }
+
           runs.push({
             project: projName,
             projectPath: projPath,
@@ -405,6 +462,7 @@ function parseOrchestratorLogs() {
             stageDurations,
             date,
             dirName: entry,
+            estimatedCost,
           });
         } catch {
           // Skip malformed status.json
