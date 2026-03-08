@@ -100,6 +100,15 @@ function extractSessionData(entries) {
   return queries;
 }
 
+function normalizeProjectPath(projectDir) {
+  // Normalize worktree paths matching pattern *-logs-implement-issue-* back to parent project
+  const match = projectDir.match(/^(.+?)-logs-implement-issue-.+$/);
+  if (match) {
+    return match[1];
+  }
+  return projectDir;
+}
+
 async function parseAllSessions() {
   const claudeDir = getClaudeDir();
   const projectsDir = path.join(claudeDir, 'projects');
@@ -206,7 +215,7 @@ async function parseAllSessions() {
 
       sessions.push({
         sessionId,
-        project: projectDir,
+        project: normalizeProjectPath(projectDir),
         date,
         timestamp: firstTimestamp,
         firstPrompt: firstPrompt.substring(0, 200),
