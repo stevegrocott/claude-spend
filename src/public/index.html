@@ -410,6 +410,16 @@
   .lens-btn.active[data-lens="cost"] { background: var(--gradient-warm); border-color: var(--amber); color: white; }
   .lens-btn.active[data-lens="speed"] { background: var(--gradient-teal); border-color: var(--teal); color: white; }
   .lens-btn.active[data-lens="quality"] { background: var(--gradient-main); border-color: var(--indigo); color: white; }
+  .lens-btn { text-decoration: none; }
+
+  /* ---- LENS SECTIONS ---- */
+  .lens-section { margin-bottom: 48px; scroll-margin-top: 24px; }
+  .lens-section > .section-header { margin-bottom: 16px; }
+  .lens-section-divider {
+    height: 2px; border-radius: 2px; margin: 0 0 20px;
+    background: linear-gradient(90deg, currentColor 0%, transparent 100%);
+    opacity: 0.15;
+  }
 
   /* ---- LENS STATS BAR ---- */
   .lens-stats-bar {
@@ -764,101 +774,121 @@
     Tokens are how AI measures text -- roughly 1 token = 1 word. Hover over any label with a <span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(0,0,0,0.08);font-size:10px;font-weight:700;vertical-align:middle;">?</span> for an explanation.
   </div>
 
-  <!-- Recommendations -->
-  <div id="recsSection" class="recs-section" style="display:none">
-    <div class="section-header animate">
-      <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-      </div>
-      <div class="section-title">Recommendations</div>
-    </div>
-    <div id="recsGrid" class="recs-grid"></div>
+  <!-- Lens Navigation -->
+  <div class="lens-selector animate delay-2" id="lensSelectorRow">
+    <span class="lens-selector-label">Jump to</span>
+    <a class="lens-btn active" data-lens="cost" href="#lensSection-cost">Cost</a>
+    <a class="lens-btn" data-lens="speed" href="#lensSection-speed">Speed</a>
+    <a class="lens-btn" data-lens="quality" href="#lensSection-quality">Quality</a>
   </div>
 
-  <!-- Insights -->
-  <div id="insightsSection" class="insights-section" style="display:none">
-    <div class="section-header animate">
+  <!-- Shared repo config for insight issue creation -->
+  <div class="insight-repo-config" style="margin-bottom:20px">
+    <label>Target repo</label>
+    <input type="text" id="issueTargetRepo" value="stevegrocott/claude-pipeline" placeholder="owner/repo">
+  </div>
+
+  <!-- ── COST LENS SECTION ── -->
+  <section id="lensSection-cost" class="lens-section animate delay-3">
+    <div class="section-header">
       <div class="section-icon" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 4 12.75V17a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.25A7 7 0 0 1 12 2z"/><path d="M9 21h6"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       </div>
-      <div class="section-title">Insights</div>
+      <div class="section-title">Cost</div>
     </div>
-    <div class="lens-selector" id="lensSelectorRow">
-      <span class="lens-selector-label">Optimize for</span>
-      <button class="lens-btn active" data-lens="cost" onclick="setLens('cost')">Cost</button>
-      <button class="lens-btn" data-lens="speed" onclick="setLens('speed')">Speed</button>
-      <button class="lens-btn" data-lens="quality" onclick="setLens('quality')">Quality</button>
+    <div class="lens-stats-bar" id="lensStatsBar-cost"></div>
+    <div class="charts-grid" style="margin-bottom:16px">
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Tokens per Day<div class="tooltip">How many tokens you used each day. Taller bars mean heavier usage days. The indigo portion is what Claude read, the teal is what Claude wrote.</div></h3>
+        <canvas id="dailyChart"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--indigo)"></div> Read by Claude (your messages + context)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> Written by Claude (responses)</div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>By Model</h3>
+        <canvas id="modelChart"></canvas>
+        <div id="modelLegend" class="legend" style="flex-direction:column; gap:12px; margin-top:20px;"></div>
+      </div>
     </div>
-    <div class="lens-stats-bar" id="lensStatsBar"></div>
-    <div class="insight-repo-config">
-      <label>Target repo</label>
-      <input type="text" id="issueTargetRepo" value="stevegrocott/claude-pipeline" placeholder="owner/repo">
+    <div style="margin-bottom:16px">
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Model Tier Mix<div class="tooltip">Daily breakdown of token usage by model tier. Shifting more work to cheaper tiers (Haiku, Sonnet) for simple tasks is the cheapest efficiency gain.</div></h3>
+        <canvas id="tierMixChart"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#6366F1"></div> Opus</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div> Sonnet</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#F97316"></div> Haiku</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#94A3B8"></div> Other</div>
+        </div>
+      </div>
     </div>
-    <div id="insightsList"></div>
-  </div>
+    <div id="insightsList-cost"></div>
+    <div id="pipelineRecs-cost"></div>
+  </section>
 
-  <!-- Pipeline Efficiency -->
-  <div id="pipelineSection" class="insights-section" style="display:none">
-    <div class="section-header animate">
+  <!-- ── SPEED LENS SECTION ── -->
+  <section id="lensSection-speed" class="lens-section animate delay-3">
+    <div class="section-header">
       <div class="section-icon" style="background:linear-gradient(135deg,#CCFBF1,#99F6E4)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2.5" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
       </div>
-      <div class="section-title">Pipeline Efficiency</div>
+      <div class="section-title">Speed</div>
     </div>
-    <div class="stats-row" id="pipelineStats"></div>
-    <div id="pipelineBreakdown" style="margin:16px 0"></div>
-  </div>
+    <div class="lens-stats-bar" id="lensStatsBar-speed"></div>
+    <div class="charts-grid" style="margin-bottom:16px">
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Tokens per Query<div class="tooltip">Average tokens consumed per query each day. Lower means your prompts are more specific and Claude explores less per turn. A declining trend indicates improving prompting efficiency.</div></h3>
+        <canvas id="tpqChart"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#8B5CF6"></div> Daily avg tokens/query</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(244,63,94,0.5)"></div> 7-day moving average</div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Read : Write Ratio Over Time<div class="tooltip">Daily ratio of tokens Claude read vs wrote. Lower is better &mdash; it means Claude is writing more relative to what it reads. A declining trend indicates improving efficiency.</div></h3>
+        <canvas id="ratioChart"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div> Daily ratio (read &divide; write)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(99,102,241,0.5)"></div> 7-day moving average</div>
+        </div>
+      </div>
+    </div>
+    <div id="insightsList-speed"></div>
+    <div id="pipelineRecs-speed"></div>
+  </section>
 
-  <!-- Charts -->
-  <div class="charts-grid animate delay-3">
-    <div class="chart-card">
-      <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Tokens per Day<div class="tooltip">How many tokens you used each day. Taller bars mean heavier usage days. The indigo portion is what Claude read, the teal is what Claude wrote.</div></h3>
-      <canvas id="dailyChart"></canvas>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:var(--indigo)"></div> Read by Claude (your messages + context)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> Written by Claude (responses)</div>
+  <!-- ── QUALITY LENS SECTION ── -->
+  <section id="lensSection-quality" class="lens-section animate delay-3">
+    <div class="section-header">
+      <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      </div>
+      <div class="section-title">Quality</div>
+    </div>
+    <div class="lens-stats-bar" id="lensStatsBar-quality"></div>
+    <div class="charts-grid" style="margin-bottom:16px">
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Output Ratio Over Time<div class="tooltip">Percentage of tokens that are Claude&rsquo;s actual output vs context re-reading each day. Higher is better &mdash; it means Claude is spending more time generating useful responses.</div></h3>
+        <canvas id="outputRatioChart"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div> Output %</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(99,102,241,0.5)"></div> 7-day moving average</div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Context Overhead<div class="tooltip">How much of each day&rsquo;s tokens went to re-reading prior context vs new query input. Lower overhead means more efficient conversations.</div></h3>
+        <canvas id="contextOverheadChart"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#6366F1"></div> Context re-read</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div> New query input</div>
+        </div>
       </div>
     </div>
-    <div class="chart-card">
-      <h3>By Model</h3>
-      <canvas id="modelChart"></canvas>
-      <div id="modelLegend" class="legend" style="flex-direction:column; gap:12px; margin-top:20px;"></div>
-    </div>
-  </div>
-
-  <!-- Read:Write Ratio Chart -->
-  <div class="animate delay-3" style="margin-bottom:32px">
-    <div class="chart-card">
-      <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Read : Write Ratio Over Time<div class="tooltip">Daily ratio of tokens Claude read vs wrote. Lower is better &mdash; it means Claude is writing more relative to what it reads. A declining trend indicates improving efficiency.</div></h3>
-      <canvas id="ratioChart"></canvas>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div> Daily ratio (read &divide; write)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:rgba(99,102,241,0.5)"></div> 7-day moving average</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Efficiency Charts -->
-  <div class="charts-grid animate delay-3" style="margin-bottom:32px">
-    <div class="chart-card">
-      <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Tokens per Query<div class="tooltip">Average tokens consumed per query each day. Lower means your prompts are more specific and Claude explores less per turn. A declining trend indicates improving prompting efficiency.</div></h3>
-      <canvas id="tpqChart"></canvas>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:#8B5CF6"></div> Daily avg tokens/query</div>
-        <div class="legend-item"><div class="legend-dot" style="background:rgba(244,63,94,0.5)"></div> 7-day moving average</div>
-      </div>
-    </div>
-    <div class="chart-card">
-      <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Model Tier Mix<div class="tooltip">Daily breakdown of token usage by model tier. Shifting more work to cheaper tiers (Haiku, Sonnet) for simple tasks is the cheapest efficiency gain.</div></h3>
-      <canvas id="tierMixChart"></canvas>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:#6366F1"></div> Opus</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div> Sonnet</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#F97316"></div> Haiku</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#94A3B8"></div> Other</div>
-      </div>
-    </div>
-  </div>
+    <div id="insightsList-quality"></div>
+    <div id="pipelineRecs-quality"></div>
+  </section>
 
   <!-- Projects -->
   <div class="projects-section animate delay-4">
