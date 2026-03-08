@@ -1208,7 +1208,12 @@ function applyDateFilter() {
     dateRange: { from: from || DATA.totals.dateRange?.from, to: to || DATA.totals.dateRange?.to },
   };
 
-  const insights = clientGenerateInsights(sessions, topPrompts, totals);
+  const clientInsights = clientGenerateInsights(sessions, topPrompts, totals);
+  // Orchestrator insights are derived from pipeline logs, not per-session data, so they don't
+  // need to be re-computed when the date filter changes — carry them over from the server data.
+  const orchestratorInsightIds = new Set(['quality-churn', 'test-churn', 'low-completion-rate', 'stage-bottleneck', 'error-pattern']);
+  const orchestratorInsights = (DATA.insights || []).filter(i => orchestratorInsightIds.has(i.id));
+  const insights = [...clientInsights, ...orchestratorInsights];
   FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, insights };
   render();
 }
