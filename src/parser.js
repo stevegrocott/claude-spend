@@ -707,6 +707,80 @@ function generateOrchestratorInsights(orchestrator) {
     }
   }
 
+  // 5a. Task throughput — completed runs per week
+  const completedWithDate = runs.filter(r => r.state === 'completed' && r.date);
+  if (completedWithDate.length >= 3) {
+    const weekMap = {};
+    for (const run of completedWithDate) {
+      const d = new Date(run.date);
+      const startOfYear = new Date(d.getFullYear(), 0, 1);
+      const weekNum = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+      const key = `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+      weekMap[key] = (weekMap[key] || 0) + 1;
+    }
+    const weekCounts = Object.values(weekMap);
+    const avgPerWeek = (weekCounts.reduce((s, v) => s + v, 0) / weekCounts.length).toFixed(1);
+    const recentWeeks = Object.entries(weekMap).sort().slice(-4);
+    const recentAvg = recentWeeks.length > 0
+      ? (recentWeeks.reduce((s, [, v]) => s + v, 0) / recentWeeks.length).toFixed(1)
+      : avgPerWeek;
+    insights.push({
+      id: 'task-throughput',
+      type: 'info',
+      title: `Pipeline completes ~${avgPerWeek} issues/week on average`,
+      description: `Out of ${summary.totalRuns} total runs, ${summary.completedRuns} completed successfully across ${weekCounts.length} active weeks. Overall average: ${avgPerWeek} completions/week. Recent ${recentWeeks.length}-week average: ${recentAvg}/week. ${parseFloat(recentAvg) > parseFloat(avgPerWeek) ? 'Throughput is trending up.' : parseFloat(recentAvg) < parseFloat(avgPerWeek) ? 'Throughput has slowed recently.' : 'Throughput is stable.'}`,
+      action: parseFloat(recentAvg) < parseFloat(avgPerWeek)
+        ? 'Recent slowdown may reflect harder issues, higher error rates, or more quality churn. Compare recent error and iteration counts against historical averages.'
+        : null,
+    });
+  }
+
+  // 5b. First-pass approval rate
+  const runsWithReviews = runs.filter(r => r.qualityIterations > 0 || r.prReviewIterations > 0);
+  if (runsWithReviews.length >= 3) {
+    const firstPassRuns = runsWithReviews.filter(r => r.qualityIterations <= 1 && r.prReviewIterations <= 1);
+    const rate = Math.round((firstPassRuns.length / runsWithReviews.length) * 100);
+    const multipleQuality = runsWithReviews.filter(r => r.qualityIterations > 2);
+    const worstList = multipleQuality.slice(0, 3).map(r => `#${r.issue} (${r.qualityIterations} quality, ${r.prReviewIterations} PR)`).join(', ');
+    insights.push({
+      id: 'first-pass-approval-rate',
+      type: rate < 50 ? 'warning' : rate < 75 ? 'info' : 'neutral',
+      title: `${rate}% of reviewed pipeline runs pass quality review on the first attempt`,
+      description: `Of ${runsWithReviews.length} runs with quality or PR review data, ${firstPassRuns.length} passed with 1 or fewer iterations (${rate}%). A high first-pass rate means implementers understand the quality bar. A low rate means repeated re-review cycles — each costing a full agent invocation. ${multipleQuality.length > 0 ? `Worst offenders: ${worstList}.` : ''}`,
+      action: rate < 75
+        ? 'Improve first-pass rate by: (1) adding concrete quality criteria to implementer prompts, (2) providing code style examples, (3) ensuring task descriptions are specific about expected output format.'
+        : null,
+    });
+  }
+
+  // 5c. Parallel speedup ratio — comparing multi-task vs single-task run durations
+  const implementRuns = runs.filter(r => r.logType === 'implement-issue' && r.taskCount > 0);
+  const runsWithDuration = implementRuns.map(r => ({
+    ...r,
+    totalDuration: Object.values(r.stageDurations).reduce((s, v) => s + v, 0),
+  })).filter(r => r.totalDuration > 30);
+
+  const singleTaskRuns = runsWithDuration.filter(r => r.taskCount === 1);
+  const multiTaskRuns = runsWithDuration.filter(r => r.taskCount > 1);
+
+  if (singleTaskRuns.length >= 2 && multiTaskRuns.length >= 2) {
+    const avgSingleDuration = singleTaskRuns.reduce((s, r) => s + r.totalDuration, 0) / singleTaskRuns.length;
+    const avgMultiTasks = multiTaskRuns.reduce((s, r) => s + r.taskCount, 0) / multiTaskRuns.length;
+    const avgMultiDuration = multiTaskRuns.reduce((s, r) => s + r.totalDuration, 0) / multiTaskRuns.length;
+    const theoreticalSeq = avgMultiTasks * avgSingleDuration;
+    const speedupRatio = Math.round((theoreticalSeq / Math.max(avgMultiDuration, 1)) * 10) / 10;
+    if (speedupRatio > 1.2) {
+      const timeSavedMin = Math.round((theoreticalSeq - avgMultiDuration) / 60);
+      insights.push({
+        id: 'parallel-speedup-ratio',
+        type: 'info',
+        title: `Parallel task execution is ${speedupRatio}x faster than sequential would be`,
+        description: `Single-task runs average ${Math.round(avgSingleDuration / 60)} minutes. Multi-task runs average ${Math.round(avgMultiTasks)} tasks but only take ${Math.round(avgMultiDuration / 60)} minutes — ${speedupRatio}x faster than running those tasks one at a time would take. That saves ~${timeSavedMin} minutes per multi-task run. Across ${multiTaskRuns.length} such runs, parallel execution has saved substantial pipeline time.`,
+        action: 'Break large issues into independent parallel tasks to maximize this speedup. Tasks with shared state or sequential dependencies cannot be parallelized, but independent tasks (separate files, separate modules) can.',
+      });
+    }
+  }
+
   // 5. Error pattern
   if (summary.errorRuns > 0 && (summary.errorRuns / summary.totalRuns) > 0.3) {
     const errorExamples = runs.filter(r => r.state === 'error').slice(0, 5);
@@ -980,6 +1054,54 @@ function generateInsights(sessions, allPrompts, totals) {
         title: `${heavyStarts.length} conversations started with ${fmt(avgStartTokens)}+ tokens of context`,
         description: `Before you even type your first message, Claude reads your CLAUDE.md, project files, and system context. In ${heavyStarts.length} conversations, this starting context averaged ${fmt(avgStartTokens)} tokens. Across all of them, that is ${fmt(totalOverhead)} tokens just on setup -- and this context gets re-read with every message.`,
         action: 'Keep your CLAUDE.md files concise. Remove sections you rarely need. A smaller starting context compounds into savings across every message in the conversation.',
+      });
+    }
+  }
+
+  // 11. Wasted escalation cost — Opus used where Sonnet would suffice
+  const PRICING = { opus: { input: 15, output: 75 }, sonnet: { input: 3, output: 15 }, haiku: { input: 0.8, output: 4 } };
+  const calcCost = (inp, out, tier) => {
+    const p = PRICING[tier];
+    return p ? (inp * p.input + out * p.output) / 1_000_000 : 0;
+  };
+  const escalatedSessions = sessions.filter(s =>
+    s.model.includes('opus') && s.queryCount < 20 && s.totalTokens < 500_000
+  );
+  if (escalatedSessions.length >= 2) {
+    let totalWasted = escalatedSessions.reduce((sum, s) => {
+      return sum + calcCost(s.inputTokens, s.outputTokens, 'opus') - calcCost(s.inputTokens, s.outputTokens, 'sonnet');
+    }, 0);
+    if (totalWasted > 0.5) {
+      const examples = escalatedSessions.slice(0, 3).map(s => '"' + s.firstPrompt.substring(0, 40) + '"').join(', ');
+      insights.push({
+        id: 'wasted-escalation-cost',
+        type: 'warning',
+        title: `~$${totalWasted.toFixed(2)} extra spent using Opus for simple tasks`,
+        description: `${escalatedSessions.length} sessions used Opus for short, lightweight work (under 20 messages, under 500K tokens), costing ~$${totalWasted.toFixed(2)} more than if they had run on Sonnet. Opus is ~5x more expensive per token than Sonnet. Examples: ${examples}.`,
+        action: 'Switch to Sonnet for short tasks with /model sonnet. Reserve Opus for complex multi-file changes, deep architecture decisions, or difficult debugging where its extra reasoning power is needed.',
+      });
+    }
+  }
+
+  // 12. Scope creep indicator — Claude taking far more autonomous steps than prompted
+  if (sessions.length >= 5) {
+    const scopeCreepSessions = sessions.filter(s => {
+      const userTurns = s.queries.filter(q => q.userPrompt).length;
+      const continuations = s.queryCount - userTurns;
+      return userTurns > 0 && continuations > userTurns * 4;
+    });
+    if (scopeCreepSessions.length >= 2) {
+      const avgRatio = scopeCreepSessions.reduce((sum, s) => {
+        const userTurns = Math.max(s.queries.filter(q => q.userPrompt).length, 1);
+        return sum + (s.queryCount - userTurns) / userTurns;
+      }, 0) / scopeCreepSessions.length;
+      const totalScopeTokens = scopeCreepSessions.reduce((s, ses) => s + ses.totalTokens, 0);
+      insights.push({
+        id: 'scope-creep-indicator',
+        type: 'warning',
+        title: `${scopeCreepSessions.length} conversations show likely scope creep`,
+        description: `In ${scopeCreepSessions.length} sessions, Claude made ~${Math.round(avgRatio)}x more autonomous steps than you prompted. For every message you sent, Claude took ~${Math.round(avgRatio)} additional unprompted actions. These ${scopeCreepSessions.length} sessions used ${fmt(totalScopeTokens)} tokens — Claude was likely doing unrequested work: refactoring untouched files, adding extra features, or exploring beyond the stated goal.`,
+        action: 'Give Claude explicit stopping criteria: "Fix the null pointer in auth.js:42 and run unit tests, then stop." This tells Claude exactly when it is done, preventing it from autonomously extending the task.',
       });
     }
   }
