@@ -241,6 +241,118 @@ const INSIGHT_MAPPINGS = {
       'Error rate decreases below 20%',
     ],
   },
+
+  // --- New multi-lens insights (Cost/Speed/Quality) ---
+
+  'wasted-escalation-cost': {
+    titlePrefix: 'Reduce unnecessary model escalations wasting budget',
+    labels: ['spend-analysis', 'cost-optimization'],
+    targetFiles: [
+      '.claude/skills/cost-aware-routing/SKILL.md',
+      '.claude/agents/task-router.md',
+    ],
+    section: 'Model Escalation Strategy',
+    tasks: [
+      { agent: 'default', size: 'M', desc: 'Create cost-aware-routing/SKILL.md with escalation decision framework' },
+      { agent: 'default', size: 'M', desc: 'Add routing logic to task-router.md to analyze task complexity before choosing model' },
+      { agent: 'default', size: 'S', desc: 'Document cost vs capability tradeoffs (Haiku vs Sonnet vs Opus) with examples' },
+      { agent: 'default', size: 'S', desc: 'Add cost estimation tool to help users predict escalation impact before they occur' },
+    ],
+    acceptanceCriteria: [
+      'Routing framework distinguishes problems Haiku can solve from those requiring Sonnet/Opus',
+      'Task-router.md includes decision tree with cost estimates for each path',
+      'At least 5 example scenarios show when escalation is unnecessary',
+      'Documentation calculates total savings if unnecessary escalations are eliminated',
+    ],
+  },
+
+  'task-throughput': {
+    titlePrefix: 'Improve pipeline task completion rate and speed',
+    labels: ['spend-analysis', 'pipeline-efficiency'],
+    targetFiles: [
+      '.claude/scripts/implement-issue-orchestrator.sh',
+      '.claude/skills/task-prioritization/SKILL.md',
+    ],
+    section: 'Task Throughput Optimization',
+    tasks: [
+      { agent: 'default', size: 'M', desc: 'Analyze slowest task types in orchestrator logs and identify common bottlenecks' },
+      { agent: 'default', size: 'M', desc: 'Create task-prioritization/SKILL.md with task splitting and batching strategies' },
+      { agent: 'default', size: 'S', desc: 'Add task-size estimation guidelines to prevent oversized tasks blocking the pipeline' },
+      { agent: 'default', size: 'S', desc: 'Document parallelization opportunities in orchestrator for independent tasks' },
+    ],
+    acceptanceCriteria: [
+      'Average task completion time documented with before/after measurements',
+      'Slowest task types identified with root causes',
+      'Task-prioritization/SKILL.md provides specific splitting heuristics (e.g., >5 files = split)',
+      'Pipeline completion rate improves by at least 15%',
+    ],
+  },
+
+  'first-pass-approval-rate': {
+    titlePrefix: 'Increase code quality to reduce rework cycles',
+    labels: ['spend-analysis', 'quality-optimization'],
+    targetFiles: [
+      '.claude/skills/subagent-driven-development/implementer-prompt.md',
+      '.claude/skills/subagent-driven-development/code-quality-reviewer-prompt.md',
+    ],
+    section: 'First-Pass Quality',
+    tasks: [
+      { agent: 'default', size: 'M', desc: 'Enhance implementer-prompt.md with before-commit quality checklist' },
+      { agent: 'default', size: 'M', desc: 'Review code-quality-reviewer-prompt.md to ensure consistency with implementer checklist' },
+      { agent: 'default', size: 'S', desc: 'Document common approval failures and preventive measures in implementer prompt' },
+      { agent: 'default', size: 'S', desc: 'Add self-review templates to catch issues before quality loop' },
+    ],
+    acceptanceCriteria: [
+      'First-pass approval rate tracked and baseline established',
+      'Implementer prompt includes explicit checks that match reviewer criteria',
+      'Common rejection reasons documented with fixes in the prompt',
+      'First-pass approval rate improves to at least 70%',
+    ],
+  },
+
+  'scope-creep-indicator': {
+    titlePrefix: 'Control scope expansion during task execution',
+    labels: ['spend-analysis', 'quality-optimization'],
+    targetFiles: [
+      '.claude/skills/executing-plans/SKILL.md',
+      '.claude/scripts/implement-issue-orchestrator.sh',
+    ],
+    section: 'Scope Management',
+    tasks: [
+      { agent: 'default', size: 'M', desc: 'Add scope-tracking logic to orchestrator to detect when tasks exceed original boundaries' },
+      { agent: 'default', size: 'S', desc: 'Enhance executing-plans/SKILL.md with scope validation guidelines' },
+      { agent: 'default', size: 'S', desc: 'Document red flags for scope creep (file count, task count expansion, time overruns)' },
+      { agent: 'default', size: 'S', desc: 'Add enforcement mechanisms to prevent out-of-scope work without explicit approval' },
+    ],
+    acceptanceCriteria: [
+      'Orchestrator logs track initial vs final task/file counts for each run',
+      'Scope creep definition quantified (e.g., >20% file expansion = creep)',
+      'executing-plans/SKILL.md includes scope validation gate before commit',
+      'Ability to measure scope creep rate across pipeline runs',
+    ],
+  },
+
+  'parallel-speedup-ratio': {
+    titlePrefix: 'Maximize parallelization benefits in pipeline',
+    labels: ['spend-analysis', 'pipeline-efficiency'],
+    targetFiles: [
+      '.claude/scripts/implement-issue-orchestrator.sh',
+      '.claude/skills/task-orchestration/SKILL.md',
+    ],
+    section: 'Parallelization Optimization',
+    tasks: [
+      { agent: 'default', size: 'M', desc: 'Analyze orchestrator logs to identify independent tasks that could run in parallel' },
+      { agent: 'default', size: 'M', desc: 'Create task-orchestration/SKILL.md with dependency analysis and parallelization patterns' },
+      { agent: 'default', size: 'S', desc: 'Measure current speedup ratio (wall-clock time vs total task time) in orchestrator' },
+      { agent: 'default', size: 'S', desc: 'Document which stage transitions block parallelization and how to remove them' },
+    ],
+    acceptanceCriteria: [
+      'Baseline speedup ratio measured (e.g., 1.5x means 30% overhead from sequencing)',
+      'At least 3 opportunities for parallel execution identified and ranked by impact',
+      'task-orchestration/SKILL.md provides concrete parallelization heuristics',
+      'Speedup ratio improves by at least 10% (e.g., from 1.5x to 1.65x)',
+    ],
+  },
 };
 
 // Non-actionable insight IDs that should return null
