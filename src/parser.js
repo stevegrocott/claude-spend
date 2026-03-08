@@ -853,12 +853,7 @@ function generateOrchestratorInsights(orchestrator) {
   return insights;
 }
 
-// Approximate Claude API pricing ($/million tokens, 2025)
-const PRICING = {
-  opus:   { input: 15,  output: 75  },
-  sonnet: { input: 3,   output: 15  },
-  haiku:  { input: 0.8, output: 4   },
-};
+// Uses PRICING constant defined at top of file
 
 function modelTier(model) {
   if (!model) return null;
@@ -1323,7 +1318,6 @@ function generateInsights(sessions, allPrompts, totals) {
   }
 
   // 11. Wasted escalation cost — Opus used where Sonnet would suffice
-  const PRICING = { opus: { input: 15, output: 75 }, sonnet: { input: 3, output: 15 }, haiku: { input: 0.8, output: 4 } };
   const calcCost = (inp, out, tier) => {
     const p = PRICING[tier];
     return p ? (inp * p.input + out * p.output) / 1_000_000 : 0;
