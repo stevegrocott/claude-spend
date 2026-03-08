@@ -890,6 +890,18 @@
     <div id="pipelineRecs-quality"></div>
   </section>
 
+  <!-- Pipeline Efficiency -->
+  <div id="pipelineSection" class="animate delay-4" style="display:none">
+    <div class="section-header">
+      <div class="section-icon" style="background:linear-gradient(135deg,#F0FDFA,#CCFBF1)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2.5" stroke-linecap="round"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>
+      </div>
+      <div class="section-title">Pipeline Efficiency</div>
+    </div>
+    <div id="pipelineStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px"></div>
+    <div id="pipelineBreakdown"></div>
+  </div>
+
   <!-- Projects -->
   <div class="projects-section animate delay-4">
     <div class="section-header">
@@ -1301,24 +1313,20 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
 
 function renderRecommendations() {
   const recs = FILTERED.recommendations || {};
-  const section = document.getElementById('recsSection');
-  const grid = document.getElementById('recsGrid');
 
   const lenses = [
-    { key: 'model',        label: 'Model',        icon: '⚡', color: '#EEF2FF', dot: '#6366F1' },
-    { key: 'context',      label: 'Context',       icon: '📝', color: '#FEF3C7', dot: '#D97706' },
-    { key: 'conversation', label: 'Conversation',  icon: '💬', color: '#ECFDF5', dot: '#10B981' },
-    { key: 'pipeline',     label: 'Pipeline',      icon: '⚙️', color: '#F0FDFA', dot: '#0D9488' },
+    { key: 'model',        label: 'Model',        icon: '⚡', color: '#EEF2FF', dot: '#6366F1',  target: 'cost' },
+    { key: 'context',      label: 'Context',       icon: '📝', color: '#FEF3C7', dot: '#D97706',  target: 'cost' },
+    { key: 'conversation', label: 'Conversation',  icon: '💬', color: '#ECFDF5', dot: '#10B981',  target: 'speed' },
+    { key: 'pipeline',     label: 'Pipeline',      icon: '⚙️', color: '#F0FDFA', dot: '#0D9488',  target: 'quality' },
   ];
 
-  const hasAny = lenses.some(l => (recs[l.key] || []).length > 0);
-  if (!hasAny) { section.style.display = 'none'; return; }
-
-  section.style.display = 'block';
-  grid.innerHTML = lenses.map(lens => {
+  // Group rendered HTML by target lens section
+  const byLens = { cost: [], speed: [], quality: [] };
+  for (const lens of lenses) {
     const items = (recs[lens.key] || []);
-    if (!items.length) return '';
-    const itemsHtml = items.map((rec, i) => {
+    if (!items.length) continue;
+    const itemsHtml = items.map(rec => {
       const savingBadge = rec.saving != null ? `<span class="rec-saving">~${recFmtDollars(rec.saving)} est.</span>` : '';
       const detailHtml = rec.detail ? `<div class="rec-detail">${escapeHtml(rec.detail)}</div>` : '';
       return `<div class="rec-item" onclick="this.classList.toggle('expanded')">
@@ -1330,14 +1338,18 @@ function renderRecommendations() {
         ${savingBadge}
       </div>`;
     }).join('');
-    return `<div class="recs-lens">
+    byLens[lens.target].push(`<div class="recs-lens">
       <div class="recs-lens-header">
         <div class="recs-lens-icon" style="background:${lens.color}">${lens.icon}</div>
         <div class="recs-lens-title">${lens.label}</div>
       </div>
       ${itemsHtml}
-    </div>`;
-  }).join('');
+    </div>`);
+  }
+
+  for (const [lensKey, blocks] of Object.entries(byLens)) {
+    document.getElementById('pipelineRecs-' + lensKey).innerHTML = blocks.join('');
+  }
 }
 
 function clientGenerateInsights(sessions, allPrompts, totals) {
@@ -1705,23 +1717,8 @@ function setLens(lens) {
 // Insights
 function renderInsights() {
   const allInsights = FILTERED.insights || [];
-  const section = document.getElementById('insightsSection');
-  if (!allInsights.length) { section.style.display = 'none'; return; }
-
-  section.style.display = 'block';
   const emojis = { warning: '\u26A0\uFE0F', info: '\uD83D\uDCA1', neutral: '\uD83D\uDCC5' };
 
-  // Sort by current lens score descending
-  const insights = [...allInsights].sort((a, b) => lensScore(b.id) - lensScore(a.id));
-
-  // Determine top-3 picks (only those with score > 0)
-  const topRanks = new Map();
-  for (const ins of insights) {
-    if (topRanks.size >= 3) break;
-    if (lensScore(ins.id) > 0) topRanks.set(ins.id, topRanks.size);
-  }
-
-  // Render lens stats bar
   const t = FILTERED.totals;
   const actionableCount = (lens) => String(allInsights.filter(i => lensScore(i.id, lens) >= 2).length);
   const lensStats = {
@@ -1741,43 +1738,56 @@ function renderInsights() {
       { label: 'Quality insights', value: actionableCount('quality'), sub: 'actionable' },
     ],
   };
-  document.getElementById('lensStatsBar').innerHTML = (lensStats[currentLens] || []).map(s => `
-    <div class="lens-stat-pill">
-      <div class="lens-stat-pill-label">${s.label}</div>
-      <div class="lens-stat-pill-value">${s.value}</div>
-      <div class="lens-stat-pill-sub">${s.sub}</div>
-    </div>`).join('');
 
-  document.getElementById('insightsList').innerHTML = insights.map((ins, i) => {
-    const rankIdx = topRanks.has(ins.id) ? topRanks.get(ins.id) : -1;
-    const topClass = rankIdx >= 0 ? TOP_RANKS[rankIdx].cls : '';
-    const badgeHtml = rankIdx >= 0 ? `<span class="insight-top-badge">${TOP_RANKS[rankIdx].label}</span>` : '';
-    const detailHtml = ins.description ? `<div class="insight-detail">${escapeHtml(ins.description)}</div>` : '';
-    const actionHtml = ins.action ? `<div class="insight-action-tip">${escapeHtml(ins.action)}</div>` : '';
-    const buttonHtml = !SKIP_IDS.has(ins.id) ? `<div class="insight-create-issue">
-        <button id="btn-${ins.id}" onclick="event.stopPropagation(); createIssueFromInsight('${ins.id}', this)">Create Issue</button>
-        <span class="issue-status" id="status-${ins.id}"></span>
-      </div>` : '';
-    return `<div class="insight-card ${ins.type} ${topClass} animate delay-${Math.min(i + 2, 5)}" onclick="this.classList.toggle('expanded')">
-      <div class="insight-top">
-        <div class="insight-indicator">${emojis[ins.type] || ''}</div>
-        <div class="insight-title">${escapeHtml(ins.title)}${badgeHtml}</div>
-        <div class="insight-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></div>
-      </div>
-      <div class="insight-expand">
-        ${detailHtml}
-        ${actionHtml}
-        ${buttonHtml}
-      </div>
-    </div>`;
-  }).join('');
+  for (const lens of ['cost', 'speed', 'quality']) {
+    document.getElementById('lensStatsBar-' + lens).innerHTML = (lensStats[lens] || []).map(s => `
+      <div class="lens-stat-pill">
+        <div class="lens-stat-pill-label">${s.label}</div>
+        <div class="lens-stat-pill-value">${s.value}</div>
+        <div class="lens-stat-pill-sub">${s.sub}</div>
+      </div>`).join('');
+
+    // Sort insights by this lens's score descending
+    const insights = [...allInsights].sort((a, b) => lensScore(b.id, lens) - lensScore(a.id, lens));
+
+    // Determine top-3 picks for this lens (only those with score > 0)
+    const topRanks = new Map();
+    for (const ins of insights) {
+      if (topRanks.size >= 3) break;
+      if (lensScore(ins.id, lens) > 0) topRanks.set(ins.id, topRanks.size);
+    }
+
+    document.getElementById('insightsList-' + lens).innerHTML = insights.map((ins, i) => {
+      const rankIdx = topRanks.has(ins.id) ? topRanks.get(ins.id) : -1;
+      const topClass = rankIdx >= 0 ? TOP_RANKS[rankIdx].cls : '';
+      const badgeHtml = rankIdx >= 0 ? `<span class="insight-top-badge">${TOP_RANKS[rankIdx].label}</span>` : '';
+      const detailHtml = ins.description ? `<div class="insight-detail">${escapeHtml(ins.description)}</div>` : '';
+      const actionHtml = ins.action ? `<div class="insight-action-tip">${escapeHtml(ins.action)}</div>` : '';
+      const buttonHtml = !SKIP_IDS.has(ins.id) ? `<div class="insight-create-issue">
+          <button id="btn-${ins.id}-${lens}" onclick="event.stopPropagation(); createIssueFromInsight('${ins.id}', this)">Create Issue</button>
+          <span class="issue-status" id="status-${ins.id}-${lens}"></span>
+        </div>` : '';
+      return `<div class="insight-card ${ins.type} ${topClass} animate delay-${Math.min(i + 2, 5)}" onclick="this.classList.toggle('expanded')">
+        <div class="insight-top">
+          <div class="insight-indicator">${emojis[ins.type] || ''}</div>
+          <div class="insight-title">${escapeHtml(ins.title)}${badgeHtml}</div>
+          <div class="insight-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></div>
+        </div>
+        <div class="insight-expand">
+          ${detailHtml}
+          ${actionHtml}
+          ${buttonHtml}
+        </div>
+      </div>`;
+    }).join('');
+  }
 }
 
 async function createIssueFromInsight(insightId, btn) {
   const repo = document.getElementById('issueTargetRepo').value.trim();
   if (!repo) { alert('Please set a target repo'); return; }
 
-  const statusEl = document.getElementById('status-' + insightId);
+  const statusEl = btn.nextElementSibling;
   btn.disabled = true;
   btn.textContent = 'Creating...';
   statusEl.className = 'issue-status';
