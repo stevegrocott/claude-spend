@@ -333,6 +333,55 @@
     border-radius: var(--radius-sm); width: 260px; font-family: var(--mono);
   }
 
+  /* ---- LENS SELECTOR ---- */
+  .lens-selector {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .lens-selector-label {
+    font-size: 12px; font-weight: 600; color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px;
+  }
+  .lens-btn {
+    padding: 6px 18px; border-radius: 20px;
+    border: 1.5px solid var(--border); font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: var(--font); background: var(--white);
+    color: var(--text-secondary); transition: all 0.15s;
+  }
+  .lens-btn:hover { border-color: var(--text-secondary); color: var(--text); }
+  .lens-btn.active[data-lens="cost"] { background: var(--gradient-warm); border-color: var(--amber); color: white; }
+  .lens-btn.active[data-lens="speed"] { background: var(--gradient-teal); border-color: var(--teal); color: white; }
+  .lens-btn.active[data-lens="quality"] { background: var(--gradient-main); border-color: var(--indigo); color: white; }
+
+  /* ---- LENS STATS BAR ---- */
+  .lens-stats-bar {
+    display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .lens-stat-pill {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 16px; flex: 1; min-width: 110px;
+  }
+  .lens-stat-pill-label {
+    font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .lens-stat-pill-value {
+    font-size: 20px; font-weight: 800; letter-spacing: -0.5px; margin-top: 2px;
+  }
+  .lens-stat-pill-sub { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+
+  /* ---- INSIGHT TOP-PICK BADGES ---- */
+  .insight-top-badge {
+    font-size: 10px; font-weight: 700; padding: 2px 8px;
+    border-radius: 10px; margin-left: 8px; flex-shrink: 0; white-space: nowrap;
+  }
+  .insight-card.lens-top-1 { border-color: var(--indigo); box-shadow: 0 0 0 2px rgba(99,102,241,0.12), var(--shadow-sm); }
+  .insight-card.lens-top-2 { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(20,184,166,0.12), var(--shadow-sm); }
+  .insight-card.lens-top-3 { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(245,158,11,0.12), var(--shadow-sm); }
+  .lens-top-1 .insight-top-badge { background: rgba(99,102,241,0.12); color: var(--indigo); }
+  .lens-top-2 .insight-top-badge { background: rgba(20,184,166,0.12); color: var(--teal); }
+  .lens-top-3 .insight-top-badge { background: rgba(245,158,11,0.12); color: var(--amber); }
+
   /* ---- CHARTS ---- */
   .charts-grid {
     display: grid; grid-template-columns: 5fr 2fr;
@@ -665,6 +714,13 @@
       </div>
       <div class="section-title">Insights</div>
     </div>
+    <div class="lens-selector" id="lensSelectorRow">
+      <span class="lens-selector-label">Optimize for</span>
+      <button class="lens-btn active" data-lens="cost" onclick="setLens('cost')">Cost</button>
+      <button class="lens-btn" data-lens="speed" onclick="setLens('speed')">Speed</button>
+      <button class="lens-btn" data-lens="quality" onclick="setLens('quality')">Quality</button>
+    </div>
+    <div class="lens-stats-bar" id="lensStatsBar"></div>
     <div class="insight-repo-config">
       <label>Target repo</label>
       <input type="text" id="issueTargetRepo" value="stevegrocott/claude-pipeline" placeholder="owner/repo">
@@ -822,6 +878,20 @@ let DATA = null;       // Raw unfiltered data from API
 let FILTERED = null;   // Date-filtered view used for rendering
 let currentSort = { key: 'total', dir: 'desc' };
 let searchQuery = '';
+let currentLens = 'cost';
+
+const LENS_SCORES = {
+  'vague-prompts':           { cost: 3, speed: 1, quality: 3 },
+  'context-growth':          { cost: 3, speed: 3, quality: 2 },
+  'marathon-sessions':       { cost: 3, speed: 2, quality: 1 },
+  'input-heavy':             { cost: 2, speed: 1, quality: 3 },
+  'day-pattern':             { cost: 0, speed: 0, quality: 0 },
+  'model-mismatch':          { cost: 3, speed: 2, quality: 1 },
+  'tool-heavy':              { cost: 2, speed: 3, quality: 2 },
+  'project-dominance':       { cost: 0, speed: 0, quality: 0 },
+  'conversation-efficiency': { cost: 3, speed: 2, quality: 2 },
+  'heavy-context':           { cost: 2, speed: 2, quality: 1 },
+};
 
 function fmt(n) {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -925,6 +995,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
     const totalWasted = shortExpensive.reduce((s, p) => s + p.totalTokens, 0);
     const examples = [...new Set(shortExpensive.map(p => p.prompt.trim()))].slice(0, 4);
     insights.push({
+      id: 'vague-prompts',
       type: 'warning',
       title: 'Short, vague messages are costing you the most',
       description: `${shortExpensive.length} times you sent a short message like ${examples.map(e => '"' + e + '"').join(', ')} -- and each time, Claude used over 100K tokens to respond. That adds up to ${fmt(totalWasted)} tokens total.`,
@@ -944,6 +1015,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
       const avgGrowth = (growthData.reduce((s, g) => s + g.ratio, 0) / growthData.length).toFixed(1);
       const worstSession = growthData.sort((a, b) => b.ratio - a.ratio)[0];
       insights.push({
+        id: 'context-growth',
         type: 'warning',
         title: 'The longer you chat, the more each message costs',
         description: `In ${growthData.length} conversations, messages near the end cost ${avgGrowth}x more than at the start. Your longest ("${(worstSession.session.firstPrompt || '').substring(0, 50)}...") grew ${worstSession.ratio.toFixed(1)}x.`,
@@ -960,6 +1032,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
     const longTokens = sessions.filter(s => s.queryCount > 200).reduce((s, ses) => s + ses.totalTokens, 0);
     const longPct = ((longTokens / Math.max(totals.totalTokens, 1)) * 100).toFixed(0);
     insights.push({
+      id: 'marathon-sessions',
       type: 'info',
       title: `Just ${longCount} long conversations used ${longPct}% of all your tokens`,
       description: `You have ${longCount} conversations with over 200 messages each, consuming ${fmt(longTokens)} tokens (${longPct}%). Your typical conversation is about ${medianTurns} messages.`,
@@ -972,6 +1045,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
     const outputPct = (totals.totalOutputTokens / totals.totalTokens) * 100;
     if (outputPct < 2) {
       insights.push({
+        id: 'input-heavy',
         type: 'info',
         title: `${outputPct.toFixed(1)}% of your tokens are Claude actually writing`,
         description: `Out of ${fmt(totals.totalTokens)} total tokens, only ${fmt(totals.totalOutputTokens)} are from Claude writing. The other ${(100 - outputPct).toFixed(1)}% is re-reading context.`,
@@ -996,6 +1070,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
     if (days.length >= 3) {
       days.sort((a, b) => b.avg - a.avg);
       insights.push({
+        id: 'day-pattern',
         type: 'neutral',
         title: `You use Claude the most on ${days[0].day}s`,
         description: `Your ${days[0].day} conversations average ${fmt(Math.round(days[0].avg))} tokens each, compared to ${fmt(Math.round(days[days.length - 1].avg))} on ${days[days.length - 1].day}s.`,
@@ -1011,6 +1086,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
     if (simpleOpus.length >= 3) {
       const wastedTokens = simpleOpus.reduce((s, ses) => s + ses.totalTokens, 0);
       insights.push({
+        id: 'model-mismatch',
         type: 'warning',
         title: `${simpleOpus.length} simple conversations used Opus unnecessarily`,
         description: `These had fewer than 10 messages and used ${fmt(wastedTokens)} tokens on Opus. Sonnet or Haiku would give similar results at lower cost.`,
@@ -1033,6 +1109,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
         return s + (ses.queryCount - userMsgs) / Math.max(userMsgs, 1);
       }, 0) / toolHeavy.length;
       insights.push({
+        id: 'tool-heavy',
         type: 'info',
         title: `${toolHeavy.length} conversations had ${Math.round(avgRatio)}x more tool calls than messages`,
         description: `Each tool call re-reads the entire conversation. These ${toolHeavy.length} conversations used ${fmt(totalToolTokens)} tokens total.`,
@@ -1055,6 +1132,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
       if (pct >= 60) {
         const projName = topProject.replace(/^C--Users-[^-]+-?/, '').replace(/^Projects-?/, '').replace(/-/g, '/') || '~';
         insights.push({
+          id: 'project-dominance',
           type: 'info',
           title: `${pct}% of your tokens went to one project: ${projName}`,
           description: `"${projName}" used ${fmt(topTokens)} out of ${fmt(totals.totalTokens)} total tokens.`,
@@ -1074,6 +1152,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
       const ratio = (longAvg / Math.max(shortAvg, 1)).toFixed(1);
       if (ratio >= 2) {
         insights.push({
+          id: 'conversation-efficiency',
           type: 'warning',
           title: `Each message costs ${ratio}x more in long conversations`,
           description: `Short conversations (~${fmt(shortAvg)} tokens/msg) vs long ones (~${fmt(longAvg)} tokens/msg).`,
@@ -1090,6 +1169,7 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
       const avgStartTokens = Math.round(heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0) / heavyStarts.length);
       const totalOverhead = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0);
       insights.push({
+        id: 'heavy-context',
         type: 'info',
         title: `${heavyStarts.length} conversations started with ${fmt(avgStartTokens)}+ tokens of context`,
         description: `Before you type anything, Claude reads CLAUDE.md and project files. Across ${heavyStarts.length} conversations, that's ${fmt(totalOverhead)} tokens on setup alone.`,
@@ -1253,28 +1333,82 @@ function renderStats() {
     </div>`).join('');
 }
 
+function setLens(lens) {
+  currentLens = lens;
+  document.querySelectorAll('.lens-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lens === lens);
+  });
+  renderInsights();
+}
+
 // Insights
 function renderInsights() {
-  const insights = FILTERED.insights || [];
+  const allInsights = FILTERED.insights || [];
   const section = document.getElementById('insightsSection');
-  if (!insights.length) { section.style.display = 'none'; return; }
+  if (!allInsights.length) { section.style.display = 'none'; return; }
 
   section.style.display = 'block';
-  const icons = { warning: '!', info: 'i', neutral: '~' };
   const emojis = { warning: '\u26A0\uFE0F', info: '\uD83D\uDCA1', neutral: '\uD83D\uDCC5' };
+
+  // Sort by current lens score descending
+  const insights = [...allInsights].sort((a, b) => {
+    const sa = (LENS_SCORES[a.id] || {})[currentLens] || 0;
+    const sb = (LENS_SCORES[b.id] || {})[currentLens] || 0;
+    return sb - sa;
+  });
+
+  // Determine top-3 picks (only those with score > 0)
+  const topClasses = ['lens-top-1', 'lens-top-2', 'lens-top-3'];
+  const topLabels = ['#1 Pick', '#2 Pick', '#3 Pick'];
+  const topRanks = new Map();
+  let rank = 0;
+  for (const ins of insights) {
+    if (rank >= 3) break;
+    const score = (LENS_SCORES[ins.id] || {})[currentLens] || 0;
+    if (score > 0) { topRanks.set(ins.id, rank); rank++; }
+  }
+
+  // Render lens stats bar
+  const t = FILTERED.totals;
+  const lensStats = {
+    cost: [
+      { label: 'Avg cost/session', value: fmt(t.avgTokensPerSession), sub: 'tokens' },
+      { label: 'Avg cost/message', value: fmt(t.avgTokensPerQuery), sub: 'tokens' },
+      { label: 'Cost insights', value: String(allInsights.filter(i => ((LENS_SCORES[i.id] || {}).cost || 0) >= 2).length), sub: 'actionable' },
+    ],
+    speed: [
+      { label: 'Avg msgs/session', value: String(Math.round(t.totalQueries / Math.max(t.totalSessions, 1))), sub: 'messages' },
+      { label: 'Context overhead', value: ((t.totalInputTokens / Math.max(t.totalTokens, 1)) * 100).toFixed(0) + '%', sub: 'of tokens re-read' },
+      { label: 'Speed insights', value: String(allInsights.filter(i => ((LENS_SCORES[i.id] || {}).speed || 0) >= 2).length), sub: 'actionable' },
+    ],
+    quality: [
+      { label: 'Output ratio', value: ((t.totalOutputTokens / Math.max(t.totalTokens, 1)) * 100).toFixed(1) + '%', sub: 'Claude actually writing' },
+      { label: 'Total written', value: fmt(t.totalOutputTokens), sub: 'tokens by Claude' },
+      { label: 'Quality insights', value: String(allInsights.filter(i => ((LENS_SCORES[i.id] || {}).quality || 0) >= 2).length), sub: 'actionable' },
+    ],
+  };
+  document.getElementById('lensStatsBar').innerHTML = (lensStats[currentLens] || []).map(s => `
+    <div class="lens-stat-pill">
+      <div class="lens-stat-pill-label">${s.label}</div>
+      <div class="lens-stat-pill-value">${s.value}</div>
+      <div class="lens-stat-pill-sub">${s.sub}</div>
+    </div>`).join('');
 
   const skipIds = new Set(['day-pattern', 'project-dominance']);
   document.getElementById('insightsList').innerHTML = insights.map((ins, i) => {
+    const rankIdx = topRanks.has(ins.id) ? topRanks.get(ins.id) : -1;
+    const topClass = rankIdx >= 0 ? topClasses[rankIdx] : '';
+    const badgeHtml = rankIdx >= 0 ? `<span class="insight-top-badge">${topLabels[rankIdx]}</span>` : '';
     const detailHtml = ins.description ? `<div class="insight-detail">${escapeHtml(ins.description)}</div>` : '';
     const actionHtml = ins.action ? `<div class="insight-action-tip">${escapeHtml(ins.action)}</div>` : '';
     const buttonHtml = !skipIds.has(ins.id) ? `<div class="insight-create-issue">
         <button id="btn-${ins.id}" onclick="event.stopPropagation(); createIssueFromInsight('${ins.id}', this)">Create Issue</button>
         <span class="issue-status" id="status-${ins.id}"></span>
       </div>` : '';
-    return `<div class="insight-card ${ins.type} animate delay-${Math.min(i + 2, 5)}" onclick="this.classList.toggle('expanded')">
+    return `<div class="insight-card ${ins.type} ${topClass} animate delay-${Math.min(i + 2, 5)}" onclick="this.classList.toggle('expanded')">
       <div class="insight-top">
         <div class="insight-indicator">${emojis[ins.type] || ''}</div>
-        <div class="insight-title">${escapeHtml(ins.title)}</div>
+        <div class="insight-title">${escapeHtml(ins.title)}${badgeHtml}</div>
         <div class="insight-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></div>
       </div>
       <div class="insight-expand">
