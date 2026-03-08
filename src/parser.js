@@ -175,7 +175,7 @@ async function parseAllSessions() {
       // Collect per-prompt data for "most expensive prompts"
       // Group consecutive queries under the same user prompt
       let currentPrompt = null;
-      let promptInput = 0, promptOutput = 0;
+      let promptInput = 0, promptOutput = 0, promptCost = 0;
       const flushPrompt = () => {
         if (currentPrompt && (promptInput + promptOutput) > 0) {
           allPrompts.push({
@@ -183,6 +183,7 @@ async function parseAllSessions() {
             inputTokens: promptInput,
             outputTokens: promptOutput,
             totalTokens: promptInput + promptOutput,
+            estimatedCost: promptCost,
             date,
             sessionId,
             model: primaryModel,
@@ -195,9 +196,11 @@ async function parseAllSessions() {
           currentPrompt = q.userPrompt;
           promptInput = 0;
           promptOutput = 0;
+          promptCost = 0;
         }
         promptInput += q.inputTokens;
         promptOutput += q.outputTokens;
+        promptCost += q.cost || 0;
       }
       flushPrompt();
 
@@ -387,9 +390,9 @@ function parseOrchestratorLogs(projectCostMap = {}) {
   const runs = [];
 
   // Encode a filesystem path to the format used in ~/.claude/projects/
-  // e.g. /Users/foo/bar -> -Users-foo-bar
+  // e.g. /Users/foo/bar -> -Users-foo-bar  (leading dash preserved — Claude dirs start with -)
   function encodeProjectPath(p) {
-    return p.replace(/\//g, '-').replace(/^-/, '');
+    return p.replace(/\//g, '-');
   }
 
   // Scan ~/projects/*/ for orchestrator log directories
