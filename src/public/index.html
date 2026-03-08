@@ -1678,6 +1678,8 @@ function render() {
   renderRatioChart();
   renderTpqChart();
   renderTierMixChart();
+  renderOutputRatioChart();
+  renderContextOverheadChart();
   renderProjectBreakdown();
   renderTopPrompts();
   renderSessions();
@@ -2329,6 +2331,164 @@ function renderTierMixChart() {
   });
 }
 
+// Output ratio over time (Quality lens)
+function renderOutputRatioChart() {
+  const canvas = document.getElementById('outputRatioChart');
+  const ctx = canvas.getContext('2d');
+  const data = FILTERED.dailyUsage;
+  if (!data.length) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 48;
+  const h = 200;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  // Output % = outputTokens / totalTokens * 100
+  const ratios = data.map(d => ({
+    date: d.date,
+    value: d.totalTokens > 0 ? (d.outputTokens / d.totalTokens) * 100 : null
+  }));
+
+  // 7-day moving average
+  const ma = ratios.map((r, i) => {
+    const win = ratios.slice(Math.max(0, i - 6), i + 1).filter(x => x.value !== null);
+    if (!win.length) return null;
+    return win.reduce((s, x) => s + x.value, 0) / win.length;
+  });
+
+  const vals = ratios.filter(r => r.value !== null).map(r => r.value);
+  if (!vals.length) return;
+  const niceMax = 100; // percentage, always 0-100
+
+  const chartH = h - 36;
+  const startX = 48;
+  const plotW = w - startX - 8;
+
+  ctx.font = '500 10px Inter, system-ui';
+  ctx.fillStyle = '#94A3B8';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = (niceMax / 4) * i;
+    const y = chartH - (chartH * i / 4) + 8;
+    ctx.fillText(val.toFixed(0) + '%', startX - 10, y + 3);
+    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+
+  function xPos(i) { return startX + (i / Math.max(1, ratios.length - 1)) * plotW; }
+  function yPos(val) { return chartH + 8 - (val / niceMax) * chartH; }
+
+  // Daily line + dots
+  ctx.strokeStyle = '#10B981'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  let started = false;
+  ratios.forEach((r, i) => {
+    if (r.value === null) { started = false; return; }
+    const x = xPos(i), y = yPos(r.value);
+    if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+  });
+  ctx.stroke();
+
+  ratios.forEach((r, i) => {
+    if (r.value === null) return;
+    ctx.fillStyle = '#10B981';
+    ctx.beginPath(); ctx.arc(xPos(i), yPos(r.value), 3, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // Moving average
+  ctx.strokeStyle = 'rgba(99,102,241,0.6)'; ctx.lineWidth = 2.5;
+  ctx.setLineDash([6, 3]);
+  ctx.beginPath();
+  started = false;
+  ma.forEach((val, i) => {
+    if (val === null) { started = false; return; }
+    const x = xPos(i), y = yPos(val);
+    if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // X labels
+  ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
+  ctx.font = '500 10px Inter, system-ui';
+  const step = Math.max(1, Math.floor(ratios.length / 7));
+  ratios.forEach((r, i) => {
+    if (i % step === 0 || i === ratios.length - 1) {
+      ctx.fillText(formatDate(r.date), xPos(i), chartH + 24);
+    }
+  });
+}
+
+// Context overhead stacked bar chart (Quality lens)
+function renderContextOverheadChart() {
+  const canvas = document.getElementById('contextOverheadChart');
+  const ctx = canvas.getContext('2d');
+  const data = FILTERED.dailyUsage;
+  if (!data.length) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 48;
+  const h = 200;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const chartH = h - 36;
+  const startX = 48;
+  const plotW = w - startX - 8;
+
+  // Show context re-read (inputTokens) vs new query input (outputTokens) as stacked % bars
+  const days = data.map(d => ({
+    date: d.date,
+    contextPct: d.totalTokens > 0 ? (d.inputTokens / d.totalTokens) * 100 : 0,
+    outputPct: d.totalTokens > 0 ? (d.outputTokens / d.totalTokens) * 100 : 0,
+  }));
+
+  // Grid
+  ctx.font = '500 10px Inter, system-ui';
+  ctx.fillStyle = '#94A3B8';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = 25 * i;
+    const y = chartH - (chartH * i / 4) + 8;
+    ctx.fillText(val + '%', startX - 10, y + 3);
+    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+
+  const barW = Math.max(2, Math.min(20, (plotW / Math.max(1, days.length)) - 2));
+
+  days.forEach((d, i) => {
+    const x = startX + (i / Math.max(1, days.length - 1)) * plotW - barW / 2;
+    const baseY = chartH + 8;
+
+    // Output (green, bottom)
+    const outH = (d.outputPct / 100) * chartH;
+    ctx.fillStyle = '#10B981';
+    ctx.fillRect(x, baseY - outH, barW, outH);
+
+    // Context re-read (purple, top)
+    const ctxH = (d.contextPct / 100) * chartH;
+    ctx.fillStyle = 'rgba(99,102,241,0.6)';
+    ctx.fillRect(x, baseY - outH - ctxH, barW, ctxH);
+  });
+
+  // X labels
+  ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
+  ctx.font = '500 10px Inter, system-ui';
+  const step = Math.max(1, Math.floor(days.length / 7));
+  days.forEach((d, i) => {
+    if (i % step === 0 || i === days.length - 1) {
+      const x = startX + (i / Math.max(1, days.length - 1)) * plotW;
+      ctx.fillText(formatDate(d.date), x, chartH + 24);
+    }
+  });
+}
+
 // Project accordion
 function toggleProjectDrawer(i) {
   const row = document.getElementById('proj-row-' + i);
@@ -2549,7 +2709,7 @@ function closeDrilldown() {
 }
 
 fetchData();
-window.addEventListener('resize', () => { if (FILTERED) { renderDailyChart(); renderModelChart(); } });
+window.addEventListener('resize', () => { if (FILTERED) { renderDailyChart(); renderModelChart(); renderOutputRatioChart(); renderContextOverheadChart(); } });
 </script>
 </body>
 </html>
