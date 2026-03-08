@@ -383,7 +383,7 @@ async function parseAllSessions() {
 }
 
 function emptySummary() {
-  return { totalRuns: 0, completedRuns: 0, errorRuns: 0, maxIterationsRuns: 0, completionRate: 0, avgQualityIterations: 0, avgTestIterations: 0, stageAvgs: [], topChurners: [] };
+  return { totalRuns: 0, completedRuns: 0, errorRuns: 0, maxIterationsRuns: 0, completionRate: 0, avgQualityIterations: 0, avgTestIterations: 0, stageAvgs: [], topChurners: [], totalModelUsage: {}, escalationCount: 0, runsWithEscalations: 0, allEscalations: [], stageModelTotals: {} };
 }
 
 function parseOrchestratorLogs(projectCostMap = {}) {
@@ -416,18 +416,93 @@ function parseOrchestratorLogs(projectCostMap = {}) {
       try { entries = fs.readdirSync(logsDir); } catch { continue; }
 
       for (const entry of entries) {
-        const statusPath = path.join(logsDir, entry, 'status.json');
+        const runDir = path.join(logsDir, entry);
+        const statusPath = path.join(runDir, 'status.json');
         if (!fs.existsSync(statusPath)) continue;
 
         try {
           const raw = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
           const stages = raw.stages || {};
 
-          // Calculate stage durations
+          // Calculate stage durations from status.json timestamps
           const stageDurations = {};
           for (const [name, stage] of Object.entries(stages)) {
             if (stage.started_at && stage.completed_at) {
               stageDurations[name] = (new Date(stage.completed_at) - new Date(stage.started_at)) / 1000;
+            }
+          }
+
+          // Read metrics.json if present alongside status.json
+          const metricsPath = path.join(runDir, 'metrics.json');
+          let metrics = null;
+          if (fs.existsSync(metricsPath)) {
+            try {
+              metrics = JSON.parse(fs.readFileSync(metricsPath, 'utf-8'));
+            } catch {
+              // Skip malformed metrics.json
+            }
+          }
+
+          // Merge per-stage durations from metrics.json (may be more detailed)
+          if (metrics && metrics.stages) {
+            for (const [name, stageMetrics] of Object.entries(metrics.stages)) {
+              if (stageMetrics.duration_seconds != null) {
+                stageDurations[name] = stageMetrics.duration_seconds;
+              }
+            }
+          }
+
+          // Extract model usage from metrics.json
+          const modelUsage = {};
+          if (metrics && metrics.total_model_usage) {
+            for (const [model, usage] of Object.entries(metrics.total_model_usage)) {
+              modelUsage[model] = {
+                inputTokens: usage.input_tokens || 0,
+                outputTokens: usage.output_tokens || 0,
+                totalTokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
+              };
+            }
+          } else if (metrics && metrics.stages) {
+            // Aggregate model usage across stages
+            for (const stageMetrics of Object.values(metrics.stages)) {
+              if (!stageMetrics.model_usage) continue;
+              for (const [model, usage] of Object.entries(stageMetrics.model_usage)) {
+                if (!modelUsage[model]) modelUsage[model] = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+                modelUsage[model].inputTokens += usage.input_tokens || 0;
+                modelUsage[model].outputTokens += usage.output_tokens || 0;
+                modelUsage[model].totalTokens += (usage.input_tokens || 0) + (usage.output_tokens || 0);
+              }
+            }
+          }
+
+          // Extract escalation events from metrics.json or status.json
+          const escalations = [];
+          const rawEscalations = (metrics && metrics.escalations) || raw.escalations || [];
+          for (const esc of rawEscalations) {
+            escalations.push({
+              taskId: esc.task_id || null,
+              fromModel: esc.from_model || null,
+              toModel: esc.to_model || null,
+              reason: esc.reason || null,
+              stage: esc.stage || null,
+              timestamp: esc.timestamp || null,
+            });
+          }
+
+          // Per-stage model breakdown from metrics.json
+          const stageModelUsage = {};
+          if (metrics && metrics.stages) {
+            for (const [stageName, stageMetrics] of Object.entries(metrics.stages)) {
+              if (stageMetrics.model_usage) {
+                stageModelUsage[stageName] = {};
+                for (const [model, usage] of Object.entries(stageMetrics.model_usage)) {
+                  stageModelUsage[stageName][model] = {
+                    inputTokens: usage.input_tokens || 0,
+                    outputTokens: usage.output_tokens || 0,
+                    totalTokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
+                  };
+                }
+              }
             }
           }
 
@@ -463,6 +538,10 @@ function parseOrchestratorLogs(projectCostMap = {}) {
             testIterations: raw.test_iterations || stages.test_loop?.iteration || 0,
             prReviewIterations: raw.pr_review_iterations || stages.pr_review?.iteration || 0,
             stageDurations,
+            modelUsage,
+            stageModelUsage,
+            escalations,
+            hasMetrics: metrics !== null,
             date,
             dirName: entry,
             estimatedCost,
@@ -513,6 +592,37 @@ function parseOrchestratorLogs(projectCostMap = {}) {
     .slice(0, 5)
     .filter(r => r.qualityIterations + r.testIterations > 0);
 
+  // Aggregate model usage across all runs (from metrics.json data)
+  const totalModelUsage = {};
+  for (const run of validRuns) {
+    for (const [model, usage] of Object.entries(run.modelUsage || {})) {
+      if (!totalModelUsage[model]) totalModelUsage[model] = { inputTokens: 0, outputTokens: 0, totalTokens: 0, runCount: 0 };
+      totalModelUsage[model].inputTokens += usage.inputTokens;
+      totalModelUsage[model].outputTokens += usage.outputTokens;
+      totalModelUsage[model].totalTokens += usage.totalTokens;
+      totalModelUsage[model].runCount += 1;
+    }
+  }
+
+  // Aggregate escalation events across all runs
+  const allEscalations = validRuns.flatMap(r => (r.escalations || []).map(e => ({ ...e, project: r.project, issue: r.issue })));
+  const escalationCount = allEscalations.length;
+  const runsWithEscalations = validRuns.filter(r => (r.escalations || []).length > 0).length;
+
+  // Stage-level model diversity (which stages use expensive models)
+  const stageModelTotals = {};
+  for (const run of validRuns) {
+    for (const [stageName, stageModels] of Object.entries(run.stageModelUsage || {})) {
+      if (!stageModelTotals[stageName]) stageModelTotals[stageName] = {};
+      for (const [model, usage] of Object.entries(stageModels)) {
+        if (!stageModelTotals[stageName][model]) stageModelTotals[stageName][model] = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+        stageModelTotals[stageName][model].inputTokens += usage.inputTokens;
+        stageModelTotals[stageName][model].outputTokens += usage.outputTokens;
+        stageModelTotals[stageName][model].totalTokens += usage.totalTokens;
+      }
+    }
+  }
+
   return {
     runs,
     summary: {
@@ -525,6 +635,11 @@ function parseOrchestratorLogs(projectCostMap = {}) {
       avgTestIterations: Math.round(avgTests * 10) / 10,
       stageAvgs,
       topChurners,
+      totalModelUsage,
+      escalationCount,
+      runsWithEscalations,
+      allEscalations,
+      stageModelTotals,
     },
   };
 }
@@ -608,6 +723,53 @@ function generateOrchestratorInsights(orchestrator) {
       description: `${summary.errorRuns} out of ${summary.totalRuns} runs ended in error. ${detail} Error examples: ${errorExamples.map(r => `#${r.issue}`).join(', ')}.`,
       action: 'Check orchestrator logs for the error-state runs. Zero-task errors usually mean issue parsing failed (malformed task list). Execution errors may need better error handling in the orchestrator.',
     });
+  }
+
+  // 6. Model escalation pattern (from metrics.json)
+  if (summary.escalationCount > 0 && summary.runsWithEscalations >= 2) {
+    const escalPct = Math.round((summary.runsWithEscalations / summary.totalRuns) * 100);
+    // Find most common escalation direction
+    const escalPairs = {};
+    for (const esc of summary.allEscalations) {
+      if (esc.fromModel && esc.toModel) {
+        const key = `${esc.fromModel} → ${esc.toModel}`;
+        escalPairs[key] = (escalPairs[key] || 0) + 1;
+      }
+    }
+    const topPair = Object.entries(escalPairs).sort((a, b) => b[1] - a[1])[0];
+    const pairDesc = topPair ? ` Most common: ${topPair[0]} (${topPair[1]} times).` : '';
+    insights.push({
+      id: 'escalation-pattern',
+      type: 'warning',
+      title: `Model escalations in ${escalPct}% of pipeline runs`,
+      description: `${summary.escalationCount} escalation events detected across ${summary.runsWithEscalations} of ${summary.totalRuns} runs.${pairDesc} Escalations happen when a task is reassigned to a more expensive model mid-run, which multiplies token cost for that stage.`,
+      action: 'Review tasks that trigger escalations — they may need better upfront model assignment. If the same task type consistently escalates from haiku to sonnet, set its default agent to sonnet from the start.',
+    });
+  }
+
+  // 7. Stage model cost breakdown (from metrics.json)
+  if (Object.keys(summary.stageModelTotals).length > 0) {
+    // Find which stage uses the most expensive model tokens
+    const stageOpusCost = [];
+    for (const [stageName, modelMap] of Object.entries(summary.stageModelTotals)) {
+      const opusTokens = Object.entries(modelMap)
+        .filter(([model]) => model.includes('opus'))
+        .reduce((s, [, u]) => s + u.totalTokens, 0);
+      if (opusTokens > 0) {
+        stageOpusCost.push({ stageName, opusTokens });
+      }
+    }
+    stageOpusCost.sort((a, b) => b.opusTokens - a.opusTokens);
+    if (stageOpusCost.length > 0 && stageOpusCost[0].opusTokens > 100_000) {
+      const top = stageOpusCost[0];
+      insights.push({
+        id: 'stage-model-cost',
+        type: 'info',
+        title: `"${top.stageName}" stage uses the most Opus tokens across pipeline runs`,
+        description: `The "${top.stageName}" stage has consumed ${fmt(top.opusTokens)} Opus tokens across all runs. Other high-Opus stages: ${stageOpusCost.slice(1, 3).map(s => `"${s.stageName}" (${fmt(s.opusTokens)})`).join(', ') || 'none'}. Opus costs 5-10x more than Sonnet per token.`,
+        action: `Consider whether the "${top.stageName}" stage truly needs Opus, or if Sonnet would be sufficient. Review the agent prompt for this stage to see if it can be simplified.`,
+      });
+    }
   }
 
   return insights;
