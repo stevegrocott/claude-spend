@@ -479,6 +479,7 @@ function generateOrchestratorInsights(orchestrator) {
     const worstList = worst.map(r => `#${r.issue} (${r.qualityIterations} iterations)`).join(', ');
     insights.push({
       id: 'quality-churn',
+      lens: 'quality',
       type: 'warning',
       title: `Quality loop averaging ${summary.avgQualityIterations} iterations per run`,
       description: `Across ${summary.totalRuns} pipeline runs, the quality review loop averages ${summary.avgQualityIterations} iterations. Ideal is 1-2. Worst offenders: ${worstList || 'none over 2'}. Each extra iteration means the implementer's output didn't meet the reviewer's standards, costing a full re-review cycle.`,
@@ -492,6 +493,7 @@ function generateOrchestratorInsights(orchestrator) {
     const worstList = worst.map(r => `#${r.issue} (${r.testIterations} iterations)`).join(', ');
     insights.push({
       id: 'test-churn',
+      lens: 'quality',
       type: 'warning',
       title: `Test loop averaging ${summary.avgTestIterations} iterations per run`,
       description: `The test-fix loop averages ${summary.avgTestIterations} iterations across runs with test activity. Worst: ${worstList || 'n/a'}. Each iteration means tests failed after implementation, requiring a fix cycle.`,
@@ -505,6 +507,7 @@ function generateOrchestratorInsights(orchestrator) {
     const maxIterPct = Math.round((summary.maxIterationsRuns / summary.totalRuns) * 100);
     insights.push({
       id: 'low-completion-rate',
+      lens: 'quality',
       type: 'warning',
       title: `Only ${summary.completionRate}% of pipeline runs complete successfully`,
       description: `Out of ${summary.totalRuns} pipeline runs: ${summary.completedRuns} completed (${summary.completionRate}%), ${summary.errorRuns} errored (${errorPct}%), ${summary.maxIterationsRuns} hit max iterations (${maxIterPct}%). A healthy pipeline should complete >70% of runs.`,
@@ -519,6 +522,7 @@ function generateOrchestratorInsights(orchestrator) {
       const mins = Math.round(slowest.avgSeconds / 60);
       insights.push({
         id: 'stage-bottleneck',
+        lens: 'speed',
         type: 'info',
         title: `"${slowest.name}" stage averages ${mins} minutes — slowest pipeline stage`,
         description: `The "${slowest.name}" stage averages ${mins} minutes across ${slowest.count} runs. ${summary.stageAvgs.slice(1, 4).map(s => `"${s.name}": ${Math.round(s.avgSeconds / 60)}m`).join(', ')}. Long stages increase token cost due to context accumulation.`,
@@ -537,6 +541,7 @@ function generateOrchestratorInsights(orchestrator) {
       : `Errors occurred during task execution.`;
     insights.push({
       id: 'error-pattern',
+      lens: 'quality',
       type: 'warning',
       title: `${errorPct}% of pipeline runs end in error state`,
       description: `${summary.errorRuns} out of ${summary.totalRuns} runs ended in error. ${detail} Error examples: ${errorExamples.map(r => `#${r.issue}`).join(', ')}.`,
@@ -557,6 +562,7 @@ function generateInsights(sessions, allPrompts, totals) {
     const examples = [...new Set(shortExpensive.map(p => p.prompt.trim()))].slice(0, 4);
     insights.push({
       id: 'vague-prompts',
+      lens: 'cost',
       type: 'warning',
       title: 'Short, vague messages are costing you the most',
       description: `${shortExpensive.length} times you sent a short message like ${examples.map(e => '"' + e + '"').join(', ')} -- and each time, Claude used over 100K tokens to respond. That adds up to ${fmt(totalWasted)} tokens total. When you say just "Yes" or "Do it", Claude doesn't know exactly what you want, so it tries harder -- reading more files, running more tools, making more attempts. Each of those steps re-sends the entire conversation, which multiplies the cost.`,
@@ -578,6 +584,7 @@ function generateInsights(sessions, allPrompts, totals) {
       const worstSession = growthData.sort((a, b) => b.ratio - a.ratio)[0];
       insights.push({
         id: 'context-growth',
+        lens: 'cost',
         type: 'warning',
         title: 'The longer you chat, the more each message costs',
         description: `In ${growthData.length} of your conversations, the messages near the end cost ${avgGrowth}x more than the ones at the start. Why? Every time you send a message, Claude re-reads the entire conversation from the beginning. So message #5 is cheap, but message #80 is expensive because Claude is re-reading 79 previous messages plus all the code it wrote. Your longest conversation ("${worstSession.session.firstPrompt.substring(0, 50)}...") grew ${worstSession.ratio.toFixed(1)}x more expensive by the end.`,
@@ -595,6 +602,7 @@ function generateInsights(sessions, allPrompts, totals) {
     const longPct = ((longTokens / Math.max(totals.totalTokens, 1)) * 100).toFixed(0);
     insights.push({
       id: 'marathon-sessions',
+      lens: 'cost',
       type: 'info',
       title: `Just ${longCount} long conversations used ${longPct}% of all your tokens`,
       description: `You have ${longCount} conversations with over 200 messages each. These alone consumed ${fmt(longTokens)} tokens -- that's ${longPct}% of everything. Meanwhile, your typical conversation is about ${medianTurns} messages. Long conversations aren't always bad, but they're disproportionately expensive because of how context builds up.`,
@@ -608,6 +616,7 @@ function generateInsights(sessions, allPrompts, totals) {
     if (outputPct < 2) {
       insights.push({
         id: 'input-heavy',
+        lens: 'cost',
         type: 'info',
         title: `${outputPct.toFixed(1)}% of your tokens are Claude actually writing`,
         description: `Here's something surprising: out of ${fmt(totals.totalTokens)} total tokens, only ${fmt(totals.totalOutputTokens)} are from Claude writing responses. The other ${(100 - outputPct).toFixed(1)}% is Claude re-reading your conversation history, files, and context before each response. This means the biggest factor in token usage isn't how much Claude writes -- it's how long your conversations are.`,
@@ -635,6 +644,7 @@ function generateInsights(sessions, allPrompts, totals) {
       const quietest = days[days.length - 1];
       insights.push({
         id: 'day-pattern',
+        lens: 'cost',
         type: 'neutral',
         title: `You use Claude the most on ${busiest.day}s`,
         description: `Your ${busiest.day} conversations average ${fmt(Math.round(busiest.avg))} tokens each, compared to ${fmt(Math.round(quietest.avg))} on ${quietest.day}s. This could mean you tackle bigger tasks on ${busiest.day}s, or your conversations tend to run longer.`,
@@ -652,6 +662,7 @@ function generateInsights(sessions, allPrompts, totals) {
       const examples = simpleOpus.slice(0, 3).map(s => '"' + s.firstPrompt.substring(0, 40) + '"').join(', ');
       insights.push({
         id: 'model-mismatch',
+        lens: 'cost',
         type: 'warning',
         title: `${simpleOpus.length} simple conversations used Opus unnecessarily`,
         description: `These conversations had fewer than 10 messages and used ${fmt(wastedTokens)} tokens on Opus: ${examples}. Opus is the most capable model but also the most expensive. For quick questions and small tasks, Sonnet or Haiku would give similar results at a fraction of the cost.`,
@@ -675,6 +686,7 @@ function generateInsights(sessions, allPrompts, totals) {
       }, 0) / toolHeavy.length;
       insights.push({
         id: 'tool-heavy',
+        lens: 'speed',
         type: 'info',
         title: `${toolHeavy.length} conversations had ${Math.round(avgRatio)}x more tool calls than messages`,
         description: `In these conversations, Claude made ~${Math.round(avgRatio)} tool calls for every message you sent. Each tool call (reading files, running commands, searching code) is a full round trip that re-reads the entire conversation. These ${toolHeavy.length} conversations used ${fmt(totalToolTokens)} tokens total.`,
@@ -698,6 +710,7 @@ function generateInsights(sessions, allPrompts, totals) {
         const projName = topProject.replace(/^C--Users-[^-]+-?/, '').replace(/^Projects-?/, '').replace(/-/g, '/') || '~';
         insights.push({
           id: 'project-dominance',
+          lens: 'cost',
           type: 'info',
           title: `${pct}% of your tokens went to one project: ${projName}`,
           description: `Your "${projName}" project used ${fmt(topTokens)} tokens out of ${fmt(totals.totalTokens)} total. That is ${pct}% of all your usage. The next closest project used ${fmt(sorted[1][1])} tokens.`,
@@ -718,6 +731,7 @@ function generateInsights(sessions, allPrompts, totals) {
       if (ratio >= 2) {
         insights.push({
           id: 'conversation-efficiency',
+          lens: 'cost',
           type: 'warning',
           title: `Each message costs ${ratio}x more in long conversations`,
           description: `In your short conversations (under 15 messages), each message costs ~${fmt(shortAvg)} tokens. In your long ones (80+ messages), each message costs ~${fmt(longAvg)} tokens. That is ${ratio}x more per message, because Claude re-reads the entire history every turn.`,
@@ -738,6 +752,7 @@ function generateInsights(sessions, allPrompts, totals) {
       const totalOverhead = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0);
       insights.push({
         id: 'heavy-context',
+        lens: 'cost',
         type: 'info',
         title: `${heavyStarts.length} conversations started with ${fmt(avgStartTokens)}+ tokens of context`,
         description: `Before you even type your first message, Claude reads your CLAUDE.md, project files, and system context. In ${heavyStarts.length} conversations, this starting context averaged ${fmt(avgStartTokens)} tokens. Across all of them, that is ${fmt(totalOverhead)} tokens just on setup -- and this context gets re-read with every message.`,
