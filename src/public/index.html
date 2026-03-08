@@ -995,16 +995,30 @@ const TOP_RANKS = [
 const SKIP_IDS = new Set(['day-pattern', 'project-dominance']);
 
 const LENS_SCORES = {
-  'vague-prompts':           { cost: 3, speed: 1, quality: 3 },
-  'context-growth':          { cost: 3, speed: 3, quality: 2 },
-  'marathon-sessions':       { cost: 3, speed: 2, quality: 1 },
-  'input-heavy':             { cost: 2, speed: 1, quality: 3 },
+  // Session-level insights (from generateInsights)
+  'explore-stage-bloat':     { cost: 3, speed: 2, quality: 1 },
+  'impl-context-growth':     { cost: 3, speed: 3, quality: 2 },
+  'pipeline-batch-churn':    { cost: 3, speed: 2, quality: 1 },
+  'impl-excessive-rereads':  { cost: 2, speed: 3, quality: 1 },
   'day-pattern':             { cost: 0, speed: 0, quality: 0 },
   'model-mismatch':          { cost: 3, speed: 2, quality: 1 },
   'tool-heavy':              { cost: 2, speed: 3, quality: 2 },
   'project-dominance':       { cost: 0, speed: 0, quality: 0 },
   'conversation-efficiency': { cost: 3, speed: 2, quality: 2 },
   'heavy-context':           { cost: 2, speed: 2, quality: 1 },
+  'wasted-escalation-cost':  { cost: 3, speed: 1, quality: 0 },
+  'scope-creep-indicator':   { cost: 3, speed: 2, quality: 1 },
+  // Orchestrator insights (from generateOrchestratorInsights)
+  'quality-churn':           { cost: 2, speed: 2, quality: 3 },
+  'test-churn':              { cost: 2, speed: 2, quality: 3 },
+  'low-completion-rate':     { cost: 1, speed: 1, quality: 3 },
+  'stage-bottleneck':        { cost: 2, speed: 3, quality: 1 },
+  'task-throughput':         { cost: 1, speed: 3, quality: 1 },
+  'first-pass-approval-rate':{ cost: 2, speed: 2, quality: 3 },
+  'parallel-speedup-ratio':  { cost: 1, speed: 3, quality: 0 },
+  'error-pattern':           { cost: 1, speed: 1, quality: 3 },
+  'escalation-pattern':      { cost: 3, speed: 1, quality: 1 },
+  'stage-model-cost':        { cost: 3, speed: 1, quality: 1 },
 };
 
 function fmt(n) {

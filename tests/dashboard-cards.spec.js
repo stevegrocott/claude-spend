@@ -112,7 +112,7 @@ test.describe('Cost/Speed/Quality (#insightsSection lens selector)', () => {
     if ((api.insights || []).length === 0) { test.skip(); return; }
 
     await page.locator('.lens-btn[data-lens="cost"]').click();
-    const pills = page.locator('.lens-stat-pill');
+    const pills = page.locator('#lensSection-cost .lens-stat-pill');
     await expect(pills).toHaveCount(3);
     for (let i = 0; i < 3; i++) {
       const value = await pills.nth(i).locator('.lens-stat-pill-value').textContent();
@@ -128,7 +128,7 @@ test.describe('Cost/Speed/Quality (#insightsSection lens selector)', () => {
     if ((api.insights || []).length === 0) { test.skip(); return; }
 
     await page.locator('.lens-btn[data-lens="speed"]').click();
-    const pills = page.locator('.lens-stat-pill');
+    const pills = page.locator('#lensSection-speed .lens-stat-pill');
     await expect(pills).toHaveCount(3);
     for (let i = 0; i < 3; i++) {
       const value = await pills.nth(i).locator('.lens-stat-pill-value').textContent();
@@ -142,7 +142,7 @@ test.describe('Cost/Speed/Quality (#insightsSection lens selector)', () => {
     if ((api.insights || []).length === 0) { test.skip(); return; }
 
     await page.locator('.lens-btn[data-lens="quality"]').click();
-    const pills = page.locator('.lens-stat-pill');
+    const pills = page.locator('#lensSection-quality .lens-stat-pill');
     await expect(pills).toHaveCount(3);
     for (let i = 0; i < 3; i++) {
       const value = await pills.nth(i).locator('.lens-stat-pill-value').textContent();
@@ -191,21 +191,17 @@ test.describe('Cost/Speed/Quality (#insightsSection lens selector)', () => {
 
 // ─── Insights Section ───────────────────────────────────────────────────────
 
-test.describe('Insights (#insightsSection)', () => {
+test.describe('Insights (lens sections)', () => {
   test('renders insight cards when insights exist in API', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
     const insights = api.insights || [];
 
-    const section = page.locator('#insightsSection');
     if (insights.length > 0) {
-      await expect(section).toBeVisible();
+      // Insights are now distributed across lens sections
       const cards = page.locator('.insight-card');
-      // Client generates insights based on data analysis, may differ from API insights
       const count = await cards.count();
       expect(count).toBeGreaterThan(0);
-    } else {
-      await expect(section).toBeHidden();
     }
   });
 

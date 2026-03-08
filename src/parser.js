@@ -826,6 +826,7 @@ function generateOrchestratorInsights(orchestrator) {
     const pairDesc = topPair ? ` Most common: ${topPair[0]} (${topPair[1]} times).` : '';
     insights.push({
       id: 'escalation-pattern',
+      lens: 'cost',
       type: 'warning',
       title: `Model escalations in ${escalPct}% of pipeline runs`,
       description: `${summary.escalationCount} escalation events detected across ${summary.runsWithEscalations} of ${summary.totalRuns} runs.${pairDesc} Escalations happen when a task is reassigned to a more expensive model mid-run, which multiplies token cost for that stage.`,
@@ -850,6 +851,7 @@ function generateOrchestratorInsights(orchestrator) {
       const top = stageOpusCost[0];
       insights.push({
         id: 'stage-model-cost',
+        lens: 'cost',
         type: 'info',
         title: `"${top.stageName}" stage uses the most Opus tokens across pipeline runs`,
         description: `The "${top.stageName}" stage has consumed ${fmt(top.opusTokens)} Opus tokens across all runs. Other high-Opus stages: ${stageOpusCost.slice(1, 3).map(s => `"${s.stageName}" (${fmt(s.opusTokens)})`).join(', ') || 'none'}. Opus costs 5-10x more than Sonnet per token.`,
@@ -892,7 +894,7 @@ function generateInsights(sessions, allPrompts, totals) {
     const avgTokens = Math.round(totalWasted / shortExpensive.length);
     insights.push({
       id: 'explore-stage-bloat',
-      lens: 'pipeline',
+      lens: 'cost',
       type: 'warning',
       title: `Explore stage searches too broadly — ${shortExpensive.length} queries averaged ${fmt(avgTokens)} tokens`,
       description: `${shortExpensive.length} short queries (like "Yes", "Do it") triggered wide-open explore patterns that scanned entire codebase. Each used 100K+ tokens searching for context. This suggests the explore skill has insufficient constraints and returns too many candidate files, forcing implement stage to re-read and filter.`,
@@ -913,7 +915,7 @@ function generateInsights(sessions, allPrompts, totals) {
       const avgGrowth = (growthData.reduce((s, g) => s + g.ratio, 0) / growthData.length).toFixed(1);
       insights.push({
         id: 'impl-context-growth',
-        lens: 'pipeline',
+        lens: 'cost',
         type: 'warning',
         title: `Implement stage context balloons ${avgGrowth}x over task lifetime — split tasks smaller`,
         description: `In ${growthData.length} runs, costs per turn grew ${avgGrowth}x from start to finish. This happens when implement stage tackles too much: context accumulates, re-reads get expensive, and later iterations become 10x costlier. Indicates tasks are defined too broadly or should be split into sub-tasks.`,
@@ -929,7 +931,7 @@ function generateInsights(sessions, allPrompts, totals) {
     const longPct = ((longTokens / Math.max(totals.totalTokens, 1)) * 100).toFixed(0);
     insights.push({
       id: 'pipeline-batch-churn',
-      lens: 'pipeline',
+      lens: 'cost',
       type: 'warning',
       title: `${longCount} epic-scope runs used ${longPct}% of tokens — split or batch`,
       description: `${longCount} pipeline runs exceeded 200 turns each, consuming ${fmt(longTokens)} tokens (${longPct}% of total). Each turn accumulates context, compound re-reads, and drives up cost per iteration. Indicates implement stage is attempting multi-file refactors or cross-subsystem changes in single run.`,
@@ -943,7 +945,7 @@ function generateInsights(sessions, allPrompts, totals) {
     if (outputPct < 2) {
       insights.push({
         id: 'impl-excessive-rereads',
-        lens: 'pipeline',
+        lens: 'speed',
         type: 'warning',
         title: `${outputPct.toFixed(1)}% of tokens are actual work — implement caching`,
         description: `${(100 - outputPct).toFixed(1)}% is context re-reading: same files loaded repeatedly across quality loop iterations. Each implement-check-fix cycle re-reads the entire codebase. This compounds with long tasks. File caching eliminates redundant reads and can save ${fmt(Math.round(totals.totalTokens * 0.3))} tokens.`,
@@ -973,7 +975,7 @@ function generateInsights(sessions, allPrompts, totals) {
       if (ratio >= 2) {
         insights.push({
           id: 'day-pattern',
-          lens: 'pipeline',
+          lens: 'speed',
           type: 'neutral',
           title: `${busiest.day} pipeline runs average ${ratio}x more tokens than ${quietest.day} — tasks may be over-scoped on heavy days`,
           description: `${busiest.day} pipeline sessions average ${fmt(Math.round(busiest.avg))} tokens vs ${fmt(Math.round(quietest.avg))} on ${quietest.day}s. Heavier days likely have larger, more complex tasks that accumulate context faster across implement iterations.`,
@@ -991,7 +993,7 @@ function generateInsights(sessions, allPrompts, totals) {
       const wastedTokens = simpleOpus.reduce((s, ses) => s + ses.totalTokens, 0);
       insights.push({
         id: 'model-mismatch',
-        lens: 'pipeline',
+        lens: 'cost',
         type: 'warning',
         title: `Pipeline model config routed ${simpleOpus.length} short-session tasks to Opus — Sonnet handles these equally`,
         description: `${simpleOpus.length} pipeline runs used Opus for tasks under 10 iterations and ${fmt(wastedTokens)} total tokens. Opus is 5x more expensive than Sonnet per token. Short implement tasks (single file edits, test fixes, config changes) don't need Opus's extra reasoning depth.`,
@@ -1015,7 +1017,7 @@ function generateInsights(sessions, allPrompts, totals) {
       }, 0) / toolHeavy.length;
       insights.push({
         id: 'tool-heavy',
-        lens: 'pipeline',
+        lens: 'speed',
         type: 'info',
         title: `Explore stage averaged ${Math.round(avgRatio)} file searches per task input across ${toolHeavy.length} sessions — task descriptions lack file paths`,
         description: `In ${toolHeavy.length} pipeline runs, the explore stage made ~${Math.round(avgRatio)} file search/read operations per task turn. Each search re-reads the full conversation context. These runs used ${fmt(totalToolTokens)} tokens total. Under-specified task descriptions force the explore stage to scan broadly instead of targeting known files.`,
@@ -1039,7 +1041,7 @@ function generateInsights(sessions, allPrompts, totals) {
         const projName = topProject.replace(/^C--Users-[^-]+-?/, '').replace(/^Projects-?/, '').replace(/-/g, '/') || '~';
         insights.push({
           id: 'project-dominance',
-          lens: 'pipeline',
+          lens: 'cost',
           type: 'info',
           title: `${pct}% of pipeline tokens come from one project (${projName}) — highest ROI for scope optimizations`,
           description: `The "${projName}" pipeline used ${fmt(topTokens)} tokens out of ${fmt(totals.totalTokens)} total (${pct}%). Applying task scope limits and file path targeting to this project's pipeline config will have the largest impact on total spend.`,
@@ -1060,7 +1062,7 @@ function generateInsights(sessions, allPrompts, totals) {
       if (ratio >= 2) {
         insights.push({
           id: 'conversation-efficiency',
-          lens: 'pipeline',
+          lens: 'cost',
           type: 'warning',
           title: `Implement stage averages ${ratio}x more tokens per turn in long-running tasks — split tasks to reset context`,
           description: `Focused pipeline runs (under 15 iterations) cost ~${fmt(shortAvg)} tokens per turn. Long runs (80+ iterations) cost ~${fmt(longAvg)} tokens per turn — ${ratio}x more — because each iteration re-reads the full accumulated context. Long implement sessions indicate tasks are over-scoped for a single pipeline run.`,
@@ -1081,7 +1083,7 @@ function generateInsights(sessions, allPrompts, totals) {
       const totalOverhead = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0);
       insights.push({
         id: 'heavy-context',
-        lens: 'pipeline',
+        lens: 'cost',
         type: 'info',
         title: `Pipeline startup loads ${fmt(avgStartTokens)}+ tokens of base context across ${heavyStarts.length} runs — CLAUDE.md overhead compounds per iteration`,
         description: `Each pipeline run starts by loading CLAUDE.md, project files, and system context before the first task. In ${heavyStarts.length} runs, this baseline averaged ${fmt(avgStartTokens)} tokens — ${fmt(totalOverhead)} tokens total just on startup context that gets re-read with every implement iteration.`,
@@ -1105,7 +1107,7 @@ function generateInsights(sessions, allPrompts, totals) {
     if (totalWasted > 0.5) {
       insights.push({
         id: 'wasted-escalation-cost',
-        lens: 'pipeline',
+        lens: 'cost',
         type: 'warning',
         title: `Pipeline model routing spent $${totalWasted.toFixed(2)} extra — Opus selected for ${escalatedSessions.length} short-session tasks that fit Sonnet`,
         description: `${escalatedSessions.length} pipeline runs used Opus for lightweight tasks (under 20 iterations, under 500K tokens), costing ~$${totalWasted.toFixed(2)} more than Sonnet would have. These tasks — single-file edits, test fixes, config changes — don't require Opus's reasoning depth. Model routing config is not differentiating task complexity.`,
@@ -1129,7 +1131,7 @@ function generateInsights(sessions, allPrompts, totals) {
       const totalScopeTokens = scopeCreepSessions.reduce((s, ses) => s + ses.totalTokens, 0);
       insights.push({
         id: 'scope-creep-indicator',
-        lens: 'pipeline',
+        lens: 'cost',
         type: 'warning',
         title: `Implement stage took ${Math.round(avgRatio)}x more steps than prompted across ${scopeCreepSessions.length} runs — task template lacks explicit stopping criteria`,
         description: `In ${scopeCreepSessions.length} pipeline runs, the implement stage made ~${Math.round(avgRatio)} autonomous steps per prompted task turn. These ${scopeCreepSessions.length} runs used ${fmt(totalScopeTokens)} tokens total. Without a "Done when" field in task descriptions, the implement stage continues beyond the stated goal: refactoring adjacent files, adding unrequested features, or extending test coverage beyond scope.`,
