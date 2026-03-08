@@ -370,6 +370,9 @@ async function parseAllSessions() {
   const orchestrator = parseOrchestratorLogs(projectCostMap);
   const orchestratorInsights = generateOrchestratorInsights(orchestrator);
 
+  // Generate per-lens recommendations
+  const recommendations = generateRecommendations(sessions, allPrompts, grandTotals, orchestrator);
+
   return {
     sessions,
     dailyUsage,
@@ -379,6 +382,7 @@ async function parseAllSessions() {
     totals: grandTotals,
     insights: [...insights, ...orchestratorInsights],
     orchestrator,
+    recommendations,
   };
 }
 
@@ -847,6 +851,266 @@ function generateOrchestratorInsights(orchestrator) {
   }
 
   return insights;
+}
+
+// Approximate Claude API pricing ($/million tokens, 2025)
+const PRICING = {
+  opus:   { input: 15,  output: 75  },
+  sonnet: { input: 3,   output: 15  },
+  haiku:  { input: 0.8, output: 4   },
+};
+
+function modelTier(model) {
+  if (!model) return null;
+  if (model.includes('opus'))   return 'opus';
+  if (model.includes('sonnet')) return 'sonnet';
+  if (model.includes('haiku'))  return 'haiku';
+  return null;
+}
+
+function estimateCost(inputTokens, outputTokens, tier) {
+  const p = PRICING[tier] || PRICING.sonnet;
+  return (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output;
+}
+
+function fmtDollars(n) {
+  if (n >= 1) return '$' + n.toFixed(2);
+  if (n >= 0.01) return '$' + n.toFixed(3);
+  return '$' + n.toFixed(4);
+}
+
+/**
+ * Generate per-lens actionable recommendations from usage data.
+ * Returns { model: [...], context: [...], conversation: [...], pipeline: [...] }
+ * Each entry: { text, detail, saving }
+ */
+function generateRecommendations(sessions, allPrompts, totals, orchestrator) {
+  const recs = { model: [], context: [], conversation: [], pipeline: [] };
+
+  // ── MODEL LENS ──────────────────────────────────────────────────────────────
+  // 1. Opus sessions that don't need Opus (simple tasks)
+  const opusSessions = sessions.filter(s => modelTier(s.model) === 'opus');
+  if (opusSessions.length > 0) {
+    const simpleOpus = opusSessions.filter(s => s.queryCount < 15 && s.totalTokens < 300_000);
+    if (simpleOpus.length >= 2) {
+      const inputTokens = simpleOpus.reduce((s, ses) => s + ses.inputTokens, 0);
+      const outputTokens = simpleOpus.reduce((s, ses) => s + ses.outputTokens, 0);
+      const opusCost  = estimateCost(inputTokens, outputTokens, 'opus');
+      const sonnetCost = estimateCost(inputTokens, outputTokens, 'sonnet');
+      const savings = opusCost - sonnetCost;
+      recs.model.push({
+        text: `Switch ${simpleOpus.length} simple sessions from Opus→Sonnet to save ~${fmtDollars(savings)}`,
+        detail: `${simpleOpus.length} sessions had <15 queries but used expensive Opus. Example: "${(simpleOpus[0].firstPrompt || '').substring(0, 60)}". Sonnet handles these tasks equally well.`,
+        saving: savings,
+      });
+    }
+  }
+
+  // 2. CLAUDE.md / context overhead cost per session
+  const heavyStarts = sessions.filter(s => s.queries && s.queries[0] && s.queries[0].inputTokens > 50_000);
+  if (heavyStarts.length >= 3) {
+    const avgStartInput = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0) / heavyStarts.length;
+    const totalContextCost = heavyStarts.reduce((s, ses) => s + estimateCost(ses.queries[0].inputTokens, 0, modelTier(ses.model) || 'sonnet'), 0);
+    const perSession = totalContextCost / heavyStarts.length;
+    recs.model.push({
+      text: `Your CLAUDE.md costs ~${fmtDollars(perSession)} per session in context overhead`,
+      detail: `Sessions start with ~${fmt(Math.round(avgStartInput))} tokens before your first message. Trim unused CLAUDE.md sections to compound savings across every conversation.`,
+      saving: totalContextCost,
+    });
+  }
+
+  // 3. Model mix: if >80% tokens on one model, mention cheaper alternatives exist
+  if (sessions.length >= 5) {
+    const tierTokens = { opus: 0, sonnet: 0, haiku: 0 };
+    for (const s of sessions) {
+      const t = modelTier(s.model);
+      if (t) tierTokens[t] += s.totalTokens;
+    }
+    const total = tierTokens.opus + tierTokens.sonnet + tierTokens.haiku;
+    if (total > 0 && tierTokens.opus / total > 0.5) {
+      const opusPct = Math.round(tierTokens.opus / total * 100);
+      const opusCost = estimateCost(
+        sessions.filter(s => modelTier(s.model) === 'opus').reduce((s, ses) => s + ses.inputTokens, 0),
+        sessions.filter(s => modelTier(s.model) === 'opus').reduce((s, ses) => s + ses.outputTokens, 0),
+        'opus'
+      );
+      const savings = opusCost * 0.4; // rough: shift 40% to sonnet
+      if (recs.model.length < 3) {
+        recs.model.push({
+          text: `${opusPct}% of tokens use Opus — shifting routine tasks to Sonnet saves ~${fmtDollars(savings)}`,
+          detail: `Opus is ideal for complex reasoning but over-powered for file edits, linting, and one-shot tasks. Use /model to switch for routine work.`,
+          saving: savings,
+        });
+      }
+    }
+  }
+
+  // ── CONTEXT LENS ─────────────────────────────────────────────────────────────
+  // 1. Vague/short prompts that trigger expensive tool chains
+  const shortExpensive = allPrompts.filter(p => p.prompt.trim().length < 30 && p.totalTokens > 100_000);
+  if (shortExpensive.length > 0) {
+    const worst = [...shortExpensive].sort((a, b) => b.totalTokens - a.totalTokens)[0];
+    const totalWastedInput = shortExpensive.reduce((s, p) => s + p.inputTokens, 0);
+    const totalWastedOutput = shortExpensive.reduce((s, p) => s + p.outputTokens, 0);
+    const worstTier = modelTier(worst.model) || 'sonnet';
+    const wastedCost = estimateCost(totalWastedInput, totalWastedOutput, worstTier);
+    recs.context.push({
+      text: `"${worst.prompt.trim().substring(0, 35)}" cost ${fmt(worst.totalTokens)} tokens — specific prompts cut this 50-80%`,
+      detail: `${shortExpensive.length} short messages triggered expensive tool chains (total ~${fmtDollars(wastedCost)} estimated). Saying "Yes, update auth.js line 42 and run tests" beats "Yes".`,
+      saving: wastedCost * 0.6,
+    });
+  }
+
+  // 2. Conversation length efficiency gap
+  if (sessions.length >= 10) {
+    const shortSess = sessions.filter(s => s.queryCount >= 3 && s.queryCount <= 15);
+    const longSess  = sessions.filter(s => s.queryCount > 80);
+    if (shortSess.length >= 3 && longSess.length >= 2) {
+      const shortAvg = shortSess.reduce((s, ses) => s + ses.totalTokens / ses.queryCount, 0) / shortSess.length;
+      const longAvg  = longSess.reduce((s, ses) => s + ses.totalTokens / ses.queryCount, 0) / longSess.length;
+      const ratio = (longAvg / Math.max(shortAvg, 1)).toFixed(1);
+      if (ratio >= 2) {
+        recs.context.push({
+          text: `Long conversations cost ${ratio}x more per message — start a fresh session per task`,
+          detail: `Short sessions average ~${fmt(Math.round(shortAvg))} tokens/msg vs ~${fmt(Math.round(longAvg))} in long ones. Every message re-reads the full history.`,
+          saving: null,
+        });
+      }
+    }
+  }
+
+  // 3. Input-heavy ratio (most tokens are re-reads)
+  if (totals.totalTokens > 0) {
+    const outputPct = (totals.totalOutputTokens / totals.totalTokens) * 100;
+    if (outputPct < 3) {
+      recs.context.push({
+        text: `${outputPct.toFixed(1)}% of tokens are actual responses — shorter sessions = bigger savings than shorter answers`,
+        detail: `The other ${(100 - outputPct).toFixed(1)}% is Claude re-reading context. Session length matters far more than response length.`,
+        saving: null,
+      });
+    }
+  }
+
+  // ── CONVERSATION LENS ────────────────────────────────────────────────────────
+  // 1. Marathon sessions dominating spend
+  const marathonSessions = sessions.filter(s => s.queryCount > 200);
+  if (marathonSessions.length >= 2) {
+    const marathonTokens = marathonSessions.reduce((s, ses) => s + ses.totalTokens, 0);
+    const marathonPct = Math.round(marathonTokens / Math.max(totals.totalTokens, 1) * 100);
+    const topMarathon = [...marathonSessions].sort((a, b) => b.totalTokens - a.totalTokens)[0];
+    recs.conversation.push({
+      text: `${marathonSessions.length} marathon sessions (200+ msgs) consumed ${marathonPct}% of total tokens`,
+      detail: `Biggest: "${(topMarathon.firstPrompt || '').substring(0, 60)}" with ${topMarathon.queryCount} messages. Break large tasks into focused sessions to reset context.`,
+      saving: null,
+    });
+  }
+
+  // 2. Tool-heavy sessions
+  if (sessions.length >= 5) {
+    const toolHeavy = sessions.filter(s => {
+      const userMessages = (s.queries || []).filter(q => q.userPrompt).length;
+      const toolCalls = s.queryCount - userMessages;
+      return userMessages > 0 && toolCalls > userMessages * 4;
+    });
+    if (toolHeavy.length >= 2) {
+      const avgRatio = Math.round(toolHeavy.reduce((s, ses) => {
+        const u = (ses.queries || []).filter(q => q.userPrompt).length;
+        return s + (ses.queryCount - u) / Math.max(u, 1);
+      }, 0) / toolHeavy.length);
+      recs.conversation.push({
+        text: `${toolHeavy.length} sessions had ${avgRatio}x more tool calls than messages — point Claude to specific files`,
+        detail: `Saying "Fix auth.js:42" triggers fewer tool calls than "fix the login bug" (which causes Claude to search). Each tool call re-reads the full conversation.`,
+        saving: null,
+      });
+    }
+  }
+
+  // 3. Project dominance
+  if (sessions.length >= 5) {
+    const projectTokens = {};
+    for (const s of sessions) {
+      const proj = s.project || 'unknown';
+      projectTokens[proj] = (projectTokens[proj] || 0) + s.totalTokens;
+    }
+    const sorted = Object.entries(projectTokens).sort((a, b) => b[1] - a[1]);
+    if (sorted.length >= 2) {
+      const [topProject, topTokens] = sorted[0];
+      const pct = Math.round((topTokens / Math.max(totals.totalTokens, 1)) * 100);
+      if (pct >= 60) {
+        const shortName = topProject.replace(/^[A-Za-z]--/, '').replace(/^Users-[^-]+-/, '').replace(/-/g, '/') || topProject;
+        recs.conversation.push({
+          text: `"${shortName.substring(0, 40)}" uses ${pct}% of tokens — optimise here first for biggest impact`,
+          detail: `Applying shorter sessions and specific prompts to this project alone would meaningfully reduce your total spend.`,
+          saving: null,
+        });
+      }
+    }
+  }
+
+  // ── PIPELINE LENS ────────────────────────────────────────────────────────────
+  if (orchestrator && orchestrator.summary && orchestrator.summary.totalRuns >= 3) {
+    const s = orchestrator.summary;
+
+    // 1. Quality loop churn — recommend fixing implementer prompt
+    if (s.avgQualityIterations > 2) {
+      const worstChurners = (s.topChurners || []).filter(r => r.qualityIterations > 3).slice(0, 3);
+      const suffix = worstChurners.length > 0
+        ? ` Worst: ${worstChurners.map(r => `#${r.issue} (${r.qualityIterations}x)`).join(', ')}`
+        : '';
+      recs.pipeline.push({
+        text: `Quality loop averages ${s.avgQualityIterations}x — tighten implementer prompt to converge in 1-2 iterations`,
+        detail: `Ideal is 1-2 quality iterations per run. Each extra iteration adds a full review+fix cycle.${suffix}`,
+        saving: null,
+      });
+    }
+
+    // 2. Test loop churn — add "run tests before committing"
+    if (s.avgTestIterations > 2) {
+      recs.pipeline.push({
+        text: `Test loop averages ${s.avgTestIterations}x — add "run tests before committing" to implementer prompt`,
+        detail: `Each test iteration means implementation shipped without passing tests. A single prompt line prevents most failures.`,
+        saving: null,
+      });
+    }
+
+    // 3. Haiku escalation pattern — detect if haiku is used but quality fails consistently
+    const { runs } = orchestrator;
+    const haikusRuns = (runs || []).filter(r => {
+      // Heuristic: runs with high quality iterations likely had model escalation issues
+      return r.qualityIterations > 3;
+    });
+    if (haikusRuns.length >= 2 && s.avgQualityIterations > 2) {
+      const escalationPct = Math.round(haikusRuns.length / Math.max(s.totalRuns, 1) * 100);
+      recs.pipeline.push({
+        text: `${escalationPct}% of runs churn 3+ quality loops — route complex tasks directly to Sonnet`,
+        detail: `Runs with ${3}+ quality iterations likely needed a more capable model from the start. Routing complex tasks to Sonnet reduces review cycles.`,
+        saving: null,
+      });
+    } else if (s.stageAvgs && s.stageAvgs.length > 0 && s.stageAvgs[0].avgSeconds > 300) {
+      // Stage bottleneck fallback
+      const slowest = s.stageAvgs[0];
+      const mins = Math.round(slowest.avgSeconds / 60);
+      recs.pipeline.push({
+        text: `"${slowest.name}" stage averages ${mins}m — split large tasks or cache file reads`,
+        detail: `Long stages accumulate context per turn, increasing token cost. Breaking tasks or pre-loading key files reduces per-turn reads.`,
+        saving: null,
+      });
+    }
+
+    // 4. Low completion rate
+    if (s.completionRate < 50 && s.totalRuns >= 5 && recs.pipeline.length < 3) {
+      const errorPct = Math.round((s.errorRuns / s.totalRuns) * 100);
+      recs.pipeline.push({
+        text: `Only ${s.completionRate}% of runs complete — investigate error patterns in orchestrator logs`,
+        detail: `${s.errorRuns} of ${s.totalRuns} runs ended in error. Zero-task errors often mean issue parsing failed; execution errors need better agent error handling.`,
+        saving: null,
+      });
+    }
+  }
+
+  // Trim to 3 per lens
+  for (const key of Object.keys(recs)) recs[key] = recs[key].slice(0, 3);
+  return recs;
 }
 
 function generateInsights(sessions, allPrompts, totals) {
