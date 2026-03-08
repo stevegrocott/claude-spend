@@ -880,6 +880,18 @@ let currentSort = { key: 'total', dir: 'desc' };
 let searchQuery = '';
 let currentLens = 'cost';
 
+function lensScore(insightId, lens) {
+  return (LENS_SCORES[insightId] || {})[lens || currentLens] || 0;
+}
+
+const TOP_RANKS = [
+  { cls: 'lens-top-1', label: '#1 Pick' },
+  { cls: 'lens-top-2', label: '#2 Pick' },
+  { cls: 'lens-top-3', label: '#3 Pick' },
+];
+
+const SKIP_IDS = new Set(['day-pattern', 'project-dominance']);
+
 const LENS_SCORES = {
   'vague-prompts':           { cost: 3, speed: 1, quality: 3 },
   'context-growth':          { cost: 3, speed: 3, quality: 2 },
@@ -1351,40 +1363,33 @@ function renderInsights() {
   const emojis = { warning: '\u26A0\uFE0F', info: '\uD83D\uDCA1', neutral: '\uD83D\uDCC5' };
 
   // Sort by current lens score descending
-  const insights = [...allInsights].sort((a, b) => {
-    const sa = (LENS_SCORES[a.id] || {})[currentLens] || 0;
-    const sb = (LENS_SCORES[b.id] || {})[currentLens] || 0;
-    return sb - sa;
-  });
+  const insights = [...allInsights].sort((a, b) => lensScore(b.id) - lensScore(a.id));
 
   // Determine top-3 picks (only those with score > 0)
-  const topClasses = ['lens-top-1', 'lens-top-2', 'lens-top-3'];
-  const topLabels = ['#1 Pick', '#2 Pick', '#3 Pick'];
   const topRanks = new Map();
-  let rank = 0;
   for (const ins of insights) {
-    if (rank >= 3) break;
-    const score = (LENS_SCORES[ins.id] || {})[currentLens] || 0;
-    if (score > 0) { topRanks.set(ins.id, rank); rank++; }
+    if (topRanks.size >= 3) break;
+    if (lensScore(ins.id) > 0) topRanks.set(ins.id, topRanks.size);
   }
 
   // Render lens stats bar
   const t = FILTERED.totals;
+  const actionableCount = (lens) => String(allInsights.filter(i => lensScore(i.id, lens) >= 2).length);
   const lensStats = {
     cost: [
       { label: 'Avg cost/session', value: fmt(t.avgTokensPerSession), sub: 'tokens' },
       { label: 'Avg cost/message', value: fmt(t.avgTokensPerQuery), sub: 'tokens' },
-      { label: 'Cost insights', value: String(allInsights.filter(i => ((LENS_SCORES[i.id] || {}).cost || 0) >= 2).length), sub: 'actionable' },
+      { label: 'Cost insights', value: actionableCount('cost'), sub: 'actionable' },
     ],
     speed: [
       { label: 'Avg msgs/session', value: String(Math.round(t.totalQueries / Math.max(t.totalSessions, 1))), sub: 'messages' },
       { label: 'Context overhead', value: ((t.totalInputTokens / Math.max(t.totalTokens, 1)) * 100).toFixed(0) + '%', sub: 'of tokens re-read' },
-      { label: 'Speed insights', value: String(allInsights.filter(i => ((LENS_SCORES[i.id] || {}).speed || 0) >= 2).length), sub: 'actionable' },
+      { label: 'Speed insights', value: actionableCount('speed'), sub: 'actionable' },
     ],
     quality: [
       { label: 'Output ratio', value: ((t.totalOutputTokens / Math.max(t.totalTokens, 1)) * 100).toFixed(1) + '%', sub: 'Claude actually writing' },
       { label: 'Total written', value: fmt(t.totalOutputTokens), sub: 'tokens by Claude' },
-      { label: 'Quality insights', value: String(allInsights.filter(i => ((LENS_SCORES[i.id] || {}).quality || 0) >= 2).length), sub: 'actionable' },
+      { label: 'Quality insights', value: actionableCount('quality'), sub: 'actionable' },
     ],
   };
   document.getElementById('lensStatsBar').innerHTML = (lensStats[currentLens] || []).map(s => `
@@ -1394,14 +1399,13 @@ function renderInsights() {
       <div class="lens-stat-pill-sub">${s.sub}</div>
     </div>`).join('');
 
-  const skipIds = new Set(['day-pattern', 'project-dominance']);
   document.getElementById('insightsList').innerHTML = insights.map((ins, i) => {
     const rankIdx = topRanks.has(ins.id) ? topRanks.get(ins.id) : -1;
-    const topClass = rankIdx >= 0 ? topClasses[rankIdx] : '';
-    const badgeHtml = rankIdx >= 0 ? `<span class="insight-top-badge">${topLabels[rankIdx]}</span>` : '';
+    const topClass = rankIdx >= 0 ? TOP_RANKS[rankIdx].cls : '';
+    const badgeHtml = rankIdx >= 0 ? `<span class="insight-top-badge">${TOP_RANKS[rankIdx].label}</span>` : '';
     const detailHtml = ins.description ? `<div class="insight-detail">${escapeHtml(ins.description)}</div>` : '';
     const actionHtml = ins.action ? `<div class="insight-action-tip">${escapeHtml(ins.action)}</div>` : '';
-    const buttonHtml = !skipIds.has(ins.id) ? `<div class="insight-create-issue">
+    const buttonHtml = !SKIP_IDS.has(ins.id) ? `<div class="insight-create-issue">
         <button id="btn-${ins.id}" onclick="event.stopPropagation(); createIssueFromInsight('${ins.id}', this)">Create Issue</button>
         <span class="issue-status" id="status-${ins.id}"></span>
       </div>` : '';
