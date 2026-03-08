@@ -541,6 +541,7 @@ function generateOrchestratorInsights(orchestrator) {
     insights.push({
       id: 'quality-churn',
       type: 'warning',
+      lens: 'Quality',
       title: `Quality loop averaging ${summary.avgQualityIterations} iterations per run`,
       description: `Across ${summary.totalRuns} pipeline runs, the quality review loop averages ${summary.avgQualityIterations} iterations. Ideal is 1-2. Worst offenders: ${worstList || 'none over 2'}. Each extra iteration means the implementer's output didn't meet the reviewer's standards, costing a full re-review cycle.`,
       action: 'Review the implementer prompt and code-quality-reviewer prompt. Common fixes: add specific coding standards to implementer prompt, reduce reviewer strictness on style-only issues, or improve the task descriptions to be more precise.',
@@ -554,6 +555,7 @@ function generateOrchestratorInsights(orchestrator) {
     insights.push({
       id: 'test-churn',
       type: 'warning',
+      lens: 'Quality',
       title: `Test loop averaging ${summary.avgTestIterations} iterations per run`,
       description: `The test-fix loop averages ${summary.avgTestIterations} iterations across runs with test activity. Worst: ${worstList || 'n/a'}. Each iteration means tests failed after implementation, requiring a fix cycle.`,
       action: 'Strengthen the implementer prompt to emphasize running tests before committing. Consider adding test command examples to task descriptions.',
@@ -567,6 +569,7 @@ function generateOrchestratorInsights(orchestrator) {
     insights.push({
       id: 'low-completion-rate',
       type: 'warning',
+      lens: 'Speed',
       title: `Only ${summary.completionRate}% of pipeline runs complete successfully`,
       description: `Out of ${summary.totalRuns} pipeline runs: ${summary.completedRuns} completed (${summary.completionRate}%), ${summary.errorRuns} errored (${errorPct}%), ${summary.maxIterationsRuns} hit max iterations (${maxIterPct}%). A healthy pipeline should complete >70% of runs.`,
       action: 'Investigate error-state runs for common failure patterns. For max-iterations runs, consider increasing iteration limits or improving agent prompts to converge faster.',
@@ -581,6 +584,7 @@ function generateOrchestratorInsights(orchestrator) {
       insights.push({
         id: 'stage-bottleneck',
         type: 'info',
+        lens: 'Speed',
         title: `"${slowest.name}" stage averages ${mins} minutes — slowest pipeline stage`,
         description: `The "${slowest.name}" stage averages ${mins} minutes across ${slowest.count} runs. ${summary.stageAvgs.slice(1, 4).map(s => `"${s.name}": ${Math.round(s.avgSeconds / 60)}m`).join(', ')}. Long stages increase token cost due to context accumulation.`,
         action: 'Consider splitting large tasks in this stage, or check if the stage is doing unnecessary work (e.g., reading too many files, running full test suites instead of targeted tests).',
@@ -599,6 +603,7 @@ function generateOrchestratorInsights(orchestrator) {
     insights.push({
       id: 'error-pattern',
       type: 'warning',
+      lens: 'Quality',
       title: `${errorPct}% of pipeline runs end in error state`,
       description: `${summary.errorRuns} out of ${summary.totalRuns} runs ended in error. ${detail} Error examples: ${errorExamples.map(r => `#${r.issue}`).join(', ')}.`,
       action: 'Check orchestrator logs for the error-state runs. Zero-task errors usually mean issue parsing failed (malformed task list). Execution errors may need better error handling in the orchestrator.',
@@ -619,6 +624,7 @@ function generateInsights(sessions, allPrompts, totals) {
     insights.push({
       id: 'vague-prompts',
       type: 'warning',
+      lens: 'Cost',
       title: 'Short, vague messages are costing you the most',
       description: `${shortExpensive.length} times you sent a short message like ${examples.map(e => '"' + e + '"').join(', ')} -- and each time, Claude used over 100K tokens to respond. That adds up to ${fmt(totalWasted)} tokens total. When you say just "Yes" or "Do it", Claude doesn't know exactly what you want, so it tries harder -- reading more files, running more tools, making more attempts. Each of those steps re-sends the entire conversation, which multiplies the cost.`,
       action: 'Try being specific. Instead of "Yes", say "Yes, update the login page and run the tests." It gives Claude a clear target, so it finishes faster and uses fewer tokens.',
@@ -640,6 +646,7 @@ function generateInsights(sessions, allPrompts, totals) {
       insights.push({
         id: 'context-growth',
         type: 'warning',
+        lens: 'Cost',
         title: 'The longer you chat, the more each message costs',
         description: `In ${growthData.length} of your conversations, the messages near the end cost ${avgGrowth}x more than the ones at the start. Why? Every time you send a message, Claude re-reads the entire conversation from the beginning. So message #5 is cheap, but message #80 is expensive because Claude is re-reading 79 previous messages plus all the code it wrote. Your longest conversation ("${worstSession.session.firstPrompt.substring(0, 50)}...") grew ${worstSession.ratio.toFixed(1)}x more expensive by the end.`,
         action: 'Start a fresh conversation when you move to a new task. If you need context from before, paste a short summary in your first message. This gives Claude a clean slate instead of re-reading hundreds of old messages.',
@@ -657,6 +664,7 @@ function generateInsights(sessions, allPrompts, totals) {
     insights.push({
       id: 'marathon-sessions',
       type: 'info',
+      lens: 'Cost',
       title: `Just ${longCount} long conversations used ${longPct}% of all your tokens`,
       description: `You have ${longCount} conversations with over 200 messages each. These alone consumed ${fmt(longTokens)} tokens -- that's ${longPct}% of everything. Meanwhile, your typical conversation is about ${medianTurns} messages. Long conversations aren't always bad, but they're disproportionately expensive because of how context builds up.`,
       action: 'Try keeping one conversation per task. When a conversation starts drifting into different topics, that is a good time to start a new one.',
@@ -670,6 +678,7 @@ function generateInsights(sessions, allPrompts, totals) {
       insights.push({
         id: 'input-heavy',
         type: 'info',
+        lens: 'Cost',
         title: `${outputPct.toFixed(1)}% of your tokens are Claude actually writing`,
         description: `Here's something surprising: out of ${fmt(totals.totalTokens)} total tokens, only ${fmt(totals.totalOutputTokens)} are from Claude writing responses. The other ${(100 - outputPct).toFixed(1)}% is Claude re-reading your conversation history, files, and context before each response. This means the biggest factor in token usage isn't how much Claude writes -- it's how long your conversations are.`,
         action: 'Keeping conversations shorter has more impact than asking for shorter answers. A 20-message conversation costs far less than a 200-message one, even if the total output is similar.',
@@ -697,6 +706,7 @@ function generateInsights(sessions, allPrompts, totals) {
       insights.push({
         id: 'day-pattern',
         type: 'neutral',
+        lens: 'Cost',
         title: `You use Claude the most on ${busiest.day}s`,
         description: `Your ${busiest.day} conversations average ${fmt(Math.round(busiest.avg))} tokens each, compared to ${fmt(Math.round(quietest.avg))} on ${quietest.day}s. This could mean you tackle bigger tasks on ${busiest.day}s, or your conversations tend to run longer.`,
         action: null,
@@ -714,6 +724,7 @@ function generateInsights(sessions, allPrompts, totals) {
       insights.push({
         id: 'model-mismatch',
         type: 'warning',
+        lens: 'Cost',
         title: `${simpleOpus.length} simple conversations used Opus unnecessarily`,
         description: `These conversations had fewer than 10 messages and used ${fmt(wastedTokens)} tokens on Opus: ${examples}. Opus is the most capable model but also the most expensive. For quick questions and small tasks, Sonnet or Haiku would give similar results at a fraction of the cost.`,
         action: 'Use /model to switch to Sonnet or Haiku for simple tasks. Save Opus for complex multi-file changes, architecture decisions, or tricky debugging.',
@@ -737,6 +748,7 @@ function generateInsights(sessions, allPrompts, totals) {
       insights.push({
         id: 'tool-heavy',
         type: 'info',
+        lens: 'Cost',
         title: `${toolHeavy.length} conversations had ${Math.round(avgRatio)}x more tool calls than messages`,
         description: `In these conversations, Claude made ~${Math.round(avgRatio)} tool calls for every message you sent. Each tool call (reading files, running commands, searching code) is a full round trip that re-reads the entire conversation. These ${toolHeavy.length} conversations used ${fmt(totalToolTokens)} tokens total.`,
         action: 'Point Claude to specific files and line numbers when you can. "Fix the bug in src/auth.js line 42" triggers fewer tool calls than "fix the login bug" where Claude has to search for the right file first.',
@@ -760,6 +772,7 @@ function generateInsights(sessions, allPrompts, totals) {
         insights.push({
           id: 'project-dominance',
           type: 'info',
+          lens: 'Cost',
           title: `${pct}% of your tokens went to one project: ${projName}`,
           description: `Your "${projName}" project used ${fmt(topTokens)} tokens out of ${fmt(totals.totalTokens)} total. That is ${pct}% of all your usage. The next closest project used ${fmt(sorted[1][1])} tokens.`,
           action: 'Not necessarily a problem, but worth knowing. If this project has long-running conversations, breaking them into smaller sessions could reduce its footprint.',
@@ -780,6 +793,7 @@ function generateInsights(sessions, allPrompts, totals) {
         insights.push({
           id: 'conversation-efficiency',
           type: 'warning',
+          lens: 'Cost',
           title: `Each message costs ${ratio}x more in long conversations`,
           description: `In your short conversations (under 15 messages), each message costs ~${fmt(shortAvg)} tokens. In your long ones (80+ messages), each message costs ~${fmt(longAvg)} tokens. That is ${ratio}x more per message, because Claude re-reads the entire history every turn.`,
           action: 'This is the single biggest lever for reducing token usage. Start fresh conversations more often. A 5-conversation workflow costs far less than one 500-message marathon.',
@@ -800,6 +814,7 @@ function generateInsights(sessions, allPrompts, totals) {
       insights.push({
         id: 'heavy-context',
         type: 'info',
+        lens: 'Cost',
         title: `${heavyStarts.length} conversations started with ${fmt(avgStartTokens)}+ tokens of context`,
         description: `Before you even type your first message, Claude reads your CLAUDE.md, project files, and system context. In ${heavyStarts.length} conversations, this starting context averaged ${fmt(avgStartTokens)} tokens. Across all of them, that is ${fmt(totalOverhead)} tokens just on setup -- and this context gets re-read with every message.`,
         action: 'Keep your CLAUDE.md files concise. Remove sections you rarely need. A smaller starting context compounds into savings across every message in the conversation.',
