@@ -1328,7 +1328,7 @@ async function createIssueFromInsight(insightId, btn) {
 
 // Pipeline Efficiency
 function renderPipeline() {
-  const orch = RAW_DATA.orchestrator;
+  const orch = DATA.orchestrator;
   const section = document.getElementById('pipelineSection');
   if (!orch || !orch.summary || orch.summary.totalRuns === 0) {
     section.style.display = 'none';
