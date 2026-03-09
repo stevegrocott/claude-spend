@@ -318,7 +318,7 @@
   }
   .rec-item.expanded .rec-detail { display: block; }
   .rec-saving {
-    font-size: 11px; font-weight: 700; padding: 2px 7px;
+    font-size: 11px; font-weight: 700; padding: 2px 10px;
     border-radius: 20px; white-space: nowrap; flex-shrink: 0;
     background: #ECFDF5; color: #047857; margin-top: 2px;
   }
@@ -1092,12 +1092,16 @@ function dateRangeMonths(dateRange) {
   const months = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) + 1;
   return Math.max(1, months);
 }
-function recFmtTokenSaving(totalTokensSaved, totals) {
-  const months = dateRangeMonths((totals || FILTERED.totals).dateRange);
+function recFmtTokenSaving(totalTokensSaved, totals, months) {
+  if (!months) months = dateRangeMonths((totals || FILTERED.totals).dateRange);
   const perMonth = totalTokensSaved / months;
   if (perMonth >= 1_000_000) return '~' + (perMonth / 1_000_000).toFixed(1) + 'M tokens/mo';
   if (perMonth >= 1_000) return '~' + (perMonth / 1_000).toFixed(1) + 'K tokens/mo';
   return '~' + Math.round(perMonth) + ' tokens/mo';
+}
+function recCalcPriceRatioSavings(tokens, fromModel, toModel) {
+  const fromRate = REC_PRICING[fromModel].input, toRate = REC_PRICING[toModel].input;
+  return tokens * (1 - toRate / fromRate);
 }
 
 function clientGenerateRecommendations(sessions, allPrompts, totals) {
@@ -1122,8 +1126,8 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
   }
   const heavyStarts = sessions.filter(s => s.queries && s.queries[0] && s.queries[0].inputTokens > 50_000);
   if (heavyStarts.length >= 3) {
-    const avgStartInput = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0) / heavyStarts.length;
     const totalStartTokens = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0);
+    const avgStartInput = totalStartTokens / heavyStarts.length;
     const startLabel = recFmtTokenSaving(totalStartTokens, totals);
     recs.model.push({
       text: `Your CLAUDE.md loads ~${fmt(Math.round(avgStartInput))} tokens per session — trimming it frees ${startLabel} of headroom`,
@@ -1137,11 +1141,10 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
     const total = tierTokens.opus + tierTokens.sonnet + tierTokens.haiku;
     if (total > 0 && tierTokens.opus / total > 0.5) {
       const opusPct = Math.round(tierTokens.opus / total * 100);
-      const opusInp = sessions.filter(s => recModelTier(s.model) === 'opus').reduce((s, ses) => s + (ses.inputTokens || 0), 0);
-      const opusOut = sessions.filter(s => recModelTier(s.model) === 'opus').reduce((s, ses) => s + (ses.outputTokens || 0), 0);
-      const sonnetRate = REC_PRICING.sonnet.input, opusRate = REC_PRICING.opus.input;
+      const opusInp = opusSessions.reduce((s, ses) => s + (ses.inputTokens || 0), 0);
+      const opusOut = opusSessions.reduce((s, ses) => s + (ses.outputTokens || 0), 0);
       const opusTokens = opusInp + opusOut;
-      const tokenSavings = opusTokens * 0.4 * (1 - sonnetRate / opusRate);
+      const tokenSavings = recCalcPriceRatioSavings(opusTokens * 0.4, 'opus', 'sonnet');
       const opusLabel = recFmtTokenSaving(tokenSavings, totals);
       if (recs.model.length < 3) {
         recs.model.push({
@@ -1312,7 +1315,7 @@ function renderRecommendations() {
     const items = (recs[lens.key] || []);
     if (!items.length) return '';
     const itemsHtml = items.map((rec, i) => {
-      const savingBadge = rec.saving != null ? `<span class="rec-saving">${rec.saving.label} est.</span>` : '';
+      const savingBadge = rec.saving != null ? `<span class="rec-saving">${rec.saving.label}</span>` : '';
       const detailHtml = rec.detail ? `<div class="rec-detail">${escapeHtml(rec.detail)}</div>` : '';
       return `<div class="rec-item" onclick="this.classList.toggle('expanded')">
         <div class="rec-dot" style="background:${lens.dot}"></div>
