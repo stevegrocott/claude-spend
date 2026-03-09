@@ -770,7 +770,7 @@
       <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
         <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       </div>
-      <div class="section-title">Recommendations</div>
+      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">Recommendations<div class="tooltip">Actionable suggestions to reduce token usage, ranked by potential impact</div></div>
     </div>
     <div id="recsGrid" class="recs-grid"></div>
   </div>
@@ -781,7 +781,7 @@
       <div class="section-icon" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A)">
         <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 4 12.75V17a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.25A7 7 0 0 1 12 2z"/><path d="M9 21h6"/></svg>
       </div>
-      <div class="section-title">Insights</div>
+      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">Insights<div class="tooltip">Data-driven observations about your usage patterns</div></div>
     </div>
     <div class="lens-selector" id="lensSelectorRow">
       <span class="lens-selector-label">Optimize for</span>
@@ -803,10 +803,32 @@
       <div class="section-icon" style="background:linear-gradient(135deg,#CCFBF1,#99F6E4)">
         <svg viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2.5" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
       </div>
-      <div class="section-title">Pipeline Efficiency</div>
+      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">Pipeline Efficiency<div class="tooltip">Automated pipeline run metrics from orchestrator logs</div></div>
     </div>
     <div class="stats-row" id="pipelineStats"></div>
     <div id="pipelineBreakdown" style="margin:16px 0"></div>
+    <div class="charts-grid animate" id="pipelineChartsGrid" style="display:none">
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Runs per Day<div class="tooltip">Number of orchestrator pipeline runs each day</div></h3>
+        <canvas id="pipelineRunsChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Error Rate<div class="tooltip">Percentage of runs that ended in error each day</div></h3>
+        <canvas id="pipelineErrorChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Completion %<div class="tooltip">Percentage of runs that completed successfully each day</div></h3>
+        <canvas id="pipelineCompletionChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Quality Iterations<div class="tooltip">Average quality review loops per run each day</div></h3>
+        <canvas id="pipelineQualityChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Test Iterations<div class="tooltip">Average test fix loops per run each day</div></h3>
+        <canvas id="pipelineTestChart"></canvas>
+      </div>
+    </div>
   </div>
 
   <!-- Charts -->
@@ -866,7 +888,7 @@
       <div class="section-icon" style="background:linear-gradient(135deg,#EDE9FE,#DDD6FE)">
         <svg viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2.5" stroke-linecap="round"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M12 3v18"/><path d="M3 7l9 4 9-4"/></svg>
       </div>
-      <div class="section-title">Projects</div>
+      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">Projects<div class="tooltip">Token usage broken down by project/codebase</div></div>
       <span id="projectsCount" style="font-size:13px;color:var(--text-tertiary);font-weight:600;margin-left:auto"></span>
     </div>
     <div class="sessions-card">
@@ -913,7 +935,7 @@
       <div class="section-icon" style="background:linear-gradient(135deg,#ECFDF5,#D1FAE5)">
         <svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
       </div>
-      <div class="section-title">All Sessions</div>
+      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">All Sessions<div class="tooltip">Every conversation with Claude, sorted by token cost</div></div>
     </div>
     <div class="sessions-toolbar">
       <input type="text" class="session-search" id="searchInput" placeholder="Search prompts, models, projects...">
@@ -1301,10 +1323,10 @@ function renderRecommendations() {
   const grid = document.getElementById('recsGrid');
 
   const lenses = [
-    { key: 'model',        label: 'Model',        icon: '⚡', color: '#EEF2FF', dot: '#6366F1' },
-    { key: 'context',      label: 'Context',       icon: '📝', color: '#FEF3C7', dot: '#D97706' },
-    { key: 'conversation', label: 'Conversation',  icon: '💬', color: '#ECFDF5', dot: '#10B981' },
-    { key: 'pipeline',     label: 'Pipeline',      icon: '⚙️', color: '#F0FDFA', dot: '#0D9488' },
+    { key: 'model',        label: 'Model',        icon: '⚡', color: '#EEF2FF', dot: '#6366F1', tip: 'Switch to cheaper models for simple tasks' },
+    { key: 'context',      label: 'Context',       icon: '📝', color: '#FEF3C7', dot: '#D97706', tip: 'Reduce tokens Claude re-reads each turn' },
+    { key: 'conversation', label: 'Conversation',  icon: '💬', color: '#ECFDF5', dot: '#10B981', tip: 'Optimize session length and prompt specificity' },
+    { key: 'pipeline',     label: 'Pipeline',      icon: '⚙️', color: '#F0FDFA', dot: '#0D9488', tip: 'Improve automated pipeline efficiency' },
   ];
 
   const hasAny = lenses.some(l => (recs[l.key] || []).length > 0);
@@ -1329,7 +1351,7 @@ function renderRecommendations() {
     return `<div class="recs-lens">
       <div class="recs-lens-header">
         <div class="recs-lens-icon" style="background:${lens.color}">${lens.icon}</div>
-        <div class="recs-lens-title">${lens.label}</div>
+        <div class="recs-lens-title has-tooltip has-tooltip-below" style="display:inline-flex">${lens.label}<div class="tooltip">${lens.tip}</div></div>
       </div>
       ${itemsHtml}
     </div>`;
@@ -1722,26 +1744,27 @@ function renderInsights() {
   const actionableCount = (lens) => String(allInsights.filter(i => lensScore(i.id, lens) >= 2).length);
   const lensStats = {
     cost: [
-      { label: 'Avg cost/session', value: fmt(t.avgTokensPerSession), sub: 'tokens' },
-      { label: 'Avg cost/message', value: fmt(t.avgTokensPerQuery), sub: 'tokens' },
-      { label: 'Cost insights', value: actionableCount('cost'), sub: 'actionable' },
+      { label: 'Avg cost/session', value: fmt(t.avgTokensPerSession), sub: 'tokens', tip: 'Average tokens consumed per conversation. Lower means shorter, more focused sessions.' },
+      { label: 'Avg cost/message', value: fmt(t.avgTokensPerQuery), sub: 'tokens', tip: 'Average tokens per individual message. Lower means more specific prompts.' },
+      { label: 'Cost insights', value: actionableCount('cost'), sub: 'actionable', tip: 'Number of data-driven suggestions to reduce your token spend.' },
     ],
     speed: [
-      { label: 'Avg msgs/session', value: String(Math.round(t.totalQueries / Math.max(t.totalSessions, 1))), sub: 'messages' },
-      { label: 'Context overhead', value: ((t.totalInputTokens / Math.max(t.totalTokens, 1)) * 100).toFixed(0) + '%', sub: 'of tokens re-read' },
-      { label: 'Speed insights', value: actionableCount('speed'), sub: 'actionable' },
+      { label: 'Avg msgs/session', value: String(Math.round(t.totalQueries / Math.max(t.totalSessions, 1))), sub: 'messages', tip: 'Average back-and-forth exchanges per conversation. Shorter sessions get answers faster.' },
+      { label: 'Context overhead', value: ((t.totalInputTokens / Math.max(t.totalTokens, 1)) * 100).toFixed(0) + '%', sub: 'of tokens re-read', tip: 'How much of each turn is spent re-reading conversation history vs new content.' },
+      { label: 'Speed insights', value: actionableCount('speed'), sub: 'actionable', tip: 'Number of data-driven suggestions to reduce context overhead and response time.' },
     ],
     quality: [
-      { label: 'Output ratio', value: ((t.totalOutputTokens / Math.max(t.totalTokens, 1)) * 100).toFixed(1) + '%', sub: 'Claude actually writing' },
-      { label: 'Total written', value: fmt(t.totalOutputTokens), sub: 'tokens by Claude' },
-      { label: 'Quality insights', value: actionableCount('quality'), sub: 'actionable' },
+      { label: 'Output ratio', value: ((t.totalOutputTokens / Math.max(t.totalTokens, 1)) * 100).toFixed(1) + '%', sub: 'Claude actually writing', tip: 'Percentage of total tokens that are Claude\'s actual responses. Higher means more substantive output.' },
+      { label: 'Total written', value: fmt(t.totalOutputTokens), sub: 'tokens by Claude', tip: 'Total tokens Claude wrote in the selected period. A higher share means better signal-to-noise.' },
+      { label: 'Quality insights', value: actionableCount('quality'), sub: 'actionable', tip: 'Number of data-driven suggestions to improve response quality and usefulness.' },
     ],
   };
   document.getElementById('lensStatsBar').innerHTML = (lensStats[currentLens] || []).map(s => `
-    <div class="lens-stat-pill">
+    <div class="lens-stat-pill has-tooltip has-tooltip-below">
       <div class="lens-stat-pill-label">${s.label}</div>
       <div class="lens-stat-pill-value">${s.value}</div>
       <div class="lens-stat-pill-sub">${s.sub}</div>
+      ${s.tip ? `<div class="tooltip">${s.tip}</div>` : ''}
     </div>`).join('');
 
   document.getElementById('insightsList').innerHTML = insights.map((ins, i) => {
