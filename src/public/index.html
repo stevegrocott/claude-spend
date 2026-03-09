@@ -794,7 +794,7 @@
       <div class="section-icon" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A)">
         <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       </div>
-      <div class="section-title">Cost</div>
+      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">Cost<div class="tooltip">Token usage and model cost analysis — find where your budget goes and how to stretch it further</div></div>
     </div>
     <div class="lens-stats-bar" id="lensStatsBar-cost"></div>
     <div class="charts-grid" style="margin-bottom:16px">
@@ -807,7 +807,7 @@
         </div>
       </div>
       <div class="chart-card">
-        <h3>By Model</h3>
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">By Model<div class="tooltip">Token usage split by AI model. Opus is the most capable and expensive, Sonnet is balanced, Haiku is fastest and cheapest.</div></h3>
         <canvas id="modelChart"></canvas>
         <div id="modelLegend" class="legend" style="flex-direction:column; gap:12px; margin-top:20px;"></div>
       </div>
@@ -835,7 +835,7 @@
       <div class="section-icon" style="background:linear-gradient(135deg,#CCFBF1,#99F6E4)">
         <svg viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
       </div>
-      <div class="section-title">Speed</div>
+      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">Speed<div class="tooltip">Efficiency metrics — how many tokens Claude spends per message and how quickly conversations accumulate context</div></div>
     </div>
     <div class="lens-stats-bar" id="lensStatsBar-speed"></div>
     <div class="charts-grid" style="margin-bottom:16px">
@@ -867,7 +867,7 @@
       <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
         <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
       </div>
-      <div class="section-title">Quality</div>
+      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">Quality<div class="tooltip">Output quality metrics — how much of Claude's token usage produces actual responses vs re-reading context</div></div>
     </div>
     <div class="lens-stats-bar" id="lensStatsBar-quality"></div>
     <div class="charts-grid" style="margin-bottom:16px">
@@ -899,7 +899,7 @@
       <div class="section-icon" style="background:linear-gradient(135deg,#EDE9FE,#DDD6FE)">
         <svg viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2.5" stroke-linecap="round"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M12 3v18"/><path d="M3 7l9 4 9-4"/></svg>
       </div>
-      <div class="section-title">Projects</div>
+      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">Projects<div class="tooltip">Token usage broken down by project/codebase — find which projects consume the most budget</div></div>
       <span id="projectsCount" style="font-size:13px;color:var(--text-tertiary);font-weight:600;margin-left:auto"></span>
     </div>
     <div class="sessions-card">
@@ -946,7 +946,7 @@
       <div class="section-icon" style="background:linear-gradient(135deg,#ECFDF5,#D1FAE5)">
         <svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
       </div>
-      <div class="section-title">All Sessions</div>
+      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">All Sessions<div class="tooltip">Every conversation with Claude, sorted by token cost — click to expand and see prompt details</div></div>
     </div>
     <div class="sessions-toolbar">
       <input type="text" class="session-search" id="searchInput" placeholder="Search prompts, models, projects...">
@@ -1115,7 +1115,7 @@ async function refreshData() {
 }
 
 // ── Recommendations engine (client-side, mirrors parser.js) ───────────────────
-const REC_PRICING = { opus: { input: 15, output: 75 }, sonnet: { input: 3, output: 15 }, haiku: { input: 0.8, output: 4 } };
+const REC_PRICING = { opus: { input: 5, output: 25 }, sonnet: { input: 3, output: 15 }, haiku: { input: 1, output: 5 } };
 function recModelTier(m) {
   if (!m) return null;
   if (m.includes('opus')) return 'opus';
@@ -1132,6 +1132,16 @@ function recFmtDollars(n) {
   if (n >= 0.01) return '$' + n.toFixed(3);
   return '$' + n.toFixed(4);
 }
+function dateRangeMonths() {
+  const dr = FILTERED && FILTERED.totals && FILTERED.totals.dateRange;
+  if (!dr || !dr.from || !dr.to) return 1;
+  const diff = (new Date(dr.to) - new Date(dr.from)) / (1000 * 60 * 60 * 24 * 30.44);
+  return Math.max(diff, 1);
+}
+function recFmtTokenSaving(totalTokens) {
+  const perMonth = totalTokens / dateRangeMonths();
+  return '~' + fmt(Math.round(perMonth)) + ' tokens/mo';
+}
 
 function clientGenerateRecommendations(sessions, allPrompts, totals) {
   const recs = { model: [], context: [], conversation: [], pipeline: [] };
@@ -1141,24 +1151,24 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
   if (opusSessions.length > 0) {
     const simpleOpus = opusSessions.filter(s => s.queryCount < 15 && s.totalTokens < 300_000);
     if (simpleOpus.length >= 2) {
-      const inp = simpleOpus.reduce((s, ses) => s + (ses.inputTokens || 0), 0);
-      const out = simpleOpus.reduce((s, ses) => s + (ses.outputTokens || 0), 0);
-      const savings = recEstimateCost(inp, out, 'opus') - recEstimateCost(inp, out, 'sonnet');
+      const tokens = simpleOpus.reduce((s, ses) => s + (ses.totalTokens || 0), 0);
+      const label = recFmtTokenSaving(tokens);
       recs.model.push({
-        text: `Switch ${simpleOpus.length} simple sessions from Opus→Sonnet to save ~${recFmtDollars(savings)}`,
-        detail: `${simpleOpus.length} sessions had <15 queries but used expensive Opus. Example: "${((simpleOpus[0].firstPrompt || '') + '').substring(0, 60)}". Sonnet handles these equally well.`,
-        saving: savings,
+        text: `Switch ${simpleOpus.length} simple sessions from Opus→Sonnet — frees ${label}`,
+        detail: `${simpleOpus.length} sessions had <15 queries but used expensive Opus. Example: "${((simpleOpus[0].firstPrompt || '') + '').substring(0, 60)}". Sonnet handles these equally well and uses less of your token budget.`,
+        saving: { tokens, label },
       });
     }
   }
   const heavyStarts = sessions.filter(s => s.queries && s.queries[0] && s.queries[0].inputTokens > 50_000);
   if (heavyStarts.length >= 3) {
     const avgStartInput = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0) / heavyStarts.length;
-    const totalCost = heavyStarts.reduce((s, ses) => s + recEstimateCost(ses.queries[0].inputTokens, 0, recModelTier(ses.model) || 'sonnet'), 0);
+    const totalOverhead = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0);
+    const label = recFmtTokenSaving(totalOverhead);
     recs.model.push({
-      text: `Your CLAUDE.md costs ~${recFmtDollars(totalCost / heavyStarts.length)} per session in context overhead`,
-      detail: `Sessions start with ~${fmt(Math.round(avgStartInput))} tokens before your first message. Trimming unused sections compounds savings across every conversation.`,
-      saving: totalCost,
+      text: `Your CLAUDE.md burns ~${fmt(Math.round(avgStartInput))} tokens per session in context overhead`,
+      detail: `Sessions start with ~${fmt(Math.round(avgStartInput))} tokens before your first message. Trimming unused sections frees headroom across every conversation.`,
+      saving: { tokens: totalOverhead, label },
     });
   }
   if (sessions.length >= 5) {
@@ -1167,14 +1177,13 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
     const total = tierTokens.opus + tierTokens.sonnet + tierTokens.haiku;
     if (total > 0 && tierTokens.opus / total > 0.5) {
       const opusPct = Math.round(tierTokens.opus / total * 100);
-      const opusInp = sessions.filter(s => recModelTier(s.model) === 'opus').reduce((s, ses) => s + (ses.inputTokens || 0), 0);
-      const opusOut = sessions.filter(s => recModelTier(s.model) === 'opus').reduce((s, ses) => s + (ses.outputTokens || 0), 0);
-      const savings = recEstimateCost(opusInp, opusOut, 'opus') * 0.4;
+      const shiftableTokens = Math.round(tierTokens.opus * 0.4);
+      const label = recFmtTokenSaving(shiftableTokens);
       if (recs.model.length < 3) {
         recs.model.push({
-          text: `${opusPct}% of tokens use Opus — shifting routine tasks to Sonnet saves ~${recFmtDollars(savings)}`,
-          detail: `Opus is ideal for complex reasoning but over-powered for file edits and one-shot tasks. Use /model to switch for routine work.`,
-          saving: savings,
+          text: `${opusPct}% of tokens use Opus — shifting routine tasks to Sonnet frees ${label}`,
+          detail: `Opus is ideal for complex reasoning but over-powered for file edits and one-shot tasks. Use /model to switch for routine work and stretch your token budget.`,
+          saving: { tokens: shiftableTokens, label },
         });
       }
     }
@@ -1186,11 +1195,13 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
     const worst = [...shortExpensive].sort((a, b) => b.totalTokens - a.totalTokens)[0];
     const wastedInp = shortExpensive.reduce((s, p) => s + (p.inputTokens || 0), 0);
     const wastedOut = shortExpensive.reduce((s, p) => s + (p.outputTokens || 0), 0);
-    const wastedCost = recEstimateCost(wastedInp, wastedOut, recModelTier(worst.model) || 'sonnet');
+    const wastedTokens = shortExpensive.reduce((s, p) => s + (p.totalTokens || 0), 0);
+    const saveable = Math.round(wastedTokens * 0.6);
+    const label = recFmtTokenSaving(saveable);
     recs.context.push({
       text: `"${worst.prompt.trim().substring(0, 35)}" cost ${fmt(worst.totalTokens)} tokens — specific prompts cut this 50-80%`,
-      detail: `${shortExpensive.length} short messages triggered expensive tool chains (~${recFmtDollars(wastedCost)} estimated). Saying "Yes, update auth.js line 42 and run tests" beats "Yes".`,
-      saving: wastedCost * 0.6,
+      detail: `${shortExpensive.length} short messages triggered expensive tool chains (${fmt(wastedTokens)} tokens total). Saying "Yes, update auth.js line 42 and run tests" beats "Yes".`,
+      saving: { tokens: saveable, label },
     });
   }
   if (sessions.length >= 10) {
@@ -1332,7 +1343,7 @@ function renderRecommendations() {
     const items = (recs[lens.key] || []);
     if (!items.length) continue;
     const itemsHtml = items.map(rec => {
-      const savingBadge = rec.saving != null ? `<span class="rec-saving">~${recFmtDollars(rec.saving)} est.</span>` : '';
+      const savingBadge = rec.saving ? `<span class="rec-saving">${rec.saving.label}</span>` : '';
       const detailHtml = rec.detail ? `<div class="rec-detail">${escapeHtml(rec.detail)}</div>` : '';
       return `<div class="rec-item" onclick="this.classList.toggle('expanded')">
         <div class="rec-dot" style="background:${lens.dot}"></div>
@@ -1733,26 +1744,26 @@ function renderInsights() {
   const actionableCount = (lens) => String(allInsights.filter(i => lensScore(i.id, lens) >= 2).length);
   const lensStats = {
     cost: [
-      { label: 'Avg cost/session', value: fmt(t.avgTokensPerSession), sub: 'tokens' },
-      { label: 'Avg cost/message', value: fmt(t.avgTokensPerQuery), sub: 'tokens' },
-      { label: 'Cost insights', value: actionableCount('cost'), sub: 'actionable' },
+      { label: 'Avg cost/session', value: fmt(t.avgTokensPerSession), sub: 'tokens', tip: 'Average tokens consumed per conversation — shorter, focused sessions use fewer tokens' },
+      { label: 'Avg cost/message', value: fmt(t.avgTokensPerQuery), sub: 'tokens', tip: 'Average tokens per message sent — includes context re-reading overhead' },
+      { label: 'Cost insights', value: actionableCount('cost'), sub: 'actionable', tip: 'Number of data-driven cost reduction opportunities detected' },
     ],
     speed: [
-      { label: 'Avg msgs/session', value: String(Math.round(t.totalQueries / Math.max(t.totalSessions, 1))), sub: 'messages' },
-      { label: 'Context overhead', value: ((t.totalInputTokens / Math.max(t.totalTokens, 1)) * 100).toFixed(0) + '%', sub: 'of tokens re-read' },
-      { label: 'Speed insights', value: actionableCount('speed'), sub: 'actionable' },
+      { label: 'Avg msgs/session', value: String(Math.round(t.totalQueries / Math.max(t.totalSessions, 1))), sub: 'messages', tip: 'Average number of back-and-forth messages per conversation' },
+      { label: 'Context overhead', value: ((t.totalInputTokens / Math.max(t.totalTokens, 1)) * 100).toFixed(0) + '%', sub: 'of tokens re-read', tip: 'Percentage of total tokens spent re-reading conversation history — lower is better' },
+      { label: 'Speed insights', value: actionableCount('speed'), sub: 'actionable', tip: 'Number of efficiency improvement opportunities detected' },
     ],
     quality: [
-      { label: 'Output ratio', value: ((t.totalOutputTokens / Math.max(t.totalTokens, 1)) * 100).toFixed(1) + '%', sub: 'Claude actually writing' },
-      { label: 'Total written', value: fmt(t.totalOutputTokens), sub: 'tokens by Claude' },
-      { label: 'Quality insights', value: actionableCount('quality'), sub: 'actionable' },
+      { label: 'Output ratio', value: ((t.totalOutputTokens / Math.max(t.totalTokens, 1)) * 100).toFixed(1) + '%', sub: 'Claude actually writing', tip: 'Percentage of tokens that are actual Claude output vs context overhead — higher is better' },
+      { label: 'Total written', value: fmt(t.totalOutputTokens), sub: 'tokens by Claude', tip: 'Total tokens Claude spent writing responses, code, and explanations' },
+      { label: 'Quality insights', value: actionableCount('quality'), sub: 'actionable', tip: 'Number of output quality improvement opportunities detected' },
     ],
   };
 
   for (const lens of ['cost', 'speed', 'quality']) {
     document.getElementById('lensStatsBar-' + lens).innerHTML = (lensStats[lens] || []).map(s => `
       <div class="lens-stat-pill">
-        <div class="lens-stat-pill-label">${s.label}</div>
+        <div class="lens-stat-pill-label has-tooltip has-tooltip-below" style="display:inline-block">${s.label}${s.tip ? `<div class="tooltip">${s.tip}</div>` : ''}</div>
         <div class="lens-stat-pill-value">${s.value}</div>
         <div class="lens-stat-pill-sub">${s.sub}</div>
       </div>`).join('');
@@ -1834,23 +1845,93 @@ async function createIssueFromInsight(insightId, btn) {
 }
 
 // Pipeline data distributed across lens sections
+function renderMiniTimeSeries(canvasId, dailyData, opts) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !dailyData.length) return;
+  const ctx = canvas.getContext('2d');
+  const { color = '#6366F1', format = (v) => String(Math.round(v)) } = opts || {};
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 32;
+  const h = 120;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const values = dailyData.map(d => d.value);
+  const maxVal = Math.max(...values, 1);
+  const chartH = h - 28;
+  const yAxisW = 36;
+  const startX = yAxisW;
+  const plotW = w - startX - 8;
+
+  // Y-axis labels and gridlines
+  ctx.fillStyle = '#94A3B8'; ctx.font = '500 9px Inter, system-ui'; ctx.textAlign = 'right';
+  ctx.strokeStyle = 'rgba(0,0,0,0.05)'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 3; i++) {
+    const val = maxVal * i / 3;
+    const y = chartH + 4 - (chartH * i / 3);
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w - 8, y); ctx.stroke();
+    ctx.fillText(format(val), startX - 4, y + 3);
+  }
+
+  function xPos(i) { return startX + (i / Math.max(1, dailyData.length - 1)) * plotW; }
+  function yPos(v) { return chartH + 4 - (v / maxVal) * chartH; }
+
+  // Line
+  ctx.strokeStyle = color; ctx.lineWidth = 2;
+  ctx.beginPath();
+  dailyData.forEach((d, i) => { i === 0 ? ctx.moveTo(xPos(i), yPos(d.value)) : ctx.lineTo(xPos(i), yPos(d.value)); });
+  ctx.stroke();
+
+  // Dots
+  ctx.fillStyle = color;
+  dailyData.forEach((d, i) => { ctx.beginPath(); ctx.arc(xPos(i), yPos(d.value), 3, 0, Math.PI * 2); ctx.fill(); });
+
+  // 3-point moving average
+  const hex = color.startsWith('#') ? color.slice(1) : null;
+  ctx.strokeStyle = hex
+    ? `rgba(${parseInt(hex.slice(0,2),16)},${parseInt(hex.slice(2,4),16)},${parseInt(hex.slice(4,6),16)},0.4)`
+    : color;
+  ctx.lineWidth = 2.5; ctx.setLineDash([5, 3]);
+  ctx.beginPath();
+  dailyData.forEach((d, i) => {
+    const pts = dailyData.slice(Math.max(0, i - 1), i + 2);
+    const avg = pts.reduce((s, p) => s + p.value, 0) / pts.length;
+    i === 0 ? ctx.moveTo(xPos(i), yPos(avg)) : ctx.lineTo(xPos(i), yPos(avg));
+  });
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // X labels
+  ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center'; ctx.font = '500 10px Inter, system-ui';
+  const step = Math.max(1, Math.floor(dailyData.length / 5));
+  dailyData.forEach((d, i) => {
+    if (i % step === 0 || i === dailyData.length - 1) ctx.fillText(formatDate(d.date), xPos(i), h - 4);
+  });
+}
+
 function renderCostSection() {
   const orch = DATA.orchestrator;
   const el = document.getElementById('pipelineCostData');
   if (!orch || !orch.summary || orch.summary.totalRuns === 0) { el.innerHTML = ''; return; }
-  const s = orch.summary;
-  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:16px">
-    <div class="stat-card animate delay-2">
-      <div class="stat-label">Pipeline Runs</div>
-      <div class="stat-value" style="color:var(--indigo)">${s.totalRuns}</div>
-      <div class="stat-sub">${s.completedRuns} completed</div>
-    </div>
-    <div class="stat-card animate delay-2">
-      <div class="stat-label">Error Runs</div>
-      <div class="stat-value" style="color:#EF4444">${s.errorRuns}</div>
-      <div class="stat-sub">${s.maxIterationsRuns} hit max iterations</div>
-    </div>
+  const runs = orch.runs || [];
+
+  // Group by date
+  const byDate = {};
+  runs.forEach(r => { if (!r.date) return; if (!byDate[r.date]) byDate[r.date] = { total: 0, errors: 0 }; byDate[r.date].total++; if (r.state === 'error') byDate[r.date].errors++; });
+  const dates = Object.keys(byDate).sort();
+  const runsPerDay = dates.map(d => ({ date: d, value: byDate[d].total }));
+  const errorRatePerDay = dates.map(d => ({ date: d, value: byDate[d].total > 0 ? Math.round((byDate[d].errors / byDate[d].total) * 100) : 0 }));
+
+  el.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div class="chart-card" style="padding:16px"><h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 8px;display:inline-block">Runs per Day<div class="tooltip">Number of orchestrator pipeline runs each day</div></h3><canvas id="costRunsChart"></canvas></div>
+    <div class="chart-card" style="padding:16px"><h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 8px;display:inline-block">Error Rate % per Day<div class="tooltip">Percentage of runs that ended in error each day</div></h3><canvas id="costErrorRateChart"></canvas></div>
   </div>`;
+  requestAnimationFrame(() => {
+    renderMiniTimeSeries('costRunsChart', runsPerDay, { color: '#6366F1', format: v => String(Math.round(v)) });
+    renderMiniTimeSeries('costErrorRateChart', errorRatePerDay, { color: '#EF4444', format: v => Math.round(v) + '%' });
+  });
 }
 
 function renderSpeedSection() {
@@ -1886,23 +1967,25 @@ function renderQualitySection() {
   const el = document.getElementById('pipelineQualityData');
   if (!orch || !orch.summary || orch.summary.totalRuns === 0) { el.innerHTML = ''; return; }
   const s = orch.summary;
+  const runs = orch.runs || [];
 
-  const completionColor = s.completionRate >= 70 ? 'var(--emerald)' : s.completionRate >= 40 ? 'var(--amber)' : '#EF4444';
-  const qualityColor = s.avgQualityIterations <= 2 ? 'var(--emerald)' : s.avgQualityIterations <= 4 ? 'var(--amber)' : '#EF4444';
-  const testColor = s.avgTestIterations <= 2 ? 'var(--emerald)' : s.avgTestIterations <= 4 ? 'var(--amber)' : '#EF4444';
-
-  const statsHtml = [
-    { label: 'Completion Rate', value: s.completionRate + '%', sub: `${s.errorRuns} errors, ${s.maxIterationsRuns} max-iter`, color: completionColor },
-    { label: 'Avg Quality Loops', value: s.avgQualityIterations, sub: 'iterations per run', color: qualityColor },
-    { label: 'Avg Test Loops', value: s.avgTestIterations, sub: 'iterations per run', color: testColor },
-  ].map(c => `<div class="stat-card animate delay-2">
-    <div class="stat-label">${c.label}</div>
-    <div class="stat-value" style="color:${c.color}">${c.value}</div>
-    <div class="stat-sub">${c.sub}</div>
-  </div>`).join('');
+  // Group by date for time-series
+  const byDate = {};
+  runs.forEach(r => {
+    if (!r.date) return;
+    if (!byDate[r.date]) byDate[r.date] = { total: 0, completed: 0, qualitySum: 0, testSum: 0 };
+    byDate[r.date].total++;
+    if (r.state === 'completed') byDate[r.date].completed++;
+    byDate[r.date].qualitySum += r.qualityIterations || 0;
+    byDate[r.date].testSum += r.testIterations || 0;
+  });
+  const dates = Object.keys(byDate).sort();
+  const completionData = dates.map(d => ({ date: d, value: byDate[d].total > 0 ? Math.round((byDate[d].completed / byDate[d].total) * 100) : 0 }));
+  const qualityData = dates.map(d => ({ date: d, value: byDate[d].total > 0 ? Math.round((byDate[d].qualitySum / byDate[d].total) * 10) / 10 : 0 }));
+  const testData = dates.map(d => ({ date: d, value: byDate[d].total > 0 ? Math.round((byDate[d].testSum / byDate[d].total) * 10) / 10 : 0 }));
 
   const stateGroups = {};
-  orch.runs.forEach(r => { stateGroups[r.state] = (stateGroups[r.state] || 0) + 1; });
+  runs.forEach(r => { stateGroups[r.state] = (stateGroups[r.state] || 0) + 1; });
   const stateHtml = Object.entries(stateGroups)
     .sort((a, b) => b[1] - a[1])
     .map(([state, count]) => {
@@ -1930,7 +2013,11 @@ function renderQualitySection() {
       </table></div>`
     : '';
 
-  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px">${statsHtml}</div>
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px">
+    <div class="chart-card" style="padding:16px"><h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 8px;display:inline-block">Completion % per Day<div class="tooltip">Percentage of runs that completed successfully each day</div></h3><canvas id="qualityCompletionChart"></canvas></div>
+    <div class="chart-card" style="padding:16px"><h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 8px;display:inline-block">Avg Quality Iterations<div class="tooltip">Average quality review loops per run each day — lower is better</div></h3><canvas id="qualityIterChart"></canvas></div>
+    <div class="chart-card" style="padding:16px"><h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 8px;display:inline-block">Avg Test Iterations<div class="tooltip">Average test fix loops per run each day — lower is better</div></h3><canvas id="testIterChart"></canvas></div>
+  </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
       <div class="chart-card" style="padding:16px">
         <h3 style="font-size:14px;margin:0 0 12px">Run Outcomes</h3>
@@ -1941,6 +2028,11 @@ function renderQualitySection() {
         ${churnerHtml || '<div style="font-size:12px;color:var(--text-tertiary)">No churners detected</div>'}
       </div>
     </div>`;
+  requestAnimationFrame(() => {
+    renderMiniTimeSeries('qualityCompletionChart', completionData, { color: '#10B981', format: v => Math.round(v) + '%' });
+    renderMiniTimeSeries('qualityIterChart', qualityData, { color: '#F59E0B', format: v => Number(v.toFixed(1)) + '' });
+    renderMiniTimeSeries('testIterChart', testData, { color: '#6366F1', format: v => Number(v.toFixed(1)) + '' });
+  });
 }
 
 // Daily chart
@@ -2741,7 +2833,7 @@ function closeDrilldown() {
 }
 
 fetchData();
-window.addEventListener('resize', () => { if (FILTERED) { renderDailyChart(); renderModelChart(); renderOutputRatioChart(); renderContextOverheadChart(); } });
+window.addEventListener('resize', () => { if (FILTERED) { renderDailyChart(); renderModelChart(); renderOutputRatioChart(); renderContextOverheadChart(); renderCostSection(); renderQualitySection(); } });
 </script>
 </body>
 </html>
