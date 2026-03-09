@@ -1110,22 +1110,23 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
     if (simpleOpus.length >= 2) {
       const inp = simpleOpus.reduce((s, ses) => s + (ses.inputTokens || 0), 0);
       const out = simpleOpus.reduce((s, ses) => s + (ses.outputTokens || 0), 0);
-      const savings = recEstimateCost(inp, out, 'opus') - recEstimateCost(inp, out, 'sonnet');
+      const sonnetRate = REC_PRICING.sonnet.input, opusRate = REC_PRICING.opus.input;
+      const tokenSavings = (inp + out) * (1 - sonnetRate / opusRate);
       recs.model.push({
-        text: `Switch ${simpleOpus.length} simple sessions from Opus→Sonnet to save ~${recFmtDollars(savings)}`,
+        text: `Switch ${simpleOpus.length} simple sessions from Opus→Sonnet to free ~${recFmtTokenSaving(tokenSavings)} of budget headroom`,
         detail: `${simpleOpus.length} sessions had <15 queries but used expensive Opus. Example: "${((simpleOpus[0].firstPrompt || '') + '').substring(0, 60)}". Sonnet handles these equally well.`,
-        saving: savings,
+        saving: { tokens: tokenSavings, label: recFmtTokenSaving(tokenSavings) },
       });
     }
   }
   const heavyStarts = sessions.filter(s => s.queries && s.queries[0] && s.queries[0].inputTokens > 50_000);
   if (heavyStarts.length >= 3) {
     const avgStartInput = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0) / heavyStarts.length;
-    const totalCost = heavyStarts.reduce((s, ses) => s + recEstimateCost(ses.queries[0].inputTokens, 0, recModelTier(ses.model) || 'sonnet'), 0);
+    const totalStartTokens = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0);
     recs.model.push({
-      text: `Your CLAUDE.md costs ~${recFmtDollars(totalCost / heavyStarts.length)} per session in context overhead`,
+      text: `Your CLAUDE.md loads ~${fmt(Math.round(avgStartInput))} tokens per session — trimming it frees ${recFmtTokenSaving(totalStartTokens)} of headroom`,
       detail: `Sessions start with ~${fmt(Math.round(avgStartInput))} tokens before your first message. Trimming unused sections compounds savings across every conversation.`,
-      saving: totalCost,
+      saving: { tokens: totalStartTokens, label: recFmtTokenSaving(totalStartTokens) },
     });
   }
   if (sessions.length >= 5) {
@@ -1136,12 +1137,14 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
       const opusPct = Math.round(tierTokens.opus / total * 100);
       const opusInp = sessions.filter(s => recModelTier(s.model) === 'opus').reduce((s, ses) => s + (ses.inputTokens || 0), 0);
       const opusOut = sessions.filter(s => recModelTier(s.model) === 'opus').reduce((s, ses) => s + (ses.outputTokens || 0), 0);
-      const savings = recEstimateCost(opusInp, opusOut, 'opus') * 0.4;
+      const sonnetRate = REC_PRICING.sonnet.input, opusRate = REC_PRICING.opus.input;
+      const opusTokens = opusInp + opusOut;
+      const tokenSavings = opusTokens * 0.4 * (1 - sonnetRate / opusRate);
       if (recs.model.length < 3) {
         recs.model.push({
-          text: `${opusPct}% of tokens use Opus — shifting routine tasks to Sonnet saves ~${recFmtDollars(savings)}`,
+          text: `${opusPct}% of tokens use Opus — shifting routine tasks to Sonnet frees ~${recFmtTokenSaving(tokenSavings)} of budget headroom`,
           detail: `Opus is ideal for complex reasoning but over-powered for file edits and one-shot tasks. Use /model to switch for routine work.`,
-          saving: savings,
+          saving: { tokens: tokenSavings, label: recFmtTokenSaving(tokenSavings) },
         });
       }
     }
@@ -1153,11 +1156,12 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
     const worst = [...shortExpensive].sort((a, b) => b.totalTokens - a.totalTokens)[0];
     const wastedInp = shortExpensive.reduce((s, p) => s + (p.inputTokens || 0), 0);
     const wastedOut = shortExpensive.reduce((s, p) => s + (p.outputTokens || 0), 0);
-    const wastedCost = recEstimateCost(wastedInp, wastedOut, recModelTier(worst.model) || 'sonnet');
+    const wastedTokens = wastedInp + wastedOut;
+    const tokenSavings = wastedTokens * 0.6;
     recs.context.push({
-      text: `"${worst.prompt.trim().substring(0, 35)}" cost ${fmt(worst.totalTokens)} tokens — specific prompts cut this 50-80%`,
-      detail: `${shortExpensive.length} short messages triggered expensive tool chains (~${recFmtDollars(wastedCost)} estimated). Saying "Yes, update auth.js line 42 and run tests" beats "Yes".`,
-      saving: wastedCost * 0.6,
+      text: `"${worst.prompt.trim().substring(0, 35)}" used ${fmt(worst.totalTokens)} tokens — specific prompts cut this 50-80%`,
+      detail: `${shortExpensive.length} short messages triggered expensive tool chains (~${recFmtTokenSaving(wastedTokens)} total). Saying "Yes, update auth.js line 42 and run tests" beats "Yes".`,
+      saving: { tokens: tokenSavings, label: recFmtTokenSaving(tokenSavings) },
     });
   }
   if (sessions.length >= 10) {
@@ -1303,7 +1307,7 @@ function renderRecommendations() {
     const items = (recs[lens.key] || []);
     if (!items.length) return '';
     const itemsHtml = items.map((rec, i) => {
-      const savingBadge = rec.saving != null ? `<span class="rec-saving">~${recFmtDollars(rec.saving)} est.</span>` : '';
+      const savingBadge = rec.saving != null ? `<span class="rec-saving">${rec.saving.label} est.</span>` : '';
       const detailHtml = rec.detail ? `<div class="rec-detail">${escapeHtml(rec.detail)}</div>` : '';
       return `<div class="rec-item" onclick="this.classList.toggle('expanded')">
         <div class="rec-dot" style="background:${lens.dot}"></div>
