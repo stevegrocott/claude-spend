@@ -805,6 +805,10 @@
       </div>
       <div class="section-title">Pipeline Efficiency</div>
     </div>
+    <div id="costStats" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0">
+      <div class="chart-card" style="padding:16px"><h3 style="font-size:14px;margin:0 0 8px">Runs per Day</h3><canvas id="costRunsChart"></canvas></div>
+      <div class="chart-card" style="padding:16px"><h3 style="font-size:14px;margin:0 0 8px">Error Rate % per Day</h3><canvas id="costErrorRateChart"></canvas></div>
+    </div>
     <div class="stats-row" id="pipelineStats"></div>
     <div id="pipelineBreakdown" style="margin:16px 0"></div>
   </div>
@@ -1799,8 +1803,9 @@ function renderPipeline() {
   const qualityColor = s.avgQualityIterations <= 2 ? 'var(--emerald)' : s.avgQualityIterations <= 4 ? 'var(--amber)' : '#EF4444';
   const testColor = s.avgTestIterations <= 2 ? 'var(--emerald)' : s.avgTestIterations <= 4 ? 'var(--amber)' : '#EF4444';
 
+  renderCostSection();
+
   document.getElementById('pipelineStats').innerHTML = [
-    { label: 'Pipeline Runs', value: s.totalRuns, sub: `${s.completedRuns} completed`, color: 'var(--indigo)' },
     { label: 'Completion Rate', value: s.completionRate + '%', sub: `${s.errorRuns} errors, ${s.maxIterationsRuns} max-iter`, color: completionColor },
     { label: 'Avg Quality Loops', value: s.avgQualityIterations, sub: 'iterations per run', color: qualityColor },
     { label: 'Avg Test Loops', value: s.avgTestIterations, sub: 'iterations per run', color: testColor },
@@ -2506,6 +2511,101 @@ function openDrilldown(sessionId) {
 
 function closeDrilldown() {
   document.getElementById('drilldown').classList.remove('open');
+}
+
+// Mini time-series chart helper
+function renderMiniTimeSeries(canvasId, dailyData, opts) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !dailyData.length) return;
+  const ctx = canvas.getContext('2d');
+  const { color = '#6366F1', label = '', format = (v) => String(Math.round(v)) } = opts || {};
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 32;
+  const h = 120;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const values = dailyData.map(d => d.value);
+  const maxVal = Math.max(...values, 1);
+  const chartH = h - 28;
+  const startX = 8;
+  const plotW = w - startX - 8;
+
+  // Gridlines (4 lines)
+  ctx.strokeStyle = 'rgba(0,0,0,0.05)'; ctx.lineWidth = 1;
+  for (let i = 1; i <= 3; i++) {
+    const y = chartH - (chartH * i / 3) + 4;
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w - 8, y); ctx.stroke();
+  }
+
+  function xPos(i) { return startX + (i / Math.max(1, dailyData.length - 1)) * plotW; }
+  function yPos(v) { return chartH + 4 - (v / maxVal) * chartH; }
+
+  // Line
+  ctx.strokeStyle = color; ctx.lineWidth = 2;
+  ctx.beginPath();
+  dailyData.forEach((d, i) => {
+    i === 0 ? ctx.moveTo(xPos(i), yPos(d.value)) : ctx.lineTo(xPos(i), yPos(d.value));
+  });
+  ctx.stroke();
+
+  // Dots
+  ctx.fillStyle = color;
+  dailyData.forEach((d, i) => {
+    ctx.beginPath(); ctx.arc(xPos(i), yPos(d.value), 3, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // 3-point moving average
+  const hex = color.startsWith('#') ? color.slice(1) : null;
+  ctx.strokeStyle = hex
+    ? `rgba(${parseInt(hex.slice(0,2),16)},${parseInt(hex.slice(2,4),16)},${parseInt(hex.slice(4,6),16)},0.4)`
+    : color;
+  ctx.lineWidth = 2.5; ctx.setLineDash([5, 3]);
+  ctx.beginPath();
+  dailyData.forEach((d, i) => {
+    const pts = dailyData.slice(Math.max(0, i - 1), i + 2);
+    const avg = pts.reduce((s, p) => s + p.value, 0) / pts.length;
+    i === 0 ? ctx.moveTo(xPos(i), yPos(avg)) : ctx.lineTo(xPos(i), yPos(avg));
+  });
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // X labels
+  ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center'; ctx.font = '500 10px Inter, system-ui';
+  const step = Math.max(1, Math.floor(dailyData.length / 5));
+  dailyData.forEach((d, i) => {
+    if (i % step === 0 || i === dailyData.length - 1) ctx.fillText(formatDate(d.date), xPos(i), h - 4);
+  });
+
+  // Aggregate label top-left
+  const total = values.reduce((s, v) => s + v, 0);
+  const agg = label === 'error rate' ? format(total / Math.max(values.length, 1)) : format(total);
+  ctx.fillStyle = '#1E293B'; ctx.font = '700 22px Inter, system-ui'; ctx.textAlign = 'left';
+  ctx.fillText(agg, startX + 2, 26);
+}
+
+// Cost section: runs per day + error rate per day
+function renderCostSection() {
+  const runs = DATA.orchestrator && DATA.orchestrator.runs || [];
+  if (!runs.length) return;
+
+  // Group by date
+  const byDate = {};
+  runs.forEach(r => {
+    if (!r.date) return;
+    if (!byDate[r.date]) byDate[r.date] = { total: 0, errors: 0 };
+    byDate[r.date].total++;
+    if (r.state === 'error') byDate[r.date].errors++;
+  });
+
+  const dates = Object.keys(byDate).sort();
+  const runsPerDay = dates.map(d => ({ date: d, value: byDate[d].total }));
+  const errorRatePerDay = dates.map(d => ({ date: d, value: byDate[d].total > 0 ? Math.round((byDate[d].errors / byDate[d].total) * 100) : 0 }));
+
+  renderMiniTimeSeries('costRunsChart', runsPerDay, { color: '#6366F1', label: 'runs', format: v => String(Math.round(v)) });
+  renderMiniTimeSeries('costErrorRateChart', errorRatePerDay, { color: '#EF4444', label: 'error rate', format: v => Math.round(v) + '%' });
 }
 
 fetchData();
