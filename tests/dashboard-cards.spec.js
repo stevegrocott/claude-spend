@@ -256,6 +256,33 @@ test.describe('Insights (lens sections)', () => {
 
 });
 
+// ─── Pipeline Time-Series Charts ───────────────────────────────────────────
+
+test.describe('Pipeline Time-Series Charts', () => {
+  test('renders cost and quality canvas charts when orchestrator runs exist', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    const hasRuns = api.orchestrator?.summary?.totalRuns > 0;
+    if (!hasRuns) { test.skip(); return; }
+
+    await expect(page.locator('#costRunsChart')).toBeVisible();
+    await expect(page.locator('#costErrorRateChart')).toBeVisible();
+    await expect(page.locator('#qualityCompletionChart')).toBeVisible();
+    await expect(page.locator('#qualityIterChart')).toBeVisible();
+    await expect(page.locator('#testIterChart')).toBeVisible();
+  });
+
+  test('recommendation saving badges show tokens/mo not dollars', async ({ page }) => {
+    await waitForDashboard(page);
+    const badges = page.locator('.rec-saving');
+    const count = await badges.count();
+    for (let i = 0; i < count; i++) {
+      const text = await badges.nth(i).textContent();
+      expect(text).toContain('tokens/mo');
+      expect(text).not.toContain('$');
+    }
+  });
+});
 
 // ─── Charts Section ─────────────────────────────────────────────────────────
 
