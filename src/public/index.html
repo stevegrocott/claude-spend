@@ -809,7 +809,11 @@
       <div class="chart-card" style="padding:16px"><h3 style="font-size:14px;margin:0 0 8px">Runs per Day</h3><canvas id="costRunsChart"></canvas></div>
       <div class="chart-card" style="padding:16px"><h3 style="font-size:14px;margin:0 0 8px">Error Rate % per Day</h3><canvas id="costErrorRateChart"></canvas></div>
     </div>
-    <div class="stats-row" id="pipelineStats"></div>
+    <div id="pipelineStats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin:16px 0">
+      <div class="chart-card" style="padding:16px"><h3 style="font-size:14px;margin:0 0 8px">Completion % per Day</h3><canvas id="qualityCompletionChart"></canvas></div>
+      <div class="chart-card" style="padding:16px"><h3 style="font-size:14px;margin:0 0 8px">Avg Quality Iterations</h3><canvas id="qualityIterChart"></canvas></div>
+      <div class="chart-card" style="padding:16px"><h3 style="font-size:14px;margin:0 0 8px">Avg Test Iterations</h3><canvas id="testIterChart"></canvas></div>
+    </div>
     <div id="pipelineBreakdown" style="margin:16px 0"></div>
   </div>
 
@@ -1798,22 +1802,8 @@ function renderPipeline() {
   section.style.display = 'block';
   const s = orch.summary;
 
-  // Stat cards
-  const completionColor = s.completionRate >= 70 ? 'var(--emerald)' : s.completionRate >= 40 ? 'var(--amber)' : '#EF4444';
-  const qualityColor = s.avgQualityIterations <= 2 ? 'var(--emerald)' : s.avgQualityIterations <= 4 ? 'var(--amber)' : '#EF4444';
-  const testColor = s.avgTestIterations <= 2 ? 'var(--emerald)' : s.avgTestIterations <= 4 ? 'var(--amber)' : '#EF4444';
-
   renderCostSection();
-
-  document.getElementById('pipelineStats').innerHTML = [
-    { label: 'Completion Rate', value: s.completionRate + '%', sub: `${s.errorRuns} errors, ${s.maxIterationsRuns} max-iter`, color: completionColor },
-    { label: 'Avg Quality Loops', value: s.avgQualityIterations, sub: 'iterations per run', color: qualityColor },
-    { label: 'Avg Test Loops', value: s.avgTestIterations, sub: 'iterations per run', color: testColor },
-  ].map(c => `<div class="stat-card animate delay-2">
-    <div class="stat-label">${c.label}</div>
-    <div class="stat-value" style="color:${c.color}">${c.value}</div>
-    <div class="stat-sub">${c.sub}</div>
-  </div>`).join('');
+  renderQualitySection();
 
   // State breakdown + top churners
   const stateGroups = {};
@@ -2584,6 +2574,32 @@ function renderMiniTimeSeries(canvasId, dailyData, opts) {
   const agg = label === 'error rate' ? format(total / Math.max(values.length, 1)) : format(total);
   ctx.fillStyle = '#1E293B'; ctx.font = '700 22px Inter, system-ui'; ctx.textAlign = 'left';
   ctx.fillText(agg, startX + 2, 26);
+}
+
+// Quality section: 3 mini time-series charts
+function renderQualitySection() {
+  const runs = DATA.orchestrator && DATA.orchestrator.runs || [];
+  if (!runs.length) return;
+
+  // Group by date
+  const byDate = {};
+  runs.forEach(r => {
+    if (!r.date) return;
+    if (!byDate[r.date]) byDate[r.date] = { total: 0, completed: 0, qualitySum: 0, testSum: 0 };
+    byDate[r.date].total++;
+    if (r.state === 'completed') byDate[r.date].completed++;
+    byDate[r.date].qualitySum += r.qualityIterations || 0;
+    byDate[r.date].testSum += r.testIterations || 0;
+  });
+
+  const dates = Object.keys(byDate).sort();
+  const completionData = dates.map(d => ({ date: d, value: byDate[d].total > 0 ? Math.round((byDate[d].completed / byDate[d].total) * 100) : 0 }));
+  const qualityData = dates.map(d => ({ date: d, value: byDate[d].total > 0 ? Math.round((byDate[d].qualitySum / byDate[d].total) * 10) / 10 : 0 }));
+  const testData = dates.map(d => ({ date: d, value: byDate[d].total > 0 ? Math.round((byDate[d].testSum / byDate[d].total) * 10) / 10 : 0 }));
+
+  renderMiniTimeSeries('qualityCompletionChart', completionData, { color: '#10B981', label: 'completion', format: v => Math.round(v) + '%' });
+  renderMiniTimeSeries('qualityIterChart', qualityData, { color: '#F59E0B', label: 'quality iters', format: v => String(v) });
+  renderMiniTimeSeries('testIterChart', testData, { color: '#6366F1', label: 'test iters', format: v => String(v) });
 }
 
 // Cost section: runs per day + error rate per day
