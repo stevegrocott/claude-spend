@@ -1092,8 +1092,8 @@ function dateRangeMonths(dateRange) {
   const months = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) + 1;
   return Math.max(1, months);
 }
-function recFmtTokenSaving(totalTokensSaved) {
-  const months = dateRangeMonths(FILTERED.totals.dateRange);
+function recFmtTokenSaving(totalTokensSaved, totals) {
+  const months = dateRangeMonths((totals || FILTERED.totals).dateRange);
   const perMonth = totalTokensSaved / months;
   if (perMonth >= 1_000_000) return '~' + (perMonth / 1_000_000).toFixed(1) + 'M tokens/mo';
   if (perMonth >= 1_000) return '~' + (perMonth / 1_000).toFixed(1) + 'K tokens/mo';
@@ -1112,10 +1112,11 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
       const out = simpleOpus.reduce((s, ses) => s + (ses.outputTokens || 0), 0);
       const sonnetRate = REC_PRICING.sonnet.input, opusRate = REC_PRICING.opus.input;
       const tokenSavings = (inp + out) * (1 - sonnetRate / opusRate);
+      const label = recFmtTokenSaving(tokenSavings, totals);
       recs.model.push({
-        text: `Switch ${simpleOpus.length} simple sessions from Opus→Sonnet to free ~${recFmtTokenSaving(tokenSavings)} of budget headroom`,
+        text: `Switch ${simpleOpus.length} simple sessions from Opus→Sonnet to free ~${label} of budget headroom`,
         detail: `${simpleOpus.length} sessions had <15 queries but used expensive Opus. Example: "${((simpleOpus[0].firstPrompt || '') + '').substring(0, 60)}". Sonnet handles these equally well.`,
-        saving: { tokens: tokenSavings, label: recFmtTokenSaving(tokenSavings) },
+        saving: { tokens: tokenSavings, label },
       });
     }
   }
@@ -1123,10 +1124,11 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
   if (heavyStarts.length >= 3) {
     const avgStartInput = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0) / heavyStarts.length;
     const totalStartTokens = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0);
+    const startLabel = recFmtTokenSaving(totalStartTokens, totals);
     recs.model.push({
-      text: `Your CLAUDE.md loads ~${fmt(Math.round(avgStartInput))} tokens per session — trimming it frees ${recFmtTokenSaving(totalStartTokens)} of headroom`,
+      text: `Your CLAUDE.md loads ~${fmt(Math.round(avgStartInput))} tokens per session — trimming it frees ${startLabel} of headroom`,
       detail: `Sessions start with ~${fmt(Math.round(avgStartInput))} tokens before your first message. Trimming unused sections compounds savings across every conversation.`,
-      saving: { tokens: totalStartTokens, label: recFmtTokenSaving(totalStartTokens) },
+      saving: { tokens: totalStartTokens, label: startLabel },
     });
   }
   if (sessions.length >= 5) {
@@ -1140,11 +1142,12 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
       const sonnetRate = REC_PRICING.sonnet.input, opusRate = REC_PRICING.opus.input;
       const opusTokens = opusInp + opusOut;
       const tokenSavings = opusTokens * 0.4 * (1 - sonnetRate / opusRate);
+      const opusLabel = recFmtTokenSaving(tokenSavings, totals);
       if (recs.model.length < 3) {
         recs.model.push({
-          text: `${opusPct}% of tokens use Opus — shifting routine tasks to Sonnet frees ~${recFmtTokenSaving(tokenSavings)} of budget headroom`,
+          text: `${opusPct}% of tokens use Opus — shifting routine tasks to Sonnet frees ~${opusLabel} of budget headroom`,
           detail: `Opus is ideal for complex reasoning but over-powered for file edits and one-shot tasks. Use /model to switch for routine work.`,
-          saving: { tokens: tokenSavings, label: recFmtTokenSaving(tokenSavings) },
+          saving: { tokens: tokenSavings, label: opusLabel },
         });
       }
     }
@@ -1158,10 +1161,12 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
     const wastedOut = shortExpensive.reduce((s, p) => s + (p.outputTokens || 0), 0);
     const wastedTokens = wastedInp + wastedOut;
     const tokenSavings = wastedTokens * 0.6;
+    const wastedLabel = recFmtTokenSaving(wastedTokens, totals);
+    const contextLabel = recFmtTokenSaving(tokenSavings, totals);
     recs.context.push({
       text: `"${worst.prompt.trim().substring(0, 35)}" used ${fmt(worst.totalTokens)} tokens — specific prompts cut this 50-80%`,
-      detail: `${shortExpensive.length} short messages triggered expensive tool chains (~${recFmtTokenSaving(wastedTokens)} total). Saying "Yes, update auth.js line 42 and run tests" beats "Yes".`,
-      saving: { tokens: tokenSavings, label: recFmtTokenSaving(tokenSavings) },
+      detail: `${shortExpensive.length} short messages triggered expensive tool chains (~${wastedLabel} total). Saying "Yes, update auth.js line 42 and run tests" beats "Yes".`,
+      saving: { tokens: tokenSavings, label: contextLabel },
     });
   }
   if (sessions.length >= 10) {
