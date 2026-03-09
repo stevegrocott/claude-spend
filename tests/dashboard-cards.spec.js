@@ -276,7 +276,7 @@ test.describe('Insights (#insightsSection)', () => {
 // ─── Pipeline Efficiency Section ────────────────────────────────────────────
 
 test.describe('Pipeline Efficiency (#pipelineSection)', () => {
-  test('renders pipeline stats when orchestrator runs exist', async ({ page }) => {
+  test('renders cost and quality canvas charts when orchestrator runs exist', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
     const hasRuns = api.orchestrator?.summary?.totalRuns > 0;
@@ -284,42 +284,14 @@ test.describe('Pipeline Efficiency (#pipelineSection)', () => {
     const section = page.locator('#pipelineSection');
     if (hasRuns) {
       await expect(section).toBeVisible();
-      const stats = page.locator('#pipelineStats .stat-card');
-      await expect(stats).toHaveCount(4);
+      await expect(page.locator('#costRunsChart')).toBeVisible();
+      await expect(page.locator('#costErrorRateChart')).toBeVisible();
+      await expect(page.locator('#qualityCompletionChart')).toBeVisible();
+      await expect(page.locator('#qualityIterChart')).toBeVisible();
+      await expect(page.locator('#testIterChart')).toBeVisible();
     } else {
       await expect(section).toBeHidden();
     }
-  });
-
-  test('pipeline stat cards show correct labels and numeric values', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    if (!api.orchestrator?.summary?.totalRuns) { test.skip(); return; }
-
-    const expectedLabels = ['Pipeline Runs', 'Completion Rate', 'Avg Quality Loops', 'Avg Test Loops'];
-    const stats = page.locator('#pipelineStats .stat-card');
-    for (let i = 0; i < 4; i++) {
-      const label = await stats.nth(i).locator('.stat-label').textContent();
-      expect(label.trim()).toBe(expectedLabels[i]);
-      const value = await stats.nth(i).locator('.stat-value').textContent();
-      expect(value.trim()).toMatch(/[\d.]+%?/);
-      const sub = await stats.nth(i).locator('.stat-sub').textContent();
-      expect(sub.trim().length).toBeGreaterThan(3);
-    }
-  });
-
-  test('pipeline stat values match API data', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    const s = api.orchestrator?.summary;
-    if (!s?.totalRuns) { test.skip(); return; }
-
-    const stats = page.locator('#pipelineStats .stat-card');
-    const runsValue = await stats.nth(0).locator('.stat-value').textContent();
-    expect(runsValue.trim()).toBe(String(s.totalRuns));
-
-    const completionValue = await stats.nth(1).locator('.stat-value').textContent();
-    expect(completionValue.trim()).toBe(s.completionRate + '%');
   });
 
   test('pipeline breakdown shows run outcomes and performance', async ({ page }) => {

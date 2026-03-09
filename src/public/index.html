@@ -809,7 +809,7 @@
       <div class="chart-card" style="padding:16px"><h3 style="font-size:14px;margin:0 0 8px">Runs per Day</h3><canvas id="costRunsChart"></canvas></div>
       <div class="chart-card" style="padding:16px"><h3 style="font-size:14px;margin:0 0 8px">Error Rate % per Day</h3><canvas id="costErrorRateChart"></canvas></div>
     </div>
-    <div id="pipelineStats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin:16px 0">
+    <div id="qualityStats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin:16px 0">
       <div class="chart-card" style="padding:16px"><h3 style="font-size:14px;margin:0 0 8px">Completion % per Day</h3><canvas id="qualityCompletionChart"></canvas></div>
       <div class="chart-card" style="padding:16px"><h3 style="font-size:14px;margin:0 0 8px">Avg Quality Iterations</h3><canvas id="qualityIterChart"></canvas></div>
       <div class="chart-card" style="padding:16px"><h3 style="font-size:14px;margin:0 0 8px">Avg Test Iterations</h3><canvas id="testIterChart"></canvas></div>
@@ -2508,7 +2508,7 @@ function renderMiniTimeSeries(canvasId, dailyData, opts) {
   const canvas = document.getElementById(canvasId);
   if (!canvas || !dailyData.length) return;
   const ctx = canvas.getContext('2d');
-  const { color = '#6366F1', label = '', format = (v) => String(Math.round(v)) } = opts || {};
+  const { color = '#6366F1', label = '', format = (v) => String(Math.round(v)), aggregate = 'sum' } = opts || {};
 
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.parentElement.clientWidth - 32;
@@ -2571,7 +2571,7 @@ function renderMiniTimeSeries(canvasId, dailyData, opts) {
 
   // Aggregate label top-left
   const total = values.reduce((s, v) => s + v, 0);
-  const agg = label === 'error rate' ? format(total / Math.max(values.length, 1)) : format(total);
+  const agg = aggregate === 'avg' ? format(total / Math.max(values.length, 1)) : format(total);
   ctx.fillStyle = '#1E293B'; ctx.font = '700 22px Inter, system-ui'; ctx.textAlign = 'left';
   ctx.fillText(agg, startX + 2, 26);
 }
@@ -2621,7 +2621,7 @@ function renderCostSection() {
   const errorRatePerDay = dates.map(d => ({ date: d, value: byDate[d].total > 0 ? Math.round((byDate[d].errors / byDate[d].total) * 100) : 0 }));
 
   renderMiniTimeSeries('costRunsChart', runsPerDay, { color: '#6366F1', label: 'runs', format: v => String(Math.round(v)) });
-  renderMiniTimeSeries('costErrorRateChart', errorRatePerDay, { color: '#EF4444', label: 'error rate', format: v => Math.round(v) + '%' });
+  renderMiniTimeSeries('costErrorRateChart', errorRatePerDay, { color: '#EF4444', label: 'error rate', aggregate: 'avg', format: v => Math.round(v) + '%' });
 }
 
 fetchData();
