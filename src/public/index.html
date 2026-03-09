@@ -790,6 +790,7 @@
       <button class="lens-btn" data-lens="quality" onclick="setLens('quality')">Quality</button>
     </div>
     <div class="lens-stats-bar" id="lensStatsBar"></div>
+    <div id="lensChartsGrid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin:16px 0"></div>
     <div class="insight-repo-config">
       <label>Target repo</label>
       <input type="text" id="issueTargetRepo" value="stevegrocott/claude-pipeline" placeholder="owner/repo">
@@ -1699,7 +1700,7 @@ function renderInsights() {
     if (lensScore(ins.id) > 0) topRanks.set(ins.id, topRanks.size);
   }
 
-  // Render lens stats bar
+  // Render lens stats bar (keep as summary) and lens charts
   const t = FILTERED.totals;
   const actionableCount = (lens) => String(allInsights.filter(i => lensScore(i.id, lens) >= 2).length);
   const lensStats = {
@@ -1725,6 +1726,9 @@ function renderInsights() {
       <div class="lens-stat-pill-value">${s.value}</div>
       <div class="lens-stat-pill-sub">${s.sub}</div>
     </div>`).join('');
+
+  // Render lens time-series charts from FILTERED data (respects date picker)
+  renderLensCharts(currentLens);
 
   document.getElementById('insightsList').innerHTML = insights.map((ins, i) => {
     const rankIdx = topRanks.has(ins.id) ? topRanks.get(ins.id) : -1;
@@ -2508,7 +2512,7 @@ function renderMiniTimeSeries(canvasId, dailyData, opts) {
   const canvas = document.getElementById(canvasId);
   if (!canvas || !dailyData.length) return;
   const ctx = canvas.getContext('2d');
-  const { color = '#6366F1', label = '', format = (v) => String(Math.round(v)), aggregate = 'sum' } = opts || {};
+  const { color = '#6366F1', label = '', format = (v) => String(Math.round(v)) } = opts || {};
 
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.parentElement.clientWidth - 32;
@@ -2521,14 +2525,18 @@ function renderMiniTimeSeries(canvasId, dailyData, opts) {
   const values = dailyData.map(d => d.value);
   const maxVal = Math.max(...values, 1);
   const chartH = h - 28;
-  const startX = 8;
+  const yAxisW = 36;
+  const startX = yAxisW;
   const plotW = w - startX - 8;
 
-  // Gridlines (4 lines)
+  // Y-axis labels and gridlines (4 ticks)
+  ctx.fillStyle = '#94A3B8'; ctx.font = '500 9px Inter, system-ui'; ctx.textAlign = 'right';
   ctx.strokeStyle = 'rgba(0,0,0,0.05)'; ctx.lineWidth = 1;
-  for (let i = 1; i <= 3; i++) {
-    const y = chartH - (chartH * i / 3) + 4;
+  for (let i = 0; i <= 3; i++) {
+    const val = maxVal * i / 3;
+    const y = chartH + 4 - (chartH * i / 3);
     ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w - 8, y); ctx.stroke();
+    ctx.fillText(format(val), startX - 4, y + 3);
   }
 
   function xPos(i) { return startX + (i / Math.max(1, dailyData.length - 1)) * plotW; }
@@ -2568,12 +2576,55 @@ function renderMiniTimeSeries(canvasId, dailyData, opts) {
   dailyData.forEach((d, i) => {
     if (i % step === 0 || i === dailyData.length - 1) ctx.fillText(formatDate(d.date), xPos(i), h - 4);
   });
+}
 
-  // Aggregate label top-left
-  const total = values.reduce((s, v) => s + v, 0);
-  const agg = aggregate === 'avg' ? format(total / Math.max(values.length, 1)) : format(total);
-  ctx.fillStyle = '#1E293B'; ctx.font = '700 22px Inter, system-ui'; ctx.textAlign = 'left';
-  ctx.fillText(agg, startX + 2, 26);
+// Lens time-series charts for Insights section (uses FILTERED data, respects date picker)
+function renderLensCharts(lens) {
+  const grid = document.getElementById('lensChartsGrid');
+  if (!grid) return;
+  const daily = FILTERED.dailyUsage || [];
+  if (!daily.length) { grid.innerHTML = ''; return; }
+
+  // Group sessions by date for per-day averages
+  const sessByDate = {};
+  (FILTERED.sessions || []).forEach(s => {
+    if (!s.date) return;
+    if (!sessByDate[s.date]) sessByDate[s.date] = { sessions: 0, queries: 0, totalTokens: 0, inputTokens: 0, outputTokens: 0 };
+    sessByDate[s.date].sessions++;
+    sessByDate[s.date].queries += s.queryCount || 0;
+    sessByDate[s.date].totalTokens += s.totalTokens || 0;
+    sessByDate[s.date].inputTokens += s.inputTokens || 0;
+    sessByDate[s.date].outputTokens += s.outputTokens || 0;
+  });
+  const dates = Object.keys(sessByDate).sort();
+
+  const chartDefs = {
+    cost: [
+      { id: 'lensChart0', title: 'Avg Tokens/Session', data: dates.map(d => ({ date: d, value: sessByDate[d].sessions > 0 ? Math.round(sessByDate[d].totalTokens / sessByDate[d].sessions) : 0 })), color: '#6366F1', format: v => fmt(v) },
+      { id: 'lensChart1', title: 'Avg Tokens/Message', data: dates.map(d => ({ date: d, value: sessByDate[d].queries > 0 ? Math.round(sessByDate[d].totalTokens / sessByDate[d].queries) : 0 })), color: '#8B5CF6', format: v => fmt(v) },
+      { id: 'lensChart2', title: 'Daily Token Spend', data: dates.map(d => ({ date: d, value: sessByDate[d].totalTokens })), color: '#EC4899', format: v => fmt(v) },
+    ],
+    speed: [
+      { id: 'lensChart0', title: 'Msgs/Session per Day', data: dates.map(d => ({ date: d, value: sessByDate[d].sessions > 0 ? Math.round(sessByDate[d].queries / sessByDate[d].sessions) : 0 })), color: '#6366F1', format: v => String(Math.round(v)) },
+      { id: 'lensChart1', title: 'Context Overhead %', data: dates.map(d => ({ date: d, value: sessByDate[d].totalTokens > 0 ? Math.round((sessByDate[d].inputTokens / sessByDate[d].totalTokens) * 100) : 0 })), color: '#F59E0B', format: v => Math.round(v) + '%' },
+      { id: 'lensChart2', title: 'Sessions per Day', data: dates.map(d => ({ date: d, value: sessByDate[d].sessions })), color: '#10B981', format: v => String(Math.round(v)) },
+    ],
+    quality: [
+      { id: 'lensChart0', title: 'Output Ratio %', data: dates.map(d => ({ date: d, value: sessByDate[d].totalTokens > 0 ? Math.round((sessByDate[d].outputTokens / sessByDate[d].totalTokens) * 1000) / 10 : 0 })), color: '#10B981', format: v => v.toFixed(1) + '%' },
+      { id: 'lensChart1', title: 'Tokens Written per Day', data: dates.map(d => ({ date: d, value: sessByDate[d].outputTokens })), color: '#6366F1', format: v => fmt(v) },
+      { id: 'lensChart2', title: 'Write per Message', data: dates.map(d => ({ date: d, value: sessByDate[d].queries > 0 ? Math.round(sessByDate[d].outputTokens / sessByDate[d].queries) : 0 })), color: '#8B5CF6', format: v => fmt(v) },
+    ],
+  };
+
+  const charts = chartDefs[lens] || chartDefs.cost;
+  grid.innerHTML = charts.map(c => `
+    <div class="chart-card" style="padding:16px"><h3 style="font-size:14px;margin:0 0 8px">${c.title}</h3><canvas id="${c.id}"></canvas></div>
+  `).join('');
+
+  // Render after DOM update
+  requestAnimationFrame(() => {
+    charts.forEach(c => renderMiniTimeSeries(c.id, c.data, { color: c.color, format: c.format }));
+  });
 }
 
 // Quality section: 3 mini time-series charts
@@ -2598,8 +2649,8 @@ function renderQualitySection() {
   const testData = dates.map(d => ({ date: d, value: byDate[d].total > 0 ? Math.round((byDate[d].testSum / byDate[d].total) * 10) / 10 : 0 }));
 
   renderMiniTimeSeries('qualityCompletionChart', completionData, { color: '#10B981', label: 'completion', format: v => Math.round(v) + '%' });
-  renderMiniTimeSeries('qualityIterChart', qualityData, { color: '#F59E0B', label: 'quality iters', format: v => String(v) });
-  renderMiniTimeSeries('testIterChart', testData, { color: '#6366F1', label: 'test iters', format: v => String(v) });
+  renderMiniTimeSeries('qualityIterChart', qualityData, { color: '#F59E0B', label: 'quality iters', format: v => Number(v.toFixed(1)) + '' });
+  renderMiniTimeSeries('testIterChart', testData, { color: '#6366F1', label: 'test iters', format: v => Number(v.toFixed(1)) + '' });
 }
 
 // Cost section: runs per day + error rate per day
@@ -2621,11 +2672,11 @@ function renderCostSection() {
   const errorRatePerDay = dates.map(d => ({ date: d, value: byDate[d].total > 0 ? Math.round((byDate[d].errors / byDate[d].total) * 100) : 0 }));
 
   renderMiniTimeSeries('costRunsChart', runsPerDay, { color: '#6366F1', label: 'runs', format: v => String(Math.round(v)) });
-  renderMiniTimeSeries('costErrorRateChart', errorRatePerDay, { color: '#EF4444', label: 'error rate', aggregate: 'avg', format: v => Math.round(v) + '%' });
+  renderMiniTimeSeries('costErrorRateChart', errorRatePerDay, { color: '#EF4444', label: 'error rate', format: v => Math.round(v) + '%' });
 }
 
 fetchData();
-window.addEventListener('resize', () => { if (FILTERED) { renderDailyChart(); renderModelChart(); } });
+window.addEventListener('resize', () => { if (FILTERED) { renderDailyChart(); renderModelChart(); renderLensCharts(currentLens); renderCostSection(); renderQualitySection(); } });
 </script>
 </body>
 </html>

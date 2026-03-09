@@ -247,6 +247,23 @@ test.describe('Insights (#insightsSection)', () => {
     await expect(buttons.filter({ hasText: 'Speed' })).toHaveClass(/active/);
   });
 
+  test('lens charts render canvas elements for each lens', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    if ((api.insights || []).length === 0) { test.skip(); return; }
+
+    const grid = page.locator('#lensChartsGrid');
+    const hasCharts = await grid.locator('canvas').count();
+    if (hasCharts === 0) { test.skip(); return; }
+
+    for (const lens of ['Cost', 'Speed', 'Quality']) {
+      await page.locator('.lens-btn', { hasText: lens }).click();
+      const canvases = grid.locator('canvas');
+      const count = await canvases.count();
+      expect(count).toBe(3); // each lens has 3 time-series charts
+    }
+  });
+
   test('lens stats bar shows content for each lens', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
