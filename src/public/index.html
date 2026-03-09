@@ -410,6 +410,16 @@
   .lens-btn.active[data-lens="cost"] { background: var(--gradient-warm); border-color: var(--amber); color: white; }
   .lens-btn.active[data-lens="speed"] { background: var(--gradient-teal); border-color: var(--teal); color: white; }
   .lens-btn.active[data-lens="quality"] { background: var(--gradient-main); border-color: var(--indigo); color: white; }
+  .lens-btn { text-decoration: none; }
+
+  /* ---- LENS SECTIONS ---- */
+  .lens-section { margin-bottom: 48px; scroll-margin-top: 24px; }
+  .lens-section > .section-header { margin-bottom: 16px; }
+  .lens-section-divider {
+    height: 2px; border-radius: 2px; margin: 0 0 20px;
+    background: linear-gradient(90deg, currentColor 0%, transparent 100%);
+    opacity: 0.15;
+  }
 
   /* ---- LENS STATS BAR ---- */
   .lens-stats-bar {
@@ -764,101 +774,124 @@
     Tokens are how AI measures text -- roughly 1 token = 1 word. Hover over any label with a <span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(0,0,0,0.08);font-size:10px;font-weight:700;vertical-align:middle;">?</span> for an explanation.
   </div>
 
-  <!-- Recommendations -->
-  <div id="recsSection" class="recs-section" style="display:none">
-    <div class="section-header animate">
-      <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-      </div>
-      <div class="section-title">Recommendations</div>
-    </div>
-    <div id="recsGrid" class="recs-grid"></div>
+  <!-- Lens Navigation -->
+  <div class="lens-selector animate delay-2" id="lensSelectorRow">
+    <span class="lens-selector-label">Jump to</span>
+    <a class="lens-btn active" data-lens="cost" href="#lensSection-cost" onclick="event.preventDefault(); setLens('cost')">Cost</a>
+    <a class="lens-btn" data-lens="speed" href="#lensSection-speed" onclick="event.preventDefault(); setLens('speed')">Speed</a>
+    <a class="lens-btn" data-lens="quality" href="#lensSection-quality" onclick="event.preventDefault(); setLens('quality')">Quality</a>
   </div>
 
-  <!-- Insights -->
-  <div id="insightsSection" class="insights-section" style="display:none">
-    <div class="section-header animate">
+  <!-- Shared repo config for insight issue creation -->
+  <div class="insight-repo-config" style="margin-bottom:20px">
+    <label>Target repo</label>
+    <input type="text" id="issueTargetRepo" value="stevegrocott/claude-pipeline" placeholder="owner/repo">
+  </div>
+
+  <!-- ── COST LENS SECTION ── -->
+  <section id="lensSection-cost" class="lens-section animate delay-3">
+    <div class="section-header">
       <div class="section-icon" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 4 12.75V17a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.25A7 7 0 0 1 12 2z"/><path d="M9 21h6"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       </div>
-      <div class="section-title">Insights</div>
+      <div class="section-title">Cost</div>
     </div>
-    <div class="lens-selector" id="lensSelectorRow">
-      <span class="lens-selector-label">Optimize for</span>
-      <button class="lens-btn active" data-lens="cost" onclick="setLens('cost')">Cost</button>
-      <button class="lens-btn" data-lens="speed" onclick="setLens('speed')">Speed</button>
-      <button class="lens-btn" data-lens="quality" onclick="setLens('quality')">Quality</button>
+    <div class="lens-stats-bar" id="lensStatsBar-cost"></div>
+    <div class="charts-grid" style="margin-bottom:16px">
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Tokens per Day<div class="tooltip">How many tokens you used each day. Taller bars mean heavier usage days. The indigo portion is what Claude read, the teal is what Claude wrote.</div></h3>
+        <canvas id="dailyChart"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--indigo)"></div> Read by Claude (your messages + context)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> Written by Claude (responses)</div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>By Model</h3>
+        <canvas id="modelChart"></canvas>
+        <div id="modelLegend" class="legend" style="flex-direction:column; gap:12px; margin-top:20px;"></div>
+      </div>
     </div>
-    <div class="lens-stats-bar" id="lensStatsBar"></div>
-    <div class="insight-repo-config">
-      <label>Target repo</label>
-      <input type="text" id="issueTargetRepo" value="stevegrocott/claude-pipeline" placeholder="owner/repo">
+    <div style="margin-bottom:16px">
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Model Tier Mix<div class="tooltip">Daily breakdown of token usage by model tier. Shifting more work to cheaper tiers (Haiku, Sonnet) for simple tasks is the cheapest efficiency gain.</div></h3>
+        <canvas id="tierMixChart"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#6366F1"></div> Opus</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div> Sonnet</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#F97316"></div> Haiku</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#94A3B8"></div> Other</div>
+        </div>
+      </div>
     </div>
-    <div id="insightsList"></div>
-  </div>
+    <div id="pipelineCostData"></div>
+    <div id="insightsList-cost"></div>
+    <div id="pipelineRecs-cost"></div>
+  </section>
 
-  <!-- Pipeline Efficiency -->
-  <div id="pipelineSection" class="insights-section" style="display:none">
-    <div class="section-header animate">
+  <!-- ── SPEED LENS SECTION ── -->
+  <section id="lensSection-speed" class="lens-section animate delay-3">
+    <div class="section-header">
       <div class="section-icon" style="background:linear-gradient(135deg,#CCFBF1,#99F6E4)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2.5" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
       </div>
-      <div class="section-title">Pipeline Efficiency</div>
+      <div class="section-title">Speed</div>
     </div>
-    <div class="stats-row" id="pipelineStats"></div>
-    <div id="pipelineBreakdown" style="margin:16px 0"></div>
-  </div>
+    <div class="lens-stats-bar" id="lensStatsBar-speed"></div>
+    <div class="charts-grid" style="margin-bottom:16px">
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Tokens per Query<div class="tooltip">Average tokens consumed per query each day. Lower means your prompts are more specific and Claude explores less per turn. A declining trend indicates improving prompting efficiency.</div></h3>
+        <canvas id="tpqChart"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#8B5CF6"></div> Daily avg tokens/query</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(244,63,94,0.5)"></div> 7-day moving average</div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Read : Write Ratio Over Time<div class="tooltip">Daily ratio of tokens Claude read vs wrote. Lower is better &mdash; it means Claude is writing more relative to what it reads. A declining trend indicates improving efficiency.</div></h3>
+        <canvas id="ratioChart"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div> Daily ratio (read &divide; write)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(99,102,241,0.5)"></div> 7-day moving average</div>
+        </div>
+      </div>
+    </div>
+    <div id="pipelineSpeedData"></div>
+    <div id="insightsList-speed"></div>
+    <div id="pipelineRecs-speed"></div>
+  </section>
 
-  <!-- Charts -->
-  <div class="charts-grid animate delay-3">
-    <div class="chart-card">
-      <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Tokens per Day<div class="tooltip">How many tokens you used each day. Taller bars mean heavier usage days. The indigo portion is what Claude read, the teal is what Claude wrote.</div></h3>
-      <canvas id="dailyChart"></canvas>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:var(--indigo)"></div> Read by Claude (your messages + context)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> Written by Claude (responses)</div>
+  <!-- ── QUALITY LENS SECTION ── -->
+  <section id="lensSection-quality" class="lens-section animate delay-3">
+    <div class="section-header">
+      <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      </div>
+      <div class="section-title">Quality</div>
+    </div>
+    <div class="lens-stats-bar" id="lensStatsBar-quality"></div>
+    <div class="charts-grid" style="margin-bottom:16px">
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Output Ratio Over Time<div class="tooltip">Percentage of tokens that are Claude&rsquo;s actual output vs context re-reading each day. Higher is better &mdash; it means Claude is spending more time generating useful responses.</div></h3>
+        <canvas id="outputRatioChart"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div> Output %</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(99,102,241,0.5)"></div> 7-day moving average</div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Context Overhead<div class="tooltip">How much of each day&rsquo;s tokens went to re-reading prior context vs new query input. Lower overhead means more efficient conversations.</div></h3>
+        <canvas id="contextOverheadChart"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#6366F1"></div> Context re-read</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div> New query input</div>
+        </div>
       </div>
     </div>
-    <div class="chart-card">
-      <h3>By Model</h3>
-      <canvas id="modelChart"></canvas>
-      <div id="modelLegend" class="legend" style="flex-direction:column; gap:12px; margin-top:20px;"></div>
-    </div>
-  </div>
-
-  <!-- Read:Write Ratio Chart -->
-  <div class="animate delay-3" style="margin-bottom:32px">
-    <div class="chart-card">
-      <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Read : Write Ratio Over Time<div class="tooltip">Daily ratio of tokens Claude read vs wrote. Lower is better &mdash; it means Claude is writing more relative to what it reads. A declining trend indicates improving efficiency.</div></h3>
-      <canvas id="ratioChart"></canvas>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div> Daily ratio (read &divide; write)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:rgba(99,102,241,0.5)"></div> 7-day moving average</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Efficiency Charts -->
-  <div class="charts-grid animate delay-3" style="margin-bottom:32px">
-    <div class="chart-card">
-      <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Tokens per Query<div class="tooltip">Average tokens consumed per query each day. Lower means your prompts are more specific and Claude explores less per turn. A declining trend indicates improving prompting efficiency.</div></h3>
-      <canvas id="tpqChart"></canvas>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:#8B5CF6"></div> Daily avg tokens/query</div>
-        <div class="legend-item"><div class="legend-dot" style="background:rgba(244,63,94,0.5)"></div> 7-day moving average</div>
-      </div>
-    </div>
-    <div class="chart-card">
-      <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Model Tier Mix<div class="tooltip">Daily breakdown of token usage by model tier. Shifting more work to cheaper tiers (Haiku, Sonnet) for simple tasks is the cheapest efficiency gain.</div></h3>
-      <canvas id="tierMixChart"></canvas>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-dot" style="background:#6366F1"></div> Opus</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div> Sonnet</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#F97316"></div> Haiku</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#94A3B8"></div> Other</div>
-      </div>
-    </div>
-  </div>
+    <div id="pipelineQualityData"></div>
+    <div id="insightsList-quality"></div>
+    <div id="pipelineRecs-quality"></div>
+  </section>
 
   <!-- Projects -->
   <div class="projects-section animate delay-4">
@@ -962,16 +995,30 @@ const TOP_RANKS = [
 const SKIP_IDS = new Set(['day-pattern', 'project-dominance']);
 
 const LENS_SCORES = {
-  'vague-prompts':           { cost: 3, speed: 1, quality: 3 },
-  'context-growth':          { cost: 3, speed: 3, quality: 2 },
-  'marathon-sessions':       { cost: 3, speed: 2, quality: 1 },
-  'input-heavy':             { cost: 2, speed: 1, quality: 3 },
+  // Session-level insights (from generateInsights)
+  'explore-stage-bloat':     { cost: 3, speed: 2, quality: 1 },
+  'impl-context-growth':     { cost: 3, speed: 3, quality: 2 },
+  'pipeline-batch-churn':    { cost: 3, speed: 2, quality: 1 },
+  'impl-excessive-rereads':  { cost: 2, speed: 3, quality: 1 },
   'day-pattern':             { cost: 0, speed: 0, quality: 0 },
   'model-mismatch':          { cost: 3, speed: 2, quality: 1 },
   'tool-heavy':              { cost: 2, speed: 3, quality: 2 },
   'project-dominance':       { cost: 0, speed: 0, quality: 0 },
   'conversation-efficiency': { cost: 3, speed: 2, quality: 2 },
   'heavy-context':           { cost: 2, speed: 2, quality: 1 },
+  'wasted-escalation-cost':  { cost: 3, speed: 1, quality: 0 },
+  'scope-creep-indicator':   { cost: 3, speed: 2, quality: 1 },
+  // Orchestrator insights (from generateOrchestratorInsights)
+  'quality-churn':           { cost: 2, speed: 2, quality: 3 },
+  'test-churn':              { cost: 2, speed: 2, quality: 3 },
+  'low-completion-rate':     { cost: 1, speed: 1, quality: 3 },
+  'stage-bottleneck':        { cost: 2, speed: 3, quality: 1 },
+  'task-throughput':         { cost: 1, speed: 3, quality: 1 },
+  'first-pass-approval-rate':{ cost: 2, speed: 2, quality: 3 },
+  'parallel-speedup-ratio':  { cost: 1, speed: 3, quality: 0 },
+  'error-pattern':           { cost: 1, speed: 1, quality: 3 },
+  'escalation-pattern':      { cost: 3, speed: 1, quality: 1 },
+  'stage-model-cost':        { cost: 3, speed: 1, quality: 1 },
 };
 
 function fmt(n) {
@@ -1271,24 +1318,20 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
 
 function renderRecommendations() {
   const recs = FILTERED.recommendations || {};
-  const section = document.getElementById('recsSection');
-  const grid = document.getElementById('recsGrid');
 
   const lenses = [
-    { key: 'model',        label: 'Model',        icon: '⚡', color: '#EEF2FF', dot: '#6366F1' },
-    { key: 'context',      label: 'Context',       icon: '📝', color: '#FEF3C7', dot: '#D97706' },
-    { key: 'conversation', label: 'Conversation',  icon: '💬', color: '#ECFDF5', dot: '#10B981' },
-    { key: 'pipeline',     label: 'Pipeline',      icon: '⚙️', color: '#F0FDFA', dot: '#0D9488' },
+    { key: 'model',        label: 'Model',        icon: '⚡', color: '#EEF2FF', dot: '#6366F1',  target: 'cost' },
+    { key: 'context',      label: 'Context',       icon: '📝', color: '#FEF3C7', dot: '#D97706',  target: 'cost' },
+    { key: 'conversation', label: 'Conversation',  icon: '💬', color: '#ECFDF5', dot: '#10B981',  target: 'speed' },
+    { key: 'pipeline',     label: 'Pipeline',      icon: '⚙️', color: '#F0FDFA', dot: '#0D9488',  target: 'quality' },
   ];
 
-  const hasAny = lenses.some(l => (recs[l.key] || []).length > 0);
-  if (!hasAny) { section.style.display = 'none'; return; }
-
-  section.style.display = 'block';
-  grid.innerHTML = lenses.map(lens => {
+  // Group rendered HTML by target lens section
+  const byLens = { cost: [], speed: [], quality: [] };
+  for (const lens of lenses) {
     const items = (recs[lens.key] || []);
-    if (!items.length) return '';
-    const itemsHtml = items.map((rec, i) => {
+    if (!items.length) continue;
+    const itemsHtml = items.map(rec => {
       const savingBadge = rec.saving != null ? `<span class="rec-saving">~${recFmtDollars(rec.saving)} est.</span>` : '';
       const detailHtml = rec.detail ? `<div class="rec-detail">${escapeHtml(rec.detail)}</div>` : '';
       return `<div class="rec-item" onclick="this.classList.toggle('expanded')">
@@ -1300,14 +1343,18 @@ function renderRecommendations() {
         ${savingBadge}
       </div>`;
     }).join('');
-    return `<div class="recs-lens">
+    byLens[lens.target].push(`<div class="recs-lens">
       <div class="recs-lens-header">
         <div class="recs-lens-icon" style="background:${lens.color}">${lens.icon}</div>
         <div class="recs-lens-title">${lens.label}</div>
       </div>
       ${itemsHtml}
-    </div>`;
-  }).join('');
+    </div>`);
+  }
+
+  for (const [lensKey, blocks] of Object.entries(byLens)) {
+    document.getElementById('pipelineRecs-' + lensKey).innerHTML = blocks.join('');
+  }
 }
 
 function clientGenerateInsights(sessions, allPrompts, totals) {
@@ -1630,12 +1677,16 @@ function render() {
   renderStats();
   renderRecommendations();
   renderInsights();
-  renderPipeline();
+  renderCostSection();
+  renderSpeedSection();
+  renderQualitySection();
   renderDailyChart();
   renderModelChart();
   renderRatioChart();
   renderTpqChart();
   renderTierMixChart();
+  renderOutputRatioChart();
+  renderContextOverheadChart();
   renderProjectBreakdown();
   renderTopPrompts();
   renderSessions();
@@ -1669,29 +1720,15 @@ function setLens(lens) {
   document.querySelectorAll('.lens-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.lens === lens);
   });
-  renderInsights();
+  const section = document.getElementById('lensSection-' + lens);
+  if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // Insights
 function renderInsights() {
   const allInsights = FILTERED.insights || [];
-  const section = document.getElementById('insightsSection');
-  if (!allInsights.length) { section.style.display = 'none'; return; }
-
-  section.style.display = 'block';
   const emojis = { warning: '\u26A0\uFE0F', info: '\uD83D\uDCA1', neutral: '\uD83D\uDCC5' };
 
-  // Sort by current lens score descending
-  const insights = [...allInsights].sort((a, b) => lensScore(b.id) - lensScore(a.id));
-
-  // Determine top-3 picks (only those with score > 0)
-  const topRanks = new Map();
-  for (const ins of insights) {
-    if (topRanks.size >= 3) break;
-    if (lensScore(ins.id) > 0) topRanks.set(ins.id, topRanks.size);
-  }
-
-  // Render lens stats bar
   const t = FILTERED.totals;
   const actionableCount = (lens) => String(allInsights.filter(i => lensScore(i.id, lens) >= 2).length);
   const lensStats = {
@@ -1711,43 +1748,56 @@ function renderInsights() {
       { label: 'Quality insights', value: actionableCount('quality'), sub: 'actionable' },
     ],
   };
-  document.getElementById('lensStatsBar').innerHTML = (lensStats[currentLens] || []).map(s => `
-    <div class="lens-stat-pill">
-      <div class="lens-stat-pill-label">${s.label}</div>
-      <div class="lens-stat-pill-value">${s.value}</div>
-      <div class="lens-stat-pill-sub">${s.sub}</div>
-    </div>`).join('');
 
-  document.getElementById('insightsList').innerHTML = insights.map((ins, i) => {
-    const rankIdx = topRanks.has(ins.id) ? topRanks.get(ins.id) : -1;
-    const topClass = rankIdx >= 0 ? TOP_RANKS[rankIdx].cls : '';
-    const badgeHtml = rankIdx >= 0 ? `<span class="insight-top-badge">${TOP_RANKS[rankIdx].label}</span>` : '';
-    const detailHtml = ins.description ? `<div class="insight-detail">${escapeHtml(ins.description)}</div>` : '';
-    const actionHtml = ins.action ? `<div class="insight-action-tip">${escapeHtml(ins.action)}</div>` : '';
-    const buttonHtml = !SKIP_IDS.has(ins.id) ? `<div class="insight-create-issue">
-        <button id="btn-${ins.id}" onclick="event.stopPropagation(); createIssueFromInsight('${ins.id}', this)">Create Issue</button>
-        <span class="issue-status" id="status-${ins.id}"></span>
-      </div>` : '';
-    return `<div class="insight-card ${ins.type} ${topClass} animate delay-${Math.min(i + 2, 5)}" onclick="this.classList.toggle('expanded')">
-      <div class="insight-top">
-        <div class="insight-indicator">${emojis[ins.type] || ''}</div>
-        <div class="insight-title">${escapeHtml(ins.title)}${badgeHtml}</div>
-        <div class="insight-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></div>
-      </div>
-      <div class="insight-expand">
-        ${detailHtml}
-        ${actionHtml}
-        ${buttonHtml}
-      </div>
-    </div>`;
-  }).join('');
+  for (const lens of ['cost', 'speed', 'quality']) {
+    document.getElementById('lensStatsBar-' + lens).innerHTML = (lensStats[lens] || []).map(s => `
+      <div class="lens-stat-pill">
+        <div class="lens-stat-pill-label">${s.label}</div>
+        <div class="lens-stat-pill-value">${s.value}</div>
+        <div class="lens-stat-pill-sub">${s.sub}</div>
+      </div>`).join('');
+
+    // Sort insights by this lens's score descending
+    const insights = [...allInsights].sort((a, b) => lensScore(b.id, lens) - lensScore(a.id, lens));
+
+    // Determine top-3 picks for this lens (only those with score > 0)
+    const topRanks = new Map();
+    for (const ins of insights) {
+      if (topRanks.size >= 3) break;
+      if (lensScore(ins.id, lens) > 0) topRanks.set(ins.id, topRanks.size);
+    }
+
+    document.getElementById('insightsList-' + lens).innerHTML = insights.map((ins, i) => {
+      const rankIdx = topRanks.has(ins.id) ? topRanks.get(ins.id) : -1;
+      const topClass = rankIdx >= 0 ? TOP_RANKS[rankIdx].cls : '';
+      const badgeHtml = rankIdx >= 0 ? `<span class="insight-top-badge">${TOP_RANKS[rankIdx].label}</span>` : '';
+      const detailHtml = ins.description ? `<div class="insight-detail">${escapeHtml(ins.description)}</div>` : '';
+      const actionHtml = ins.action ? `<div class="insight-action-tip">${escapeHtml(ins.action)}</div>` : '';
+      const buttonHtml = !SKIP_IDS.has(ins.id) ? `<div class="insight-create-issue">
+          <button id="btn-${ins.id}-${lens}" onclick="event.stopPropagation(); createIssueFromInsight('${ins.id}', this)">Create Issue</button>
+          <span class="issue-status" id="status-${ins.id}-${lens}"></span>
+        </div>` : '';
+      return `<div class="insight-card ${ins.type} ${topClass} animate delay-${Math.min(i + 2, 5)}" onclick="this.classList.toggle('expanded')">
+        <div class="insight-top">
+          <div class="insight-indicator">${emojis[ins.type] || ''}</div>
+          <div class="insight-title">${escapeHtml(ins.title)}${badgeHtml}</div>
+          <div class="insight-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></div>
+        </div>
+        <div class="insight-expand">
+          ${detailHtml}
+          ${actionHtml}
+          ${buttonHtml}
+        </div>
+      </div>`;
+    }).join('');
+  }
 }
 
 async function createIssueFromInsight(insightId, btn) {
   const repo = document.getElementById('issueTargetRepo').value.trim();
   if (!repo) { alert('Please set a target repo'); return; }
 
-  const statusEl = document.getElementById('status-' + insightId);
+  const statusEl = btn.nextElementSibling;
   btn.disabled = true;
   btn.textContent = 'Creating...';
   statusEl.className = 'issue-status';
@@ -1783,24 +1833,65 @@ async function createIssueFromInsight(insightId, btn) {
   }
 }
 
-// Pipeline Efficiency
-function renderPipeline() {
+// Pipeline data distributed across lens sections
+function renderCostSection() {
   const orch = DATA.orchestrator;
-  const section = document.getElementById('pipelineSection');
-  if (!orch || !orch.summary || orch.summary.totalRuns === 0) {
-    section.style.display = 'none';
-    return;
-  }
-  section.style.display = 'block';
+  const el = document.getElementById('pipelineCostData');
+  if (!orch || !orch.summary || orch.summary.totalRuns === 0) { el.innerHTML = ''; return; }
+  const s = orch.summary;
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:16px">
+    <div class="stat-card animate delay-2">
+      <div class="stat-label">Pipeline Runs</div>
+      <div class="stat-value" style="color:var(--indigo)">${s.totalRuns}</div>
+      <div class="stat-sub">${s.completedRuns} completed</div>
+    </div>
+    <div class="stat-card animate delay-2">
+      <div class="stat-label">Error Runs</div>
+      <div class="stat-value" style="color:#EF4444">${s.errorRuns}</div>
+      <div class="stat-sub">${s.maxIterationsRuns} hit max iterations</div>
+    </div>
+  </div>`;
+}
+
+function renderSpeedSection() {
+  const orch = DATA.orchestrator;
+  const el = document.getElementById('pipelineSpeedData');
+  if (!orch || !orch.summary || orch.summary.totalRuns === 0) { el.innerHTML = ''; return; }
   const s = orch.summary;
 
-  // Stat cards
+  const bottleneckHtml = s.stageAvgs.length > 0
+    ? `<div style="margin-top:8px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text-secondary)">Stage Durations (avg)</div>
+      ${s.stageAvgs.filter(st => st.avgSeconds > 0).map(st => {
+        const maxSec = s.stageAvgs[0].avgSeconds;
+        const pct = Math.round((st.avgSeconds / maxSec) * 100);
+        const mins = Math.round(st.avgSeconds / 60);
+        return `<div style="display:flex;align-items:center;gap:8px;margin:3px 0">
+          <div style="width:100px;font-size:11px;font-weight:600;color:var(--text-secondary)">${st.name}</div>
+          <div style="flex:1;height:16px;background:var(--bg-secondary);border-radius:4px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:var(--teal);border-radius:4px"></div>
+          </div>
+          <div style="font-size:11px;font-weight:600;width:40px;text-align:right">${mins}m</div>
+        </div>`;
+      }).join('')}</div>`
+    : '';
+
+  el.innerHTML = bottleneckHtml ? `<div class="chart-card" style="padding:16px;margin-bottom:16px">
+    <h3 style="font-size:14px;margin:0 0 4px">Pipeline Stage Performance</h3>
+    ${bottleneckHtml}
+  </div>` : '';
+}
+
+function renderQualitySection() {
+  const orch = DATA.orchestrator;
+  const el = document.getElementById('pipelineQualityData');
+  if (!orch || !orch.summary || orch.summary.totalRuns === 0) { el.innerHTML = ''; return; }
+  const s = orch.summary;
+
   const completionColor = s.completionRate >= 70 ? 'var(--emerald)' : s.completionRate >= 40 ? 'var(--amber)' : '#EF4444';
   const qualityColor = s.avgQualityIterations <= 2 ? 'var(--emerald)' : s.avgQualityIterations <= 4 ? 'var(--amber)' : '#EF4444';
   const testColor = s.avgTestIterations <= 2 ? 'var(--emerald)' : s.avgTestIterations <= 4 ? 'var(--amber)' : '#EF4444';
 
-  document.getElementById('pipelineStats').innerHTML = [
-    { label: 'Pipeline Runs', value: s.totalRuns, sub: `${s.completedRuns} completed`, color: 'var(--indigo)' },
+  const statsHtml = [
     { label: 'Completion Rate', value: s.completionRate + '%', sub: `${s.errorRuns} errors, ${s.maxIterationsRuns} max-iter`, color: completionColor },
     { label: 'Avg Quality Loops', value: s.avgQualityIterations, sub: 'iterations per run', color: qualityColor },
     { label: 'Avg Test Loops', value: s.avgTestIterations, sub: 'iterations per run', color: testColor },
@@ -1810,7 +1901,6 @@ function renderPipeline() {
     <div class="stat-sub">${c.sub}</div>
   </div>`).join('');
 
-  // State breakdown + top churners
   const stateGroups = {};
   orch.runs.forEach(r => { stateGroups[r.state] = (stateGroups[r.state] || 0) + 1; });
   const stateHtml = Object.entries(stateGroups)
@@ -1840,32 +1930,15 @@ function renderPipeline() {
       </table></div>`
     : '';
 
-  const bottleneckHtml = s.stageAvgs.length > 0
-    ? `<div style="margin-top:16px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text-secondary)">Stage Durations (avg)</div>
-      ${s.stageAvgs.filter(st => st.avgSeconds > 0).map(st => {
-        const maxSec = s.stageAvgs[0].avgSeconds;
-        const pct = Math.round((st.avgSeconds / maxSec) * 100);
-        const mins = Math.round(st.avgSeconds / 60);
-        return `<div style="display:flex;align-items:center;gap:8px;margin:3px 0">
-          <div style="width:100px;font-size:11px;font-weight:600;color:var(--text-secondary)">${st.name}</div>
-          <div style="flex:1;height:16px;background:var(--bg-secondary);border-radius:4px;overflow:hidden">
-            <div style="width:${pct}%;height:100%;background:var(--teal);border-radius:4px"></div>
-          </div>
-          <div style="font-size:11px;font-weight:600;width:40px;text-align:right">${mins}m</div>
-        </div>`;
-      }).join('')}</div>`
-    : '';
-
-  document.getElementById('pipelineBreakdown').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px">${statsHtml}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
       <div class="chart-card" style="padding:16px">
         <h3 style="font-size:14px;margin:0 0 12px">Run Outcomes</h3>
         ${stateHtml}
       </div>
       <div class="chart-card" style="padding:16px">
-        <h3 style="font-size:14px;margin:0 0 12px">Performance</h3>
-        ${bottleneckHtml}
-        ${churnerHtml}
+        <h3 style="font-size:14px;margin:0 0 12px">Churners</h3>
+        ${churnerHtml || '<div style="font-size:12px;color:var(--text-tertiary)">No churners detected</div>'}
       </div>
     </div>`;
 }
@@ -2289,6 +2362,165 @@ function renderTierMixChart() {
   });
 }
 
+// Output ratio over time (Quality lens)
+function renderOutputRatioChart() {
+  const canvas = document.getElementById('outputRatioChart');
+  const ctx = canvas.getContext('2d');
+  const data = FILTERED.dailyUsage;
+  if (!data.length) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 48;
+  const h = 200;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  // Output % = outputTokens / totalTokens * 100
+  const ratios = data.map(d => ({
+    date: d.date,
+    value: d.totalTokens > 0 ? (d.outputTokens / d.totalTokens) * 100 : null
+  }));
+
+  // 7-day moving average
+  const ma = ratios.map((r, i) => {
+    const win = ratios.slice(Math.max(0, i - 6), i + 1).filter(x => x.value !== null);
+    if (!win.length) return null;
+    return win.reduce((s, x) => s + x.value, 0) / win.length;
+  });
+
+  const vals = ratios.filter(r => r.value !== null).map(r => r.value);
+  if (!vals.length) return;
+  const rawMax = Math.max(...vals, ...ma.filter(v => v !== null));
+  const niceMax = Math.ceil(rawMax * 1.2 / 0.5) * 0.5 || 1; // 20% headroom, round to 0.5%
+
+  const chartH = h - 36;
+  const startX = 48;
+  const plotW = w - startX - 8;
+
+  ctx.font = '500 10px Inter, system-ui';
+  ctx.fillStyle = '#94A3B8';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = (niceMax / 4) * i;
+    const y = chartH - (chartH * i / 4) + 8;
+    ctx.fillText((niceMax >= 10 ? val.toFixed(0) : val.toFixed(1)) + '%', startX - 10, y + 3);
+    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+
+  function xPos(i) { return startX + (i / Math.max(1, ratios.length - 1)) * plotW; }
+  function yPos(val) { return chartH + 8 - (val / niceMax) * chartH; }
+
+  // Daily line + dots
+  ctx.strokeStyle = '#10B981'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  let started = false;
+  ratios.forEach((r, i) => {
+    if (r.value === null) { started = false; return; }
+    const x = xPos(i), y = yPos(r.value);
+    if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+  });
+  ctx.stroke();
+
+  ratios.forEach((r, i) => {
+    if (r.value === null) return;
+    ctx.fillStyle = '#10B981';
+    ctx.beginPath(); ctx.arc(xPos(i), yPos(r.value), 3, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // Moving average
+  ctx.strokeStyle = 'rgba(99,102,241,0.6)'; ctx.lineWidth = 2.5;
+  ctx.setLineDash([6, 3]);
+  ctx.beginPath();
+  started = false;
+  ma.forEach((val, i) => {
+    if (val === null) { started = false; return; }
+    const x = xPos(i), y = yPos(val);
+    if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // X labels
+  ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
+  ctx.font = '500 10px Inter, system-ui';
+  const step = Math.max(1, Math.floor(ratios.length / 7));
+  ratios.forEach((r, i) => {
+    if (i % step === 0 || i === ratios.length - 1) {
+      ctx.fillText(formatDate(r.date), xPos(i), chartH + 24);
+    }
+  });
+}
+
+// Context overhead stacked bar chart (Quality lens)
+function renderContextOverheadChart() {
+  const canvas = document.getElementById('contextOverheadChart');
+  const ctx = canvas.getContext('2d');
+  const data = FILTERED.dailyUsage;
+  if (!data.length) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 48;
+  const h = 200;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const chartH = h - 36;
+  const startX = 48;
+  const plotW = w - startX - 8;
+
+  // Show context re-read (inputTokens) vs new query input (outputTokens) as stacked % bars
+  const days = data.map(d => ({
+    date: d.date,
+    contextPct: d.totalTokens > 0 ? (d.inputTokens / d.totalTokens) * 100 : 0,
+    outputPct: d.totalTokens > 0 ? (d.outputTokens / d.totalTokens) * 100 : 0,
+  }));
+
+  // Grid
+  ctx.font = '500 10px Inter, system-ui';
+  ctx.fillStyle = '#94A3B8';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = 25 * i;
+    const y = chartH - (chartH * i / 4) + 8;
+    ctx.fillText(val + '%', startX - 10, y + 3);
+    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+
+  const barW = Math.max(2, Math.min(20, (plotW / Math.max(1, days.length)) - 2));
+
+  days.forEach((d, i) => {
+    const x = startX + (i / Math.max(1, days.length - 1)) * plotW - barW / 2;
+    const baseY = chartH + 8;
+
+    // Output (green, bottom)
+    const outH = (d.outputPct / 100) * chartH;
+    ctx.fillStyle = '#10B981';
+    ctx.fillRect(x, baseY - outH, barW, outH);
+
+    // Context re-read (purple, top)
+    const ctxH = (d.contextPct / 100) * chartH;
+    ctx.fillStyle = 'rgba(99,102,241,0.6)';
+    ctx.fillRect(x, baseY - outH - ctxH, barW, ctxH);
+  });
+
+  // X labels
+  ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
+  ctx.font = '500 10px Inter, system-ui';
+  const step = Math.max(1, Math.floor(days.length / 7));
+  days.forEach((d, i) => {
+    if (i % step === 0 || i === days.length - 1) {
+      const x = startX + (i / Math.max(1, days.length - 1)) * plotW;
+      ctx.fillText(formatDate(d.date), x, chartH + 24);
+    }
+  });
+}
+
 // Project accordion
 function toggleProjectDrawer(i) {
   const row = document.getElementById('proj-row-' + i);
@@ -2509,7 +2741,7 @@ function closeDrilldown() {
 }
 
 fetchData();
-window.addEventListener('resize', () => { if (FILTERED) { renderDailyChart(); renderModelChart(); } });
+window.addEventListener('resize', () => { if (FILTERED) { renderDailyChart(); renderModelChart(); renderOutputRatioChart(); renderContextOverheadChart(); } });
 </script>
 </body>
 </html>

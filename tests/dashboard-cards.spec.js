@@ -86,86 +86,122 @@ test.describe('Stats Cards (#statsRow)', () => {
   });
 });
 
-// ─── Recommendations Section ────────────────────────────────────────────────
+// ─── Cost / Speed / Quality Section ─────────────────────────────────────────
 
-test.describe('Recommendations (#recsSection)', () => {
-  test('renders recommendation lenses when data exists', async ({ page }) => {
+test.describe('Cost/Speed/Quality (#insightsSection lens selector)', () => {
+  test('lens selector has exactly 3 buttons: Cost, Speed, Quality', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
-    const recs = api.recommendations || {};
-    const hasRecs = Object.values(recs).some(arr => arr.length > 0);
+    if ((api.insights || []).length === 0) { test.skip(); return; }
 
-    // Recommendations feature not yet implemented - skip
-    const sectionExists = await page.locator('#recsSection').count() > 0;
-    if (!sectionExists || !hasRecs) {
-      test.skip();
-      return;
+    const buttons = page.locator('.lens-btn');
+    await expect(buttons).toHaveCount(3);
+
+    const labels = [];
+    for (let i = 0; i < 3; i++) {
+      labels.push((await buttons.nth(i).textContent()).trim().toLowerCase());
     }
-
-    const section = page.locator('#recsSection');
-    await expect(section).toBeVisible();
-    const lenses = page.locator('.recs-lens');
-    const count = await lenses.count();
-    expect(count).toBeGreaterThan(0);
+    expect(labels).toContain('cost');
+    expect(labels).toContain('speed');
+    expect(labels).toContain('quality');
   });
 
-  test('each recommendation has text content and optional saving badge', async ({ page }) => {
+  test('Cost lens shows 3 stat pills with non-empty values', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
-    const recs = api.recommendations || {};
-    const hasRecs = Object.values(recs).some(arr => arr.length > 0);
+    if ((api.insights || []).length === 0) { test.skip(); return; }
 
-    // Recommendations feature not yet implemented - skip if section doesn't exist
-    const sectionExists = await page.locator('#recsSection').count() > 0;
-    if (!sectionExists || !hasRecs) {
-      test.skip();
-      return;
+    await page.locator('.lens-btn[data-lens="cost"]').click();
+    const pills = page.locator('#lensSection-cost .lens-stat-pill');
+    await expect(pills).toHaveCount(3);
+    for (let i = 0; i < 3; i++) {
+      const value = await pills.nth(i).locator('.lens-stat-pill-value').textContent();
+      expect(value.trim().length).toBeGreaterThan(0);
+      const label = await pills.nth(i).locator('.lens-stat-pill-label').textContent();
+      expect(label.trim().length).toBeGreaterThan(0);
     }
-
-    const items = page.locator('.rec-item');
-    const count = await items.count();
-    expect(count).toBeGreaterThan(0);
-    // Check first rec has actual text
-    const firstText = await items.first().locator('.rec-text').textContent();
-    expect(firstText.trim().length).toBeGreaterThan(10);
   });
 
-  test('recommendation lenses have titles matching API categories', async ({ page }) => {
+  test('Speed lens shows 3 stat pills with non-empty values', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
-    const recs = api.recommendations || {};
-    const nonEmptyLenses = Object.entries(recs).filter(([, arr]) => arr.length > 0);
-    if (nonEmptyLenses.length === 0) {
-      test.skip();
-      return;
-    }
+    if ((api.insights || []).length === 0) { test.skip(); return; }
 
-    const titles = page.locator('.recs-lens-title');
-    const count = await titles.count();
-    for (let i = 0; i < count; i++) {
-      const text = await titles.nth(i).textContent();
-      expect(text.trim().length).toBeGreaterThan(0);
+    await page.locator('.lens-btn[data-lens="speed"]').click();
+    const pills = page.locator('#lensSection-speed .lens-stat-pill');
+    await expect(pills).toHaveCount(3);
+    for (let i = 0; i < 3; i++) {
+      const value = await pills.nth(i).locator('.lens-stat-pill-value').textContent();
+      expect(value.trim().length).toBeGreaterThan(0);
     }
+  });
+
+  test('Quality lens shows 3 stat pills with non-empty values', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    if ((api.insights || []).length === 0) { test.skip(); return; }
+
+    await page.locator('.lens-btn[data-lens="quality"]').click();
+    const pills = page.locator('#lensSection-quality .lens-stat-pill');
+    await expect(pills).toHaveCount(3);
+    for (let i = 0; i < 3; i++) {
+      const value = await pills.nth(i).locator('.lens-stat-pill-value').textContent();
+      expect(value.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  test('clicking each lens button toggles active state', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    if ((api.insights || []).length === 0) { test.skip(); return; }
+
+    for (const lens of ['cost', 'speed', 'quality']) {
+      await page.locator(`.lens-btn[data-lens="${lens}"]`).click();
+      await expect(page.locator(`.lens-btn[data-lens="${lens}"]`)).toHaveClass(/active/);
+      // Other buttons should not be active
+      for (const other of ['cost', 'speed', 'quality'].filter(l => l !== lens)) {
+        await expect(page.locator(`.lens-btn[data-lens="${other}"]`)).not.toHaveClass(/active/);
+      }
+    }
+  });
+
+  test('each lens section shows insight cards', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    if ((api.insights || []).length === 0) { test.skip(); return; }
+
+    for (const lens of ['cost', 'speed', 'quality']) {
+      await page.locator(`.lens-btn[data-lens="${lens}"]`).click();
+      const cards = page.locator('.insight-card');
+      const count = await cards.count();
+      expect(count).toBeGreaterThan(0);
+    }
+  });
+
+  test('charts section is visible alongside lens sections', async ({ page }) => {
+    await waitForDashboard(page);
+    // Core charts should be visible regardless of active lens
+    await expect(page.locator('#dailyChart')).toBeVisible();
+    await expect(page.locator('#modelChart')).toBeVisible();
+    await expect(page.locator('#ratioChart')).toBeVisible();
+    await expect(page.locator('#tpqChart')).toBeVisible();
+    await expect(page.locator('#tierMixChart')).toBeVisible();
   });
 });
 
 // ─── Insights Section ───────────────────────────────────────────────────────
 
-test.describe('Insights (#insightsSection)', () => {
+test.describe('Insights (lens sections)', () => {
   test('renders insight cards when insights exist in API', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
     const insights = api.insights || [];
 
-    const section = page.locator('#insightsSection');
     if (insights.length > 0) {
-      await expect(section).toBeVisible();
+      // Insights are now distributed across lens sections
       const cards = page.locator('.insight-card');
-      // Client generates insights based on data analysis, may differ from API insights
       const count = await cards.count();
       expect(count).toBeGreaterThan(0);
-    } else {
-      await expect(section).toBeHidden();
     }
   });
 
@@ -218,122 +254,8 @@ test.describe('Insights (#insightsSection)', () => {
     expect(detail.trim().length).toBeGreaterThan(10);
   });
 
-  test('lens selector buttons exist and toggle active state', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    if ((api.insights || []).length === 0) { test.skip(); return; }
-
-    // Lens selector buttons feature not yet implemented - skip
-    const buttons = page.locator('.lens-btn');
-    const count = await buttons.count();
-    if (count === 0) {
-      test.skip();
-      return;
-    }
-
-    await expect(buttons).toHaveCount(3);
-
-    // Check button labels
-    const labels = [];
-    for (let i = 0; i < 3; i++) {
-      labels.push((await buttons.nth(i).textContent()).trim().toLowerCase());
-    }
-    expect(labels).toContain('cost');
-    expect(labels).toContain('speed');
-    expect(labels).toContain('quality');
-
-    // Click speed lens and verify active
-    await buttons.filter({ hasText: 'Speed' }).click();
-    await expect(buttons.filter({ hasText: 'Speed' })).toHaveClass(/active/);
-  });
-
-  test('lens stats bar shows content for each lens', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    if ((api.insights || []).length === 0) { test.skip(); return; }
-
-    // Lens stat pills feature not yet implemented - skip
-    const pills = page.locator('.lens-stat-pill');
-    const count = await pills.count();
-    if (count === 0) {
-      test.skip();
-      return;
-    }
-
-    for (const lens of ['Cost', 'Speed', 'Quality']) {
-      await page.locator('.lens-btn', { hasText: lens }).click();
-      const pills = page.locator('.lens-stat-pill');
-      const pillCount = await pills.count();
-      expect(pillCount).toBe(3); // each lens has 3 stat pills
-      for (let i = 0; i < pillCount; i++) {
-        const value = await pills.nth(i).locator('.lens-stat-pill-value').textContent();
-        expect(value.trim().length).toBeGreaterThan(0);
-      }
-    }
-  });
 });
 
-// ─── Pipeline Efficiency Section ────────────────────────────────────────────
-
-test.describe('Pipeline Efficiency (#pipelineSection)', () => {
-  test('renders pipeline stats when orchestrator runs exist', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    const hasRuns = api.orchestrator?.summary?.totalRuns > 0;
-
-    const section = page.locator('#pipelineSection');
-    if (hasRuns) {
-      await expect(section).toBeVisible();
-      const stats = page.locator('#pipelineStats .stat-card');
-      await expect(stats).toHaveCount(4);
-    } else {
-      await expect(section).toBeHidden();
-    }
-  });
-
-  test('pipeline stat cards show correct labels and numeric values', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    if (!api.orchestrator?.summary?.totalRuns) { test.skip(); return; }
-
-    const expectedLabels = ['Pipeline Runs', 'Completion Rate', 'Avg Quality Loops', 'Avg Test Loops'];
-    const stats = page.locator('#pipelineStats .stat-card');
-    for (let i = 0; i < 4; i++) {
-      const label = await stats.nth(i).locator('.stat-label').textContent();
-      expect(label.trim()).toBe(expectedLabels[i]);
-      const value = await stats.nth(i).locator('.stat-value').textContent();
-      expect(value.trim()).toMatch(/[\d.]+%?/);
-      const sub = await stats.nth(i).locator('.stat-sub').textContent();
-      expect(sub.trim().length).toBeGreaterThan(3);
-    }
-  });
-
-  test('pipeline stat values match API data', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    const s = api.orchestrator?.summary;
-    if (!s?.totalRuns) { test.skip(); return; }
-
-    const stats = page.locator('#pipelineStats .stat-card');
-    const runsValue = await stats.nth(0).locator('.stat-value').textContent();
-    expect(runsValue.trim()).toBe(String(s.totalRuns));
-
-    const completionValue = await stats.nth(1).locator('.stat-value').textContent();
-    expect(completionValue.trim()).toBe(s.completionRate + '%');
-  });
-
-  test('pipeline breakdown shows run outcomes and performance', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    if (!api.orchestrator?.summary?.totalRuns) { test.skip(); return; }
-
-    const breakdown = page.locator('#pipelineBreakdown');
-    await expect(breakdown).toBeVisible();
-    // Should have "Run Outcomes" and "Performance" sections
-    await expect(breakdown.locator('h3').first()).toContainText('Run Outcomes');
-    await expect(breakdown.locator('h3').nth(1)).toContainText('Performance');
-  });
-});
 
 // ─── Charts Section ─────────────────────────────────────────────────────────
 
