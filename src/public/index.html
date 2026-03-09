@@ -1085,6 +1085,20 @@ function recFmtDollars(n) {
   if (n >= 0.01) return '$' + n.toFixed(3);
   return '$' + n.toFixed(4);
 }
+function dateRangeMonths(dateRange) {
+  if (!dateRange || !dateRange.from || !dateRange.to) return 1;
+  const from = new Date(dateRange.from);
+  const to = new Date(dateRange.to);
+  const months = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()) + 1;
+  return Math.max(1, months);
+}
+function recFmtTokenSaving(totalTokensSaved) {
+  const months = dateRangeMonths(FILTERED.totals.dateRange);
+  const perMonth = totalTokensSaved / months;
+  if (perMonth >= 1_000_000) return '~' + (perMonth / 1_000_000).toFixed(1) + 'M tokens/mo';
+  if (perMonth >= 1_000) return '~' + (perMonth / 1_000).toFixed(1) + 'K tokens/mo';
+  return '~' + Math.round(perMonth) + ' tokens/mo';
+}
 
 function clientGenerateRecommendations(sessions, allPrompts, totals) {
   const recs = { model: [], context: [], conversation: [], pipeline: [] };
