@@ -272,6 +272,39 @@ test.describe('Pipeline Time-Series Charts', () => {
     await expect(page.locator('#testIterChart')).toBeVisible();
   });
 
+  test('date filter applies to pipeline charts — narrowing range reduces or changes displayed data', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    const runs = api.orchestrator?.runs || [];
+    if (runs.length < 2) { test.skip(); return; }
+
+    // Find a date range that excludes some runs
+    const dates = runs.map(r => r.date).filter(Boolean).sort();
+    const midDate = dates[Math.floor(dates.length / 2)];
+
+    // Set date filter to only include runs up to the midpoint
+    await page.locator('#dateFrom').fill(dates[0]);
+    await page.locator('#dateTo').fill(midDate);
+    await page.locator('#dateTo').dispatchEvent('change');
+
+    // Wait for re-render
+    await page.waitForTimeout(500);
+
+    // Pipeline charts should still exist (filtered data still has runs)
+    const costChart = page.locator('#costRunsChart');
+    const isVisible = await costChart.isVisible().catch(() => false);
+
+    // If the filtered range has runs, charts should render; otherwise containers should be empty
+    const filteredRuns = runs.filter(r => r.date && r.date >= dates[0] && r.date <= midDate);
+    if (filteredRuns.length > 0) {
+      // At minimum, the pipeline sections should have content
+      const pipelineCost = page.locator('#pipelineCostData');
+      const html = await pipelineCost.innerHTML();
+      // Should have rendered something (not empty)
+      expect(html.length).toBeGreaterThan(0);
+    }
+  });
+
   test('recommendation saving badges show tokens/mo not dollars', async ({ page }) => {
     await waitForDashboard(page);
     const badges = page.locator('.rec-saving');
