@@ -452,7 +452,7 @@
 
   /* ---- CHARTS ---- */
   .charts-grid {
-    display: grid; grid-template-columns: 5fr 2fr;
+    display: grid; grid-template-columns: 1fr 1fr;
     gap: 16px; margin-bottom: 32px;
   }
   @media (max-width: 800px) { .charts-grid { grid-template-columns: 1fr; } }
@@ -2156,8 +2156,8 @@ function renderQualitySection() {
     <div class="chart-card" style="padding:16px"><h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 8px;display:inline-block">Avg Quality Iterations<div class="tooltip">Average quality review loops per run each day — lower is better</div></h3><canvas id="qualityIterChart"></canvas></div>
     <div class="chart-card" style="padding:16px"><h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 8px;display:inline-block">Avg Test Iterations<div class="tooltip">Average test fix loops per run each day — lower is better</div></h3><canvas id="testIterChart"></canvas></div>
   </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-      <div class="chart-card" style="padding:16px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px">
+      <div class="chart-card" style="padding:16px;grid-column:span 2">
         <h3 style="font-size:14px;margin:0 0 12px">Run Outcomes</h3>
         ${stateHtml}
       </div>
