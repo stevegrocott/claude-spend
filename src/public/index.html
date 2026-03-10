@@ -461,6 +461,7 @@
     background: var(--white); border-radius: var(--radius);
     padding: 24px; border: 1px solid var(--border);
     box-shadow: var(--shadow-sm);
+    min-width: 0; overflow: hidden;
   }
   .chart-card h3 {
     font-size: 13px; font-weight: 700; color: var(--text-tertiary);
@@ -2077,6 +2078,45 @@ function renderSpeedSection() {
   const el = document.getElementById('pipelineSpeedData');
   if (!orch || !orch.summary || orch.summary.totalRuns === 0) { el.innerHTML = ''; return; }
   const s = orch.summary;
+  const runs = orch.runs || [];
+
+  // Compute per-stage daily durations for time-series
+  const stageDaily = {};
+  runs.forEach(r => {
+    if (!r.date || !r.stageDurations) return;
+    for (const [name, secs] of Object.entries(r.stageDurations)) {
+      if (!stageDaily[name]) stageDaily[name] = {};
+      if (!stageDaily[name][r.date]) stageDaily[name][r.date] = [];
+      stageDaily[name][r.date].push(secs);
+    }
+  });
+
+  // Score stages by totalDuration * (1 + coefficientOfVariation)
+  const stageScores = Object.entries(stageDaily).map(([name, byDate]) => {
+    const allValues = Object.values(byDate).flat();
+    const total = allValues.reduce((s, v) => s + v, 0);
+    const mean = total / allValues.length;
+    let cv = 0;
+    if (allValues.length > 1 && mean > 0) {
+      const variance = allValues.reduce((s, v) => s + (v - mean) ** 2, 0) / allValues.length;
+      cv = Math.sqrt(variance) / mean;
+    }
+    const dates = Object.keys(byDate).sort();
+    const dailyData = dates.map(d => {
+      const vals = byDate[d];
+      return { date: d, value: vals.reduce((s, v) => s + v, 0) / vals.length / 60 };
+    });
+    return { name, score: total * (1 + cv), dailyData };
+  }).sort((a, b) => b.score - a.score);
+
+  const topStages = stageScores.filter(s => s.dailyData.length > 0).slice(0, 3);
+  const stageColors = ['#8B5CF6', '#F59E0B', '#EF4444'];
+
+  const stageTimeSeriesHtml = topStages.length > 0
+    ? `<div style="display:grid;grid-template-columns:repeat(${topStages.length},1fr);gap:16px;margin-bottom:16px">${topStages.map((st, i) =>
+        `<div class="chart-card" style="padding:16px"><h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 8px;display:inline-block">${st.name}<div class="tooltip">Daily average duration for the ${st.name} stage (ranked by cost-weighted volatility)</div></h3><canvas id="stageChart${i}"></canvas></div>`
+      ).join('')}</div>`
+    : '';
 
   const bottleneckHtml = s.stageAvgs.length > 0
     ? `<div style="margin-top:8px"><div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text-secondary)">Stage Durations (avg)</div>
@@ -2094,10 +2134,17 @@ function renderSpeedSection() {
       }).join('')}</div>`
     : '';
 
-  el.innerHTML = bottleneckHtml ? `<div class="chart-card" style="padding:16px;margin-bottom:16px">
+  el.innerHTML = stageTimeSeriesHtml + (bottleneckHtml ? `<div class="chart-card" style="padding:16px;margin-bottom:16px">
     <h3 style="font-size:14px;margin:0 0 4px">Pipeline Stage Performance</h3>
     ${bottleneckHtml}
-  </div>` : '';
+  </div>` : '');
+  if (topStages.length > 0) {
+    requestAnimationFrame(() => {
+      topStages.forEach((st, i) => {
+        renderMiniTimeSeries('stageChart' + i, st.dailyData, { color: stageColors[i], format: v => Math.round(v) + 'm' });
+      });
+    });
+  }
 }
 
 function renderQualitySection() {
