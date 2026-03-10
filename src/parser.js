@@ -168,7 +168,11 @@ async function parseAllSessions() {
       const totalTokens = inputTokens + outputTokens;
 
       const firstTimestamp = entries.find(e => e.timestamp)?.timestamp;
-      const date = firstTimestamp ? firstTimestamp.split('T')[0] : 'unknown';
+      let date = 'unknown';
+      if (firstTimestamp) {
+        const d = new Date(firstTimestamp);
+        date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
 
       // Primary model
       const modelCounts = {};
