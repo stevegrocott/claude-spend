@@ -1143,7 +1143,7 @@ function recFmtTokenSaving(totalTokens) {
   return '~' + fmt(Math.round(perMonth)) + ' tokens/mo';
 }
 
-function clientGenerateRecommendations(sessions, allPrompts, totals) {
+function clientGenerateRecommendations(sessions, allPrompts, totals, filteredOrchestrator) {
   const recs = { model: [], context: [], conversation: [], pipeline: [] };
 
   // MODEL LENS
@@ -1278,8 +1278,8 @@ function clientGenerateRecommendations(sessions, allPrompts, totals) {
     }
   }
 
-  // PIPELINE LENS — use DATA.orchestrator (date filter doesn't affect pipeline runs)
-  const orch = DATA && DATA.orchestrator;
+  // PIPELINE LENS — use filtered orchestrator data when date filter is active
+  const orch = filteredOrchestrator || (DATA && DATA.orchestrator);
   if (orch && orch.summary && orch.summary.totalRuns >= 3) {
     const s = orch.summary;
     if (s.avgQualityIterations > 2) {
@@ -1563,6 +1563,140 @@ function clientGenerateInsights(sessions, allPrompts, totals) {
   return insights;
 }
 
+function recomputeOrchestratorSummary(runs) {
+  const validRuns = runs.filter(r => r.state !== 'initializing');
+  const completedRuns = validRuns.filter(r => r.state === 'completed');
+  const errorRuns = validRuns.filter(r => r.state === 'error');
+  const maxIterRuns = validRuns.filter(r => r.state && r.state.startsWith('max_iterations'));
+  const runsWithQuality = validRuns.filter(r => r.qualityIterations > 0);
+  const runsWithTests = validRuns.filter(r => r.testIterations > 0);
+
+  const avgQuality = runsWithQuality.length > 0
+    ? runsWithQuality.reduce((s, r) => s + r.qualityIterations, 0) / runsWithQuality.length : 0;
+  const avgTests = runsWithTests.length > 0
+    ? runsWithTests.reduce((s, r) => s + r.testIterations, 0) / runsWithTests.length : 0;
+
+  const stageTotals = {}, stageCounts = {};
+  for (const run of validRuns) {
+    for (const [name, duration] of Object.entries(run.stageDurations || {})) {
+      stageTotals[name] = (stageTotals[name] || 0) + duration;
+      stageCounts[name] = (stageCounts[name] || 0) + 1;
+    }
+  }
+  const stageAvgs = Object.entries(stageTotals).map(([name, total]) => ({
+    name, avgSeconds: Math.round(total / stageCounts[name]), count: stageCounts[name],
+  })).sort((a, b) => b.avgSeconds - a.avgSeconds);
+
+  const topChurners = [...validRuns]
+    .sort((a, b) => (b.qualityIterations + b.testIterations) - (a.qualityIterations + a.testIterations))
+    .slice(0, 5).filter(r => r.qualityIterations + r.testIterations > 0);
+
+  const totalModelUsage = {};
+  for (const run of validRuns) {
+    for (const [model, usage] of Object.entries(run.modelUsage || {})) {
+      if (!totalModelUsage[model]) totalModelUsage[model] = { inputTokens: 0, outputTokens: 0, totalTokens: 0, runCount: 0 };
+      totalModelUsage[model].inputTokens += usage.inputTokens;
+      totalModelUsage[model].outputTokens += usage.outputTokens;
+      totalModelUsage[model].totalTokens += usage.totalTokens;
+      totalModelUsage[model].runCount += 1;
+    }
+  }
+
+  const allEscalations = validRuns.flatMap(r => (r.escalations || []).map(e => ({ ...e, project: r.project, issue: r.issue })));
+  const runsWithEscalations = validRuns.filter(r => (r.escalations || []).length > 0).length;
+
+  const stageModelTotals = {};
+  for (const run of validRuns) {
+    for (const [stageName, stageModels] of Object.entries(run.stageModelUsage || {})) {
+      if (!stageModelTotals[stageName]) stageModelTotals[stageName] = {};
+      for (const [model, usage] of Object.entries(stageModels)) {
+        if (!stageModelTotals[stageName][model]) stageModelTotals[stageName][model] = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+        stageModelTotals[stageName][model].inputTokens += usage.inputTokens;
+        stageModelTotals[stageName][model].outputTokens += usage.outputTokens;
+        stageModelTotals[stageName][model].totalTokens += usage.totalTokens;
+      }
+    }
+  }
+
+  return {
+    totalRuns: validRuns.length,
+    completedRuns: completedRuns.length,
+    errorRuns: errorRuns.length,
+    maxIterationsRuns: maxIterRuns.length,
+    completionRate: validRuns.length > 0 ? Math.round((completedRuns.length / validRuns.length) * 100) : 0,
+    avgQualityIterations: Math.round(avgQuality * 10) / 10,
+    avgTestIterations: Math.round(avgTests * 10) / 10,
+    stageAvgs,
+    topChurners,
+    totalModelUsage,
+    escalationCount: allEscalations.length,
+    runsWithEscalations,
+    allEscalations,
+    stageModelTotals,
+  };
+}
+
+function clientGenerateOrchestratorInsights(orchestrator) {
+  const insights = [];
+  if (!orchestrator || !orchestrator.summary) return insights;
+  const { summary, runs } = orchestrator;
+  if (summary.totalRuns < 3) return insights;
+
+  if (summary.avgQualityIterations > 2) {
+    const worst = summary.topChurners.filter(r => r.qualityIterations > 2);
+    const worstList = worst.map(r => `#${r.issue} (${r.qualityIterations} iterations)`).join(', ');
+    insights.push({ id: 'quality-churn', lens: 'quality', type: 'warning',
+      title: `Quality loop averaging ${summary.avgQualityIterations} iterations per run`,
+      description: `Across ${summary.totalRuns} pipeline runs, the quality review loop averages ${summary.avgQualityIterations} iterations. Ideal is 1-2. Worst offenders: ${worstList || 'none over 2'}.`,
+      action: 'Review the implementer prompt and code-quality-reviewer prompt.',
+    });
+  }
+
+  if (summary.avgTestIterations > 2) {
+    const worst = runs.filter(r => r.testIterations > 2).slice(0, 3);
+    const worstList = worst.map(r => `#${r.issue} (${r.testIterations} iterations)`).join(', ');
+    insights.push({ id: 'test-churn', lens: 'quality', type: 'warning',
+      title: `Test loop averaging ${summary.avgTestIterations} iterations per run`,
+      description: `The test-fix loop averages ${summary.avgTestIterations} iterations. Worst: ${worstList || 'n/a'}.`,
+      action: 'Strengthen the implementer prompt to emphasize running tests before committing.',
+    });
+  }
+
+  if (summary.completionRate < 50 && summary.totalRuns >= 5) {
+    const errorPct = Math.round((summary.errorRuns / summary.totalRuns) * 100);
+    const maxIterPct = Math.round((summary.maxIterationsRuns / summary.totalRuns) * 100);
+    insights.push({ id: 'low-completion-rate', lens: 'quality', type: 'warning',
+      title: `Only ${summary.completionRate}% of pipeline runs complete successfully`,
+      description: `Out of ${summary.totalRuns} runs: ${summary.completedRuns} completed (${summary.completionRate}%), ${summary.errorRuns} errored (${errorPct}%), ${summary.maxIterationsRuns} hit max iterations (${maxIterPct}%).`,
+      action: 'Investigate error-state runs for common failure patterns.',
+    });
+  }
+
+  if (summary.stageAvgs.length > 0) {
+    const slowest = summary.stageAvgs[0];
+    if (slowest.avgSeconds > 300) {
+      const mins = Math.round(slowest.avgSeconds / 60);
+      insights.push({ id: 'stage-bottleneck', lens: 'speed', type: 'info',
+        title: `"${slowest.name}" stage averages ${mins} minutes — slowest pipeline stage`,
+        description: `The "${slowest.name}" stage averages ${mins} minutes across ${slowest.count} runs. ${summary.stageAvgs.slice(1, 4).map(s => `"${s.name}": ${Math.round(s.avgSeconds / 60)}m`).join(', ')}.`,
+        action: 'Consider splitting large tasks in this stage.',
+      });
+    }
+  }
+
+  if (summary.errorRuns > 0 && (summary.errorRuns / summary.totalRuns) > 0.3) {
+    const errorExamples = runs.filter(r => r.state === 'error').slice(0, 5);
+    const errorPct = Math.round((summary.errorRuns / summary.totalRuns) * 100);
+    insights.push({ id: 'error-pattern', lens: 'quality', type: 'warning',
+      title: `${errorPct}% of pipeline runs end in error state`,
+      description: `${summary.errorRuns} out of ${summary.totalRuns} runs ended in error. Error examples: ${errorExamples.map(r => `#${r.issue}`).join(', ')}.`,
+      action: 'Check orchestrator logs for the error-state runs.',
+    });
+  }
+
+  return insights;
+}
+
 function applyDateFilter() {
   if (!DATA) return;
   const from = document.getElementById('dateFrom').value;
@@ -1670,14 +1804,18 @@ function applyDateFilter() {
     dateRange: { from: from || DATA.totals.dateRange?.from, to: to || DATA.totals.dateRange?.to },
   };
 
+  // Filter orchestrator runs by date range
+  let filteredOrchestrator = DATA.orchestrator;
+  if (DATA.orchestrator && DATA.orchestrator.runs) {
+    const filteredRuns = DATA.orchestrator.runs.filter(r => r.date && r.date >= fromDate && r.date <= toDate);
+    filteredOrchestrator = { runs: filteredRuns, summary: recomputeOrchestratorSummary(filteredRuns) };
+  }
+
   const clientInsights = clientGenerateInsights(sessions, topPrompts, totals);
-  // Orchestrator insights are derived from pipeline logs, not per-session data, so they don't
-  // need to be re-computed when the date filter changes — carry them over from the server data.
-  const orchestratorInsightIds = new Set(['quality-churn', 'test-churn', 'low-completion-rate', 'stage-bottleneck', 'error-pattern']);
-  const orchestratorInsights = (DATA.insights || []).filter(i => orchestratorInsightIds.has(i.id));
+  const orchestratorInsights = clientGenerateOrchestratorInsights(filteredOrchestrator);
   const insights = [...clientInsights, ...orchestratorInsights];
-  const recommendations = clientGenerateRecommendations(sessions, topPrompts, totals);
-  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, insights, recommendations };
+  const recommendations = clientGenerateRecommendations(sessions, topPrompts, totals, filteredOrchestrator);
+  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, insights, recommendations, orchestrator: filteredOrchestrator };
   render();
 }
 
@@ -1912,7 +2050,7 @@ function renderMiniTimeSeries(canvasId, dailyData, opts) {
 }
 
 function renderCostSection() {
-  const orch = DATA.orchestrator;
+  const orch = FILTERED.orchestrator || DATA.orchestrator;
   const el = document.getElementById('pipelineCostData');
   if (!orch || !orch.summary || orch.summary.totalRuns === 0) { el.innerHTML = ''; return; }
   const runs = orch.runs || [];
@@ -1935,7 +2073,7 @@ function renderCostSection() {
 }
 
 function renderSpeedSection() {
-  const orch = DATA.orchestrator;
+  const orch = FILTERED.orchestrator || DATA.orchestrator;
   const el = document.getElementById('pipelineSpeedData');
   if (!orch || !orch.summary || orch.summary.totalRuns === 0) { el.innerHTML = ''; return; }
   const s = orch.summary;
@@ -1963,7 +2101,7 @@ function renderSpeedSection() {
 }
 
 function renderQualitySection() {
-  const orch = DATA.orchestrator;
+  const orch = FILTERED.orchestrator || DATA.orchestrator;
   const el = document.getElementById('pipelineQualityData');
   if (!orch || !orch.summary || orch.summary.totalRuns === 0) { el.innerHTML = ''; return; }
   const s = orch.summary;
