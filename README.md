@@ -22,11 +22,13 @@ I've been using Claude Code every day for 3 months. I hit the usage limit almost
 
 ## Install
 
-```
-npx claude-spend
+```bash
+git clone https://github.com/stevegrocott/claude-spend.git
+cd claude-spend
+npm start
 ```
 
-That's it. Opens a dashboard in your browser.
+Opens a dashboard in your browser at `http://localhost:3456`.
 
 ## Features
 
