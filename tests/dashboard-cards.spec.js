@@ -453,6 +453,13 @@ test.describe('Session Efficiency', () => {
     expect(typeof se.pipeline.tokens).toBe('number');
     expect(typeof se.interactive.tokens).toBe('number');
   });
+
+  test('efficiency trend chart canvases exist', async ({ page }) => {
+    await waitForDashboard(page);
+    for (const id of ['trendQueriesChart', 'trendTpqChart', 'trendPipelineChart', 'trendShortChart']) {
+      await expect(page.locator('#' + id)).toBeAttached();
+    }
+  });
 });
 
 // ─── Dashboard Footer ───────────────────────────────────────────────────────

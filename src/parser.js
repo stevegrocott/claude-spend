@@ -1683,6 +1683,39 @@ function computeSessionEfficiency(sessions) {
     else { lengthBuckets.long.count++; lengthBuckets.long.tokens += s.totalTokens || 0; }
   }
 
+  // Efficiency by day — daily aggregation of interactive session metrics
+  const dayMap = {};
+  for (const s of sessions) {
+    const type = s.sessionType || categorizeSession(s);
+    if (type === 'pipeline_subagent') continue;
+    const d = s.date;
+    if (!d) continue;
+    if (!dayMap[d]) dayMap[d] = { queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0 };
+    dayMap[d].sessions++;
+    dayMap[d].queries += s.queryCount || 0;
+    dayMap[d].tokens += s.totalTokens || 0;
+    if ((s.queryCount || 0) <= 20) dayMap[d].shortSessions++;
+  }
+  // Add pipeline tokens per day
+  for (const s of sessions) {
+    const type = s.sessionType || categorizeSession(s);
+    if (type !== 'pipeline_subagent') continue;
+    const d = s.date;
+    if (!d || !dayMap[d]) continue;
+    dayMap[d].pipelineTokens += s.totalTokens || 0;
+  }
+  const efficiencyByDay = Object.keys(dayMap).sort().map(date => {
+    const dm = dayMap[date];
+    return {
+      date,
+      avgQueriesPerSession: dm.sessions > 0 ? Math.round(dm.queries / dm.sessions) : 0,
+      tokensPerQuery: dm.queries > 0 ? Math.round(dm.tokens / dm.queries) : 0,
+      pipelineCoveragePct: (dm.pipelineTokens + dm.tokens) > 0 ? Math.round(dm.pipelineTokens / (dm.pipelineTokens + dm.tokens) * 100) : 0,
+      shortSessionPct: dm.sessions > 0 ? Math.round(dm.shortSessions / dm.sessions * 100) : 0,
+      sessionCount: dm.sessions,
+    };
+  });
+
   return {
     pipeline,
     interactive,
@@ -1693,6 +1726,7 @@ function computeSessionEfficiency(sessions) {
     contextBalloonCurve,
     modelStats,
     lengthBuckets,
+    efficiencyByDay,
   };
 }
 
