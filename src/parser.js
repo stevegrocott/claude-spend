@@ -646,6 +646,45 @@ function parseOrchestratorLogs(projectCostMap = {}) {
     count: stageCounts[name],
   })).sort((a, b) => b.avgSeconds - a.avgSeconds);
 
+  // Calculate velocity metrics (story points completed per day)
+  const dailyVelocity = {};
+  for (const run of validRuns) {
+    if (run.date && run.taskSummary) {
+      if (!dailyVelocity[run.date]) {
+        dailyVelocity[run.date] = { spCompleted: 0, spTotal: 0 };
+      }
+      dailyVelocity[run.date].spCompleted += run.taskSummary.storyPointsCompleted || 0;
+      dailyVelocity[run.date].spTotal += run.taskSummary.storyPointsTotal || 0;
+    }
+  }
+
+  // Build velocityByDay with cumulative tracking
+  const velocityByDay = Object.entries(dailyVelocity)
+    .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+    .reduce((acc, [date, data]) => {
+      const cumulative = acc.length > 0 ? acc[acc.length - 1].cumulative + data.spCompleted : data.spCompleted;
+      acc.push({
+        date,
+        spCompleted: data.spCompleted,
+        spTotal: data.spTotal,
+        cumulative,
+      });
+      return acc;
+    }, []);
+
+  // Calculate velocity statistics
+  const totalSP = velocityByDay.reduce((sum, day) => sum + day.spTotal, 0);
+  const completedSP = velocityByDay.reduce((sum, day) => sum + day.spCompleted, 0);
+  const avgSPPerDay = velocityByDay.length > 0 ? Math.round((completedSP / velocityByDay.length) * 10) / 10 : 0;
+  const avgSPPerWeek = velocityByDay.length > 0 ? Math.round((completedSP / (velocityByDay.length / 7)) * 10) / 10 : 0;
+
+  const velocityStats = {
+    totalSP,
+    completedSP,
+    avgSPPerDay,
+    avgSPPerWeek,
+  };
+
   // Top churners (highest iteration counts)
   const topChurners = [...validRuns]
     .sort((a, b) => (b.qualityIterations + b.testIterations) - (a.qualityIterations + a.testIterations))
@@ -700,6 +739,8 @@ function parseOrchestratorLogs(projectCostMap = {}) {
       runsWithEscalations,
       allEscalations,
       stageModelTotals,
+      velocityByDay,
+      velocityStats,
     },
   };
 }
