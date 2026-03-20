@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { parseTaskSummary, computePPMTAnalysis } = require('./parser');
+const { parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations } = require('./parser');
 
 // Test parseTaskSummary function
 describe('parseTaskSummary', () => {
@@ -209,6 +209,241 @@ describe('computePPMTAnalysis', () => {
     assert.ok(Array.isArray(result.topEscalationStages));
     assert.ok(Array.isArray(result.projectYield));
     assert.ok(Array.isArray(result.ppmtByDay));
+  });
+});
+
+describe('generatePPMTRecommendations', () => {
+  function makeAnalysis(overrides) {
+    return {
+      taskSizeCompletion: {
+        S: { completed: 10, failed: 2, total: 12, rate: 83 },
+        M: { completed: 6, failed: 4, total: 10, rate: 60 },
+        L: { completed: 2, failed: 1, total: 3, rate: 67 },
+      },
+      escalationCorrelation: {
+        '0':   { total: 4, completed: 3, completionRate: 75 },
+        '1-2': { total: 3, completed: 2, completionRate: 67 },
+        '3-5': { total: 2, completed: 1, completionRate: 50 },
+        '6+':  { total: 1, completed: 0, completionRate: 0  },
+      },
+      failureBreakdown: { parse_failure: 1, error: 1, max_iterations_pr_review: 1, stuck_running: 0, other: 0 },
+      taskCountCorrelation: { completedAvg: 4, failedAvg: 5, optimalRange: [4, 5] },
+      topEscalationStages: [{ stage: 'implement', count: 8 }, { stage: 'review', count: 3 }],
+      projectYield: [{ project: 'proj-a', spCompleted: 10, spTotal: 15, yieldPct: 67 }],
+      ppmtByDay: [],
+      ...overrides,
+    };
+  }
+
+  test('returns empty array when fewer than 5 total runs', () => {
+    const analysis = makeAnalysis({
+      escalationCorrelation: {
+        '0':   { total: 2, completed: 1, completionRate: 50 },
+        '1-2': { total: 1, completed: 0, completionRate: 0 },
+        '3-5': { total: 1, completed: 0, completionRate: 0 },
+        '6+':  { total: 0, completed: 0, completionRate: 0 },
+      },
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    assert.deepStrictEqual(recs, []);
+  });
+
+  test('recommendations array only includes triggered items', () => {
+    // neutral analysis — no thresholds exceeded
+    const recs = generatePPMTRecommendations(makeAnalysis());
+    assert.ok(Array.isArray(recs));
+  });
+
+  test('each recommendation has required fields', () => {
+    const analysis = makeAnalysis({
+      failureBreakdown: { parse_failure: 3, error: 0, max_iterations_pr_review: 0, stuck_running: 0, other: 0 },
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    assert.ok(recs.length > 0, 'expected at least one recommendation');
+    for (const rec of recs) {
+      assert.ok(typeof rec.id === 'string', 'missing id');
+      assert.ok(typeof rec.priority === 'number', 'missing priority');
+      assert.ok(typeof rec.ppmt_impact === 'number', 'missing ppmt_impact');
+      assert.ok(typeof rec.title === 'string', 'missing title');
+      assert.ok(typeof rec.detail === 'string', 'missing detail');
+      assert.ok(rec.evidence !== undefined, 'missing evidence');
+      assert.ok(typeof rec.action === 'string', 'missing action');
+    }
+  });
+
+  test('recommendations are sorted by priority ascending (1=highest)', () => {
+    const analysis = makeAnalysis({
+      taskSizeCompletion: {
+        S: { completed: 10, failed: 0, total: 10, rate: 100 },
+        M: { completed: 3, failed: 7, total: 10, rate: 30 },
+        L: { completed: 2, failed: 1, total: 3, rate: 67 },
+      },
+      failureBreakdown: { parse_failure: 4, error: 0, max_iterations_pr_review: 3, stuck_running: 0, other: 0 },
+      topEscalationStages: [{ stage: 'deploy', count: 12 }],
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    for (let i = 1; i < recs.length; i++) {
+      assert.ok(recs[i].priority >= recs[i - 1].priority, 'recommendations not sorted by priority');
+    }
+  });
+
+  test('(a) generates M-task splitting rec when M rate is 16+ points below S rate', () => {
+    const analysis = makeAnalysis({
+      taskSizeCompletion: {
+        S: { completed: 8, failed: 2, total: 10, rate: 80 },
+        M: { completed: 3, failed: 7, total: 10, rate: 30 },
+        L: { completed: 2, failed: 1, total: 3, rate: 67 },
+      },
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    const rec = recs.find(r => r.id === 'm_task_splitting');
+    assert.ok(rec, 'expected m_task_splitting recommendation');
+    assert.ok(rec.detail.includes('30%') || rec.detail.includes('30'), 'detail should mention M rate');
+    assert.ok(rec.detail.includes('80%') || rec.detail.includes('80'), 'detail should mention S rate');
+  });
+
+  test('(a) does NOT generate M-task splitting rec when gap is <=15 points', () => {
+    const analysis = makeAnalysis({
+      taskSizeCompletion: {
+        S: { completed: 8, failed: 2, total: 10, rate: 80 },
+        M: { completed: 6, failed: 4, total: 10, rate: 65 },
+        L: { completed: 2, failed: 1, total: 3, rate: 67 },
+      },
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    assert.ok(!recs.find(r => r.id === 'm_task_splitting'), 'should not generate rec for 15-point gap');
+  });
+
+  test('(b) generates parse failure rec when >2 parse failures exist', () => {
+    const analysis = makeAnalysis({
+      failureBreakdown: { parse_failure: 3, error: 0, max_iterations_pr_review: 0, stuck_running: 0, other: 0 },
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    const rec = recs.find(r => r.id === 'parse_failures');
+    assert.ok(rec, 'expected parse_failures recommendation');
+    assert.ok(rec.detail.includes('3'), 'detail should mention count');
+    assert.ok(rec.evidence.parse_failure === 3, 'evidence should include parse_failure count');
+  });
+
+  test('(b) does NOT generate parse failure rec when <=2 parse failures', () => {
+    const analysis = makeAnalysis({
+      failureBreakdown: { parse_failure: 2, error: 0, max_iterations_pr_review: 0, stuck_running: 0, other: 0 },
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    assert.ok(!recs.find(r => r.id === 'parse_failures'), 'should not trigger for <=2 parse failures');
+  });
+
+  test('(c) generates task count reduction rec when failedAvg > completedAvg + 1.5', () => {
+    const analysis = makeAnalysis({
+      taskCountCorrelation: { completedAvg: 3, failedAvg: 6, optimalRange: [2, 3] },
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    const rec = recs.find(r => r.id === 'task_count_reduction');
+    assert.ok(rec, 'expected task_count_reduction recommendation');
+    assert.ok(rec.detail.includes('6') || rec.detail.includes('3'), 'detail should include avg counts');
+  });
+
+  test('(c) does NOT generate task count reduction rec when difference <=1.5', () => {
+    const analysis = makeAnalysis({
+      taskCountCorrelation: { completedAvg: 4, failedAvg: 5, optimalRange: [4, 5] },
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    assert.ok(!recs.find(r => r.id === 'task_count_reduction'), 'should not trigger for <=1.5 difference');
+  });
+
+  test('(d) generates PR review loop rec when >2 max_iterations_pr_review runs', () => {
+    const analysis = makeAnalysis({
+      failureBreakdown: { parse_failure: 0, error: 0, max_iterations_pr_review: 3, stuck_running: 0, other: 0 },
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    const rec = recs.find(r => r.id === 'pr_review_loop');
+    assert.ok(rec, 'expected pr_review_loop recommendation');
+    assert.ok(rec.detail.includes('3'), 'detail should mention count');
+  });
+
+  test('(d) does NOT generate PR review loop rec when <=2 occurrences', () => {
+    const analysis = makeAnalysis({
+      failureBreakdown: { parse_failure: 0, error: 0, max_iterations_pr_review: 2, stuck_running: 0, other: 0 },
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    assert.ok(!recs.find(r => r.id === 'pr_review_loop'), 'should not trigger for <=2');
+  });
+
+  test('(e) generates max_turns_exhausted rec when top stage has >10 escalations', () => {
+    const analysis = makeAnalysis({
+      topEscalationStages: [{ stage: 'implement', count: 11 }, { stage: 'review', count: 3 }],
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    const rec = recs.find(r => r.id === 'max_turns_exhausted');
+    assert.ok(rec, 'expected max_turns_exhausted recommendation');
+    assert.ok(rec.detail.includes('implement'), 'detail should cite stage name');
+    assert.ok(rec.detail.includes('11'), 'detail should include count');
+  });
+
+  test('(e) does NOT generate max_turns_exhausted rec when top stage has <=10 escalations', () => {
+    const analysis = makeAnalysis({
+      topEscalationStages: [{ stage: 'implement', count: 10 }],
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    assert.ok(!recs.find(r => r.id === 'max_turns_exhausted'), 'should not trigger for <=10');
+  });
+
+  test('(f) generates project yield rec when any project has yield <20%', () => {
+    const analysis = makeAnalysis({
+      projectYield: [
+        { project: 'proj-a', spCompleted: 10, spTotal: 15, yieldPct: 67 },
+        { project: 'proj-b', spCompleted: 1, spTotal: 10, yieldPct: 10 },
+      ],
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    const rec = recs.find(r => r.id === 'project_yield_proj-b');
+    assert.ok(rec, 'expected project_yield rec for proj-b');
+    assert.ok(rec.detail.includes('proj-b'), 'detail should cite project name');
+    assert.ok(rec.detail.includes('10%') || rec.detail.includes('10'), 'detail should cite yield %');
+  });
+
+  test('(f) does NOT generate project yield rec when all projects are >=20%', () => {
+    const analysis = makeAnalysis({
+      projectYield: [
+        { project: 'proj-a', spCompleted: 5, spTotal: 10, yieldPct: 50 },
+        { project: 'proj-b', spCompleted: 4, spTotal: 15, yieldPct: 27 },
+      ],
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    assert.ok(!recs.find(r => r.id && r.id.startsWith('project_yield_')), 'should not trigger when all >=20%');
+  });
+
+  test('(g) generates 0-escalation failure rec when >30% of failures have 0 escalations', () => {
+    // 0-bucket: 3 total, 0 completed = 3 failures
+    // 1-2 bucket: 2 total, 2 completed = 0 failures
+    // total failures = 3, 0-escalation failures = 3 → 100% > 30%
+    const analysis = makeAnalysis({
+      escalationCorrelation: {
+        '0':   { total: 3, completed: 0, completionRate: 0 },
+        '1-2': { total: 2, completed: 2, completionRate: 100 },
+        '3-5': { total: 0, completed: 0, completionRate: 0 },
+        '6+':  { total: 0, completed: 0, completionRate: 0 },
+      },
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    const rec = recs.find(r => r.id === 'zero_escalation_failures');
+    assert.ok(rec, 'expected zero_escalation_failures recommendation');
+    assert.ok(rec.evidence.zeroEscalationFailures === 3, 'evidence should include failure count');
+  });
+
+  test('(g) does NOT generate 0-escalation failure rec when <=30% of failures have 0 escalations', () => {
+    // 0-bucket: 10 total, 8 completed = 2 failures
+    // 1-2 bucket: 5 total, 0 completed = 5 failures, plus others = 10 total failures, 2/10 = 20% < 30%
+    const analysis = makeAnalysis({
+      escalationCorrelation: {
+        '0':   { total: 10, completed: 8, completionRate: 80 },
+        '1-2': { total: 5, completed: 0, completionRate: 0 },
+        '3-5': { total: 3, completed: 0, completionRate: 0 },
+        '6+':  { total: 2, completed: 0, completionRate: 0 },
+      },
+    });
+    const recs = generatePPMTRecommendations(analysis);
+    assert.ok(!recs.find(r => r.id === 'zero_escalation_failures'), 'should not trigger when <=30%');
   });
 });
 
