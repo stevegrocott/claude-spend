@@ -38,26 +38,23 @@ function parseTaskSummary(raw) {
     return {
       completed: ts.completed || { S: 0, M: 0, L: 0 },
       failed: ts.failed || { S: 0, M: 0, L: 0 },
-      total: (raw.tasks || []).length,
+      total: ts.total ?? (raw.tasks || []).length,
       storyPointsCompleted: ts.storyPointsCompleted ?? ts.sp_completed ?? 0,
       storyPointsTotal: ts.storyPointsTotal ?? ts.sp_total ?? 0,
     };
   }
 
-  // Otherwise, parse task descriptions for size markers
+  // Parse task descriptions for size markers
   const tasks = raw.tasks || [];
   const completed = { S: 0, M: 0, L: 0 };
   const failed = { S: 0, M: 0, L: 0 };
-
   let storyPointsCompleted = 0;
   let storyPointsTotal = 0;
 
   for (const task of tasks) {
-    const desc = task.description || '';
-    const sizeMatch = desc.match(/\*\*\((S|M|L)\)\*\*/);
+    const sizeMatch = (task.description || '').match(/\*\*\((S|M|L)\)\*\*/);
     const size = sizeMatch ? sizeMatch[1] : 'S';
     const points = SIZE_POINTS[size];
-
     storyPointsTotal += points;
 
     if (task.status === 'completed') {
@@ -68,13 +65,7 @@ function parseTaskSummary(raw) {
     }
   }
 
-  return {
-    completed,
-    failed,
-    total: tasks.length,
-    storyPointsCompleted,
-    storyPointsTotal,
-  };
+  return { completed, failed, total: tasks.length, storyPointsCompleted, storyPointsTotal };
 }
 
 async function parseJSONLFile(filePath) {
@@ -430,6 +421,8 @@ async function parseAllSessions() {
 
   // Parse orchestrator logs from project directories
   const orchestrator = parseOrchestratorLogs(projectCostMap);
+  orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs.filter(r => r.state !== 'initializing'), dailyUsage);
+  orchestrator.summary.recommendations = generatePPMTRecommendations(orchestrator.summary.ppmtAnalysis);
   const orchestratorInsights = generateOrchestratorInsights(orchestrator);
 
   return {
@@ -1245,4 +1238,254 @@ function fmt(n) {
   return n.toLocaleString();
 }
 
-module.exports = { parseAllSessions, parseTaskSummary };
+function computePPMTAnalysis(runs, dailyUsage) {
+  // 1. taskSizeCompletion — S/M/L completion rates with counts
+  const taskSizeCompletion = {
+    S: { completed: 0, failed: 0, total: 0, rate: 0 },
+    M: { completed: 0, failed: 0, total: 0, rate: 0 },
+    L: { completed: 0, failed: 0, total: 0, rate: 0 },
+  };
+  for (const run of runs) {
+    const ts = run.taskSummary;
+    if (!ts) continue;
+    for (const size of ['S', 'M', 'L']) {
+      taskSizeCompletion[size].completed += (ts.completed && ts.completed[size]) || 0;
+      taskSizeCompletion[size].failed += (ts.failed && ts.failed[size]) || 0;
+    }
+  }
+  for (const size of ['S', 'M', 'L']) {
+    const s = taskSizeCompletion[size];
+    s.total = s.completed + s.failed;
+    s.rate = s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0;
+  }
+
+  // 2. escalationCorrelation — completion rates by escalation count bucket
+  const buckets = { '0': { completed: 0, total: 0 }, '1-2': { completed: 0, total: 0 }, '3-5': { completed: 0, total: 0 }, '6+': { completed: 0, total: 0 } };
+  for (const run of runs) {
+    const count = (run.escalations || []).length;
+    const bucket = count === 0 ? '0' : count <= 2 ? '1-2' : count <= 5 ? '3-5' : '6+';
+    buckets[bucket].total++;
+    if (run.state === 'completed') buckets[bucket].completed++;
+  }
+  const escalationCorrelation = {};
+  for (const [key, val] of Object.entries(buckets)) {
+    escalationCorrelation[key] = {
+      total: val.total,
+      completed: val.completed,
+      completionRate: val.total > 0 ? Math.round((val.completed / val.total) * 100) : 0,
+    };
+  }
+
+  // 3. failureBreakdown — counts by failure type
+  const failureBreakdown = { parse_failure: 0, error: 0, max_iterations_pr_review: 0, running: 0, other: 0 };
+  for (const run of runs) {
+    if (run.state === 'error' && run.taskCount === 0) {
+      failureBreakdown.parse_failure++;
+    } else if (run.state === 'error') {
+      failureBreakdown.error++;
+    } else if (run.state === 'max_iterations_pr_review') {
+      failureBreakdown.max_iterations_pr_review++;
+    } else if (run.state === 'running') {
+      failureBreakdown.running++;
+    } else if (run.state !== 'completed') {
+      failureBreakdown.other++;
+    }
+  }
+
+  // 4. taskCountCorrelation — avg task count for completed vs failed with optimal range
+  const completedRuns = runs.filter(r => r.state === 'completed');
+  const failedRuns = runs.filter(r => r.state !== 'completed');
+  const completedAvg = completedRuns.length > 0
+    ? Math.round(completedRuns.reduce((s, r) => s + r.taskCount, 0) / completedRuns.length)
+    : 0;
+  const failedAvg = failedRuns.length > 0
+    ? Math.round(failedRuns.reduce((s, r) => s + r.taskCount, 0) / failedRuns.length)
+    : 0;
+
+  // Find task count range with highest completion rate (bucket by count)
+  const countBuckets = {};
+  for (const run of runs) {
+    const bucket = Math.floor(run.taskCount / 2) * 2; // group by pairs: 0-1, 2-3, 4-5, ...
+    if (!countBuckets[bucket]) countBuckets[bucket] = { completed: 0, total: 0 };
+    countBuckets[bucket].total++;
+    if (run.state === 'completed') countBuckets[bucket].completed++;
+  }
+  const bestBucket = Object.entries(countBuckets)
+    .filter(([, v]) => v.total >= 5)
+    .map(([k, v]) => ({ start: Number(k), rate: v.completed / v.total }))
+    .sort((a, b) => b.rate - a.rate)[0];
+  const optimalRange = bestBucket ? [bestBucket.start, bestBucket.start + 1] : [];
+
+  const taskCountCorrelation = { completedAvg, failedAvg, optimalRange };
+
+  // 5. topEscalationStages — top 5 stages by escalation count
+  const stageCounts = {};
+  for (const run of runs) {
+    for (const esc of run.escalations || []) {
+      if (esc.stage) stageCounts[esc.stage] = (stageCounts[esc.stage] || 0) + 1;
+    }
+  }
+  const topEscalationStages = Object.entries(stageCounts)
+    .map(([stage, count]) => ({ stage, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  // 6. projectYield — per-project SP yield percentages
+  const projectMap = {};
+  for (const run of runs) {
+    if (!run.project) continue;
+    if (!projectMap[run.project]) projectMap[run.project] = { spCompleted: 0, spTotal: 0 };
+    const ts = run.taskSummary;
+    if (ts) {
+      projectMap[run.project].spCompleted += ts.storyPointsCompleted || 0;
+      projectMap[run.project].spTotal += ts.storyPointsTotal || 0;
+    }
+  }
+  const projectYield = Object.entries(projectMap).map(([project, data]) => ({
+    project,
+    spCompleted: data.spCompleted,
+    spTotal: data.spTotal,
+    yieldPct: data.spTotal > 0 ? Math.round((data.spCompleted / data.spTotal) * 100) : 0,
+  })).sort((a, b) => b.spTotal - a.spTotal);
+
+  // 7. ppmtByDay — daily PP/MT values joining run SP with session tokens by date
+  const dailySP = {};
+  for (const run of runs) {
+    if (!run.date || !run.taskSummary) continue;
+    if (!dailySP[run.date]) dailySP[run.date] = 0;
+    dailySP[run.date] += run.taskSummary.storyPointsCompleted || 0;
+  }
+  const dailyTokenMap = {};
+  for (const day of dailyUsage) {
+    dailyTokenMap[day.date] = day.totalTokens || 0;
+  }
+  const allDates = new Set([...Object.keys(dailySP), ...Object.keys(dailyTokenMap)]);
+  const ppmtByDay = [...allDates].sort().map(date => {
+    const sp = dailySP[date] || 0;
+    const tokens = dailyTokenMap[date] || 0;
+    const ppmt = tokens > 0 ? Math.round((sp / (tokens / 1_000_000)) * 100) / 100 : 0;
+    return { date, spCompleted: sp, totalTokens: tokens, ppmt };
+  });
+
+  return { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield, ppmtByDay };
+}
+
+function generatePPMTRecommendations(analysis) {
+  const { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield } = analysis;
+
+  // Derive total run count from escalationCorrelation buckets
+  const totalRuns = Object.values(escalationCorrelation).reduce((s, b) => s + b.total, 0);
+  if (totalRuns < 5) return [];
+
+  const recs = [];
+
+  // (a) M-task splitting: M completion% < S completion% by >15 points
+  if (taskSizeCompletion.M.total >= 5 && taskSizeCompletion.S.total >= 5) {
+    const gap = taskSizeCompletion.S.rate - taskSizeCompletion.M.rate;
+    if (gap > 15) {
+      recs.push({
+        id: 'm_task_splitting',
+        priority: gap > 30 ? 1 : 2,
+        ppmt_impact: Math.min(Math.round(gap * 0.5), 100),
+        title: 'Split M-tasks into smaller S-tasks',
+        detail: `M tasks complete at ${taskSizeCompletion.M.rate}% vs S tasks at ${taskSizeCompletion.S.rate}% (${gap} point gap across ${taskSizeCompletion.M.total} M-tasks)`,
+        evidence: { M: taskSizeCompletion.M, S: taskSizeCompletion.S },
+        action: 'Review backlog M-tasks and break each into 2–3 S-tasks to improve completion rate',
+      });
+    }
+  }
+
+  // (b) Parse failures: >2 exist
+  if (failureBreakdown.parse_failure > 2) {
+    const count = failureBreakdown.parse_failure;
+    recs.push({
+      id: 'parse_failures',
+      priority: count > 5 ? 1 : 2,
+      ppmt_impact: Math.min(count * 3, 100),
+      title: `Fix parse failures affecting ${count} runs`,
+      detail: `${count} parse failures detected (runs with 0 tasks parsed) — each represents a total loss of output`,
+      evidence: { parse_failure: count },
+      action: `Audit ${count} runs with parse failures; check orchestrator log format for breaking changes or schema drift`,
+    });
+  }
+
+  // (c) Task count reduction: avg failed task count > avg completed by >1.5
+  if (taskCountCorrelation.failedAvg > taskCountCorrelation.completedAvg + 1.5) {
+    const diff = Math.round((taskCountCorrelation.failedAvg - taskCountCorrelation.completedAvg) * 10) / 10;
+    recs.push({
+      id: 'task_count_reduction',
+      priority: diff > 3 ? 1 : 2,
+      ppmt_impact: Math.min(Math.round(diff * 5), 100),
+      title: 'Reduce task count per run',
+      detail: `Failed runs average ${taskCountCorrelation.failedAvg} tasks vs ${taskCountCorrelation.completedAvg} for completed runs (${diff} task difference)`,
+      evidence: { taskCountCorrelation },
+      action: `Target ≤${taskCountCorrelation.completedAvg} tasks per run to match successful run profile${taskCountCorrelation.optimalRange.length ? `; optimal range is ${taskCountCorrelation.optimalRange[0]}–${taskCountCorrelation.optimalRange[1]}` : ''}`,
+    });
+  }
+
+  // (d) PR review loop: >2 max_iterations_pr_review runs
+  if (failureBreakdown.max_iterations_pr_review > 2) {
+    const count = failureBreakdown.max_iterations_pr_review;
+    recs.push({
+      id: 'pr_review_loop',
+      priority: count > 5 ? 1 : 3,
+      ppmt_impact: Math.min(count * 4, 100),
+      title: `Address PR review loops (${count} runs hit max iterations)`,
+      detail: `${count} runs terminated by hitting max PR review iterations — work was completed but PRs stalled`,
+      evidence: { max_iterations_pr_review: count },
+      action: 'Clarify PR acceptance criteria; consider smaller, more focused PRs to reduce back-and-forth review cycles',
+    });
+  }
+
+  // (e) max_turns_exhausted: top escalation stage has >10 escalations
+  if (topEscalationStages.length > 0 && topEscalationStages[0].count > 10) {
+    const top = topEscalationStages[0];
+    recs.push({
+      id: 'max_turns_exhausted',
+      priority: top.count > 20 ? 1 : 2,
+      ppmt_impact: Math.min(Math.round(top.count * 2), 100),
+      title: `Reorder or split stage '${top.stage}'`,
+      detail: `Stage '${top.stage}' has ${top.count} escalations — the highest of any stage, indicating repeated turn exhaustion`,
+      evidence: { topStage: top },
+      action: `Reorder '${top.stage}' earlier in the pipeline or split it into smaller sub-stages to reduce escalation frequency`,
+    });
+  }
+
+  // (f) Project-specific yield: any project's yield <20%
+  for (const proj of projectYield) {
+    if (proj.yieldPct < 20) {
+      recs.push({
+        id: `project_yield_${proj.project}`,
+        priority: proj.yieldPct < 10 ? 1 : 3,
+        ppmt_impact: Math.min(Math.round((20 - proj.yieldPct) * 0.5 * proj.spTotal), 100),
+        title: `Low yield for project '${proj.project}'`,
+        detail: `Project '${proj.project}' yields only ${proj.yieldPct}% (${proj.spCompleted}/${proj.spTotal} SP completed)`,
+        evidence: proj,
+        action: `Investigate common failure modes in project '${proj.project}'; consider task sizing review or scoping adjustments`,
+      });
+    }
+  }
+
+  // (g) 0-escalation failure pattern: >30% of failures have 0 escalations
+  const zeroEscFail = escalationCorrelation['0'].total - escalationCorrelation['0'].completed;
+  const totalFailures = Object.values(escalationCorrelation).reduce((s, b) => s + (b.total - b.completed), 0);
+  if (totalFailures > 0 && zeroEscFail / totalFailures > 0.30) {
+    const pct = Math.round((zeroEscFail / totalFailures) * 100);
+    recs.push({
+      id: 'zero_escalation_failures',
+      priority: pct > 60 ? 1 : 3,
+      ppmt_impact: Math.min(zeroEscFail * 2, 100),
+      title: `${pct}% of failures occur with 0 escalations`,
+      detail: `${zeroEscFail} of ${totalFailures} failed runs (${pct}%) had 0 escalations — tasks failing silently without requesting help`,
+      evidence: { zeroEscalationFailures: zeroEscFail, totalFailures, zeroEscalationCorrelation: escalationCorrelation['0'] },
+      action: 'Review 0-escalation failures for early task setup errors or misunderstood requirements; add pre-task validation checks',
+    });
+  }
+
+  // Sort by priority ascending (1 = highest)
+  recs.sort((a, b) => a.priority - b.priority);
+
+  return recs;
+}
+
+module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations };
