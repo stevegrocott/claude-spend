@@ -1380,12 +1380,15 @@ function render() {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   renderHeroPPMT();
-  renderSPPerTokenChart();
   renderPPMTRecommendations();
-  renderDriverCharts();
   renderProjectBreakdown();
   renderTopPrompts();
   renderSessions();
+  // Defer canvas rendering to next frame so grid layout has computed widths
+  requestAnimationFrame(() => {
+    renderSPPerTokenChart();
+    renderDriverCharts();
+  });
 }
 
 // Hero PP/100MT — single large number with trend arrow
@@ -1454,7 +1457,9 @@ function renderSPPerTokenChart() {
   if (!data.length) return;
 
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.parentElement.clientWidth - 48;
+  const parentW = canvas.parentElement.clientWidth;
+  if (parentW < 50) return;
+  const w = parentW - 48;
   const h = 200;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
@@ -1534,7 +1539,9 @@ function renderYieldTrendChart(yieldByDay) {
   const ctx = canvas.getContext('2d');
 
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.parentElement.clientWidth - 48;
+  const parentW = canvas.parentElement.clientWidth;
+  if (parentW < 50) return; // Guard against pre-layout zero width
+  const w = parentW - 48;
   const h = 140;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
@@ -1596,7 +1603,9 @@ function renderTaskSizeChart(taskSize) {
   if (!hasData) return;
 
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.parentElement.clientWidth - 48;
+  const parentW = canvas.parentElement.clientWidth;
+  if (parentW < 50) return;
+  const w = parentW - 48;
   const h = 140;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
@@ -1667,7 +1676,9 @@ function renderFailureChart(breakdown) {
   if (!items.length) return;
 
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.parentElement.clientWidth - 48;
+  const parentW = canvas.parentElement.clientWidth;
+  if (parentW < 50) return;
+  const w = parentW - 48;
   const h = 140;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
