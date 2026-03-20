@@ -108,6 +108,8 @@
   .header {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 40px; flex-wrap: wrap; gap: 16px;
+    position: sticky; top: 0; z-index: 20;
+    background: var(--bg); padding: 16px 0; margin-top: -16px;
   }
   .header-left { display: flex; align-items: center; gap: 14px; }
   .logo-mark {
@@ -525,20 +527,6 @@
   .legend-dot { width: 10px; height: 10px; border-radius: 4px; flex-shrink: 0; }
 
   /* ---- TOP PROMPTS ---- */
-  .top-prompts { margin-bottom: 32px; }
-  .prompt-type-tabs {
-    display: flex; gap: 4px; margin-bottom: 12px;
-  }
-  .prompt-type-tab {
-    font-family: var(--font); font-size: 13px; font-weight: 600;
-    padding: 6px 16px; border-radius: 20px; cursor: pointer;
-    border: 1px solid var(--border); background: var(--white);
-    color: var(--text-secondary); transition: all 0.15s;
-  }
-  .prompt-type-tab:hover { border-color: var(--indigo); color: var(--indigo); }
-  .prompt-type-tab.active {
-    background: var(--indigo); color: white; border-color: var(--indigo);
-  }
   .prompts-card {
     background: var(--white); border-radius: var(--radius);
     border: 1px solid var(--border); box-shadow: var(--shadow-sm);
@@ -869,6 +857,57 @@
     line-height: 1.7; max-width: 700px; margin: 0 auto 16px;
     border-top: 1px solid var(--border);
   }
+
+  /* ---- TWO-COLUMN COMPARISON LAYOUT ---- */
+  .overview-section {
+    background: var(--white); border-radius: var(--radius);
+    padding: 24px; margin-bottom: 24px;
+    border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+  }
+  .split-insights {
+    display: flex; flex-wrap: wrap; gap: 10px;
+  }
+  .split-insight {
+    flex: 1 1 280px; padding: 10px 14px;
+    background: var(--bg); border-radius: var(--radius-xs);
+    border-left: 3px solid var(--indigo);
+    font-size: 13px; line-height: 1.5;
+  }
+  .split-insight-value {
+    font-weight: 700; color: var(--text);
+  }
+  .split-insight-text {
+    color: var(--text-secondary);
+  }
+  .comparison-layout {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 24px; margin-bottom: 32px;
+  }
+  @media (max-width: 900px) { .comparison-layout { grid-template-columns: 1fr; } }
+  .column-section { min-width: 0; }
+  .column-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 0; border-bottom: 2px solid var(--border);
+    margin-bottom: 16px;
+    position: sticky; top: 72px; z-index: 10;
+    background: var(--bg);
+  }
+  .column-header-dot {
+    width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  }
+  .column-header-title {
+    font-size: 15px; font-weight: 700; letter-spacing: -0.3px;
+  }
+  .column-card {
+    background: var(--white); border-radius: var(--radius-sm);
+    padding: 16px 20px; margin-bottom: 14px;
+    border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+  }
+  .column-card h4 {
+    font-size: 12px; font-weight: 700; color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;
+  }
+  .column-card canvas { display: block; }
 </style>
 </head>
 <body>
@@ -906,104 +945,91 @@
     </div>
   </div>
 
-  <!-- Hero PP/100MT -->
-  <div id="heroPPMT" class="hero-ppmt animate delay-1"></div>
-
-  <!-- PP/100MT Line Chart -->
-  <div style="margin-bottom:32px">
-    <div class="chart-card" style="padding:16px">
-      <h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 12px;display:inline-block">PP/100MT Over Time<div class="tooltip">Completed story points per 100 million pipeline tokens each day. Higher means more efficient pipeline usage.</div></h3>
-      <canvas id="spPerTokenChart"></canvas>
-      <div class="legend" style="margin-top:8px">
-        <div class="legend-item"><div class="legend-dot" style="background:#6366F1"></div> PP / 100M pipeline tokens</div>
-      </div>
+  <!-- Overview: Token Split + Insights + Stacked Area -->
+  <div class="overview-section animate delay-2">
+    <h3 style="font-size:13px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Pipeline vs Interactive Token Split</h3>
+    <div id="tokenSplitBar"></div>
+    <div id="splitInsights" style="margin-top:14px"></div>
+    <div style="margin-top:16px">
+      <canvas id="trendPipelineChart"></canvas>
     </div>
-    <p class="section-explainer">Daily efficiency trend using only pipeline tokens as the denominator.</p>
   </div>
 
-  <!-- Efficiency Recommendations -->
-  <div id="pipelineRecs-quality"></div>
-
-  <!-- What Drives Your Score -->
-  <div class="drivers-section animate delay-3">
-    <div class="section-header">
-      <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+  <!-- Two-Column Comparison -->
+  <div class="comparison-layout">
+    <!-- Pipeline Column -->
+    <div class="column-section">
+      <div class="column-header">
+        <div class="column-header-dot" style="background:#6366F1"></div>
+        <div class="column-header-title">Pipeline</div>
       </div>
-      <div class="section-title">What Drives Your Score</div>
-    </div>
-    <p class="section-explainer">These four factors explain most of the variance in your PP/100MT.</p>
-    <div class="drivers-grid">
-      <div class="driver-card">
-        <h3>Yield % Trend</h3>
+
+      <div class="column-card" id="heroPPMT"></div>
+
+      <div class="column-card">
+        <h4>PP/100MT Over Time</h4>
+        <canvas id="spPerTokenChart"></canvas>
+      </div>
+
+      <div id="pipelineRecs-quality"></div>
+
+      <div class="column-card">
+        <h4>Yield % Trend</h4>
         <div class="driver-explainer">What percentage of attempted story points actually complete. The single strongest predictor of PP/100MT.</div>
         <canvas id="yieldTrendChart"></canvas>
       </div>
-      <div class="driver-card">
-        <h3>Task Size Completion</h3>
+
+      <div class="column-card">
+        <h4>Task Size Completion</h4>
         <div class="driver-explainer">S tasks complete 2.6x more often than M tasks. Splitting M-to-S is the highest-leverage change.</div>
         <canvas id="taskSizeChart"></canvas>
       </div>
-      <div class="driver-card">
-        <h3>Failure Breakdown</h3>
+
+      <div class="column-card">
+        <h4>Failure Breakdown</h4>
         <div class="driver-explainer">Where your tokens go to die. Parse failures are 100% waste -- zero points, full token cost.</div>
         <canvas id="failureChart"></canvas>
       </div>
-      <div class="driver-card">
-        <h3>Task Count vs Outcome</h3>
+
+      <div class="column-card">
+        <h4>Task Count vs Outcome</h4>
         <div class="driver-explainer">Issues with 5+ tasks fail ~70% of the time. Keep issues to 2-3 tasks.</div>
         <div id="taskCountStat" class="driver-stat"></div>
       </div>
     </div>
-  </div>
 
-  <!-- Session Efficiency -->
-  <div class="session-efficiency-section animate delay-4" id="sessionEfficiencySection">
-    <div class="section-header">
-      <div class="section-icon" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    <!-- Interactive Column -->
+    <div class="column-section">
+      <div class="column-header">
+        <div class="column-header-dot" style="background:#F59E0B"></div>
+        <div class="column-header-title">Interactive</div>
       </div>
-      <div class="section-title">Session Efficiency</div>
-    </div>
-    <p class="section-explainer">Tokens spent outside the pipeline don't produce tracked story points. These recommendations help you get more value from interactive sessions.</p>
 
-    <!-- Pipeline vs Interactive token split -->
-    <div class="chart-card" style="padding:16px;margin-bottom:16px">
-      <h3 style="font-size:14px;margin:0 0 2px">Pipeline vs Interactive Token Split</h3>
-      <div id="tokenSplitBar"></div>
-    </div>
+      <div class="column-card" id="heroInteractive"></div>
 
-    <!-- Session recommendations -->
-    <div id="sessionRecs" style="margin-bottom:16px"></div>
+      <div class="column-card">
+        <h4>Tokens / Query Over Time</h4>
+        <canvas id="trendTpqChart"></canvas>
+      </div>
 
-    <!-- Context cost curve -->
-    <div class="chart-card" style="padding:16px">
-      <h3 style="font-size:14px;margin:0 0 4px">Context Cost Curve</h3>
-      <div class="driver-explainer" style="margin-bottom:12px">Average tokens per query at different session lengths — longer sessions accumulate context that inflates every subsequent query.</div>
-      <canvas id="contextCostChart"></canvas>
-    </div>
-    <h3 style="margin:24px 0 4px;font-size:14px;font-weight:700;color:var(--text-secondary)">Efficiency Trends</h3>
-    <p class="section-explainer">7-day rolling averages of behaviors that drive interactive session efficiency.</p>
-    <div class="drivers-grid">
-      <div class="driver-card">
-        <h3>Queries / Session</h3>
+      <div id="sessionRecs"></div>
+
+      <div class="column-card">
+        <h4>Queries / Session</h4>
         <div class="driver-explainer">Lower is better. Shorter sessions waste less on context re-reading.</div>
         <canvas id="trendQueriesChart"></canvas>
       </div>
-      <div class="driver-card">
-        <h3>Tokens / Query (K)</h3>
-        <div class="driver-explainer">Lower is better. Lean context means each query costs less.</div>
-        <canvas id="trendTpqChart"></canvas>
-      </div>
-      <div class="driver-card">
-        <h3>Pipeline vs Interactive</h3>
-        <div class="driver-explainer">Daily token share. Growing pipeline (indigo) means more tracked, optimized work.</div>
-        <canvas id="trendPipelineChart"></canvas>
-      </div>
-      <div class="driver-card">
-        <h3>Short Sessions %</h3>
+
+      <div class="column-card">
+        <h4>Short Sessions %</h4>
         <div class="driver-explainer">Higher is better. Sessions under 20 queries are most token-efficient.</div>
         <canvas id="trendShortChart"></canvas>
+      </div>
+
+      <div class="column-card">
+        <h4>Context Cost Curve</h4>
+        <div class="driver-explainer">Average tokens per query at different session lengths — longer sessions accumulate context that inflates every subsequent query.</div>
+        <canvas id="contextCostChart"></canvas>
       </div>
     </div>
   </div>
@@ -1034,18 +1060,27 @@
   </div>
 
   <!-- Most Expensive Prompts -->
-  <div class="top-prompts animate delay-4">
-    <div class="section-header">
-      <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+  <div class="section-header animate delay-4" style="margin-bottom:16px">
+    <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+    </div>
+    <div class="section-title">Most Expensive Prompts</div>
+  </div>
+  <div class="comparison-layout" style="margin-bottom:32px">
+    <div class="column-section">
+      <div class="column-header">
+        <div class="column-header-dot" style="background:#6366F1"></div>
+        <div class="column-header-title">Pipeline</div>
       </div>
-      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">Most Expensive Prompts<div class="tooltip">Your top individual messages ranked by token usage, split by pipeline-tracked (producing story points) and interactive (untracked) sessions.</div></div>
+      <div class="prompts-card" id="topPromptsPipeline"></div>
     </div>
-    <div class="prompt-type-tabs" id="promptTypeTabs">
-      <button class="prompt-type-tab active" data-type="interactive" onclick="switchPromptTab('interactive')">Interactive</button>
-      <button class="prompt-type-tab" data-type="pipeline" onclick="switchPromptTab('pipeline')">Pipeline</button>
+    <div class="column-section">
+      <div class="column-header">
+        <div class="column-header-dot" style="background:#F59E0B"></div>
+        <div class="column-header-title">Interactive</div>
+      </div>
+      <div class="prompts-card" id="topPromptsInteractive"></div>
     </div>
-    <div class="prompts-card" id="topPromptsList"></div>
   </div>
 
   <!-- Drill-down -->
@@ -1088,10 +1123,6 @@
         <tbody id="sessionsBody"></tbody>
       </table>
     </div>
-  </div>
-
-  <div class="dashboard-footer">
-    PP/100MT measures completed story points per 100M pipeline tokens. Charts above explain factors that move this number. Recommendations tell you what to change. Non-pipeline session analysis is in the Session Efficiency section.
   </div>
 
   <div class="footer">
@@ -1351,10 +1382,87 @@ function recomputeOrchestratorSummary(runs) {
   };
 }
 
+// Client-side recompute of ppmtAnalysis from filtered runs + session efficiency
+function recomputePpmtAnalysis(runs, sessionEff) {
+  const validRuns = runs.filter(r => r.state !== 'initializing');
+
+  // taskSizeCompletion
+  const taskSizeCompletion = { S: { completed: 0, failed: 0, total: 0, rate: 0 }, M: { completed: 0, failed: 0, total: 0, rate: 0 }, L: { completed: 0, failed: 0, total: 0, rate: 0 } };
+  for (const run of validRuns) {
+    const ts = run.taskSummary; if (!ts) continue;
+    for (const size of ['S', 'M', 'L']) {
+      taskSizeCompletion[size].completed += (ts.completed && ts.completed[size]) || 0;
+      taskSizeCompletion[size].failed += (ts.failed && ts.failed[size]) || 0;
+    }
+  }
+  for (const size of ['S', 'M', 'L']) { const s = taskSizeCompletion[size]; s.total = s.completed + s.failed; s.rate = s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0; }
+
+  // failureBreakdown
+  const failureBreakdown = { parse_failure: 0, error: 0, max_iterations_pr_review: 0, running: 0, other: 0 };
+  for (const run of validRuns) {
+    if (run.state === 'error' && run.taskCount === 0) failureBreakdown.parse_failure++;
+    else if (run.state === 'error') failureBreakdown.error++;
+    else if (run.state === 'max_iterations_pr_review') failureBreakdown.max_iterations_pr_review++;
+    else if (run.state === 'running') failureBreakdown.running++;
+    else if (run.state !== 'completed') failureBreakdown.other++;
+  }
+
+  // taskCountCorrelation
+  const completedRuns = validRuns.filter(r => r.state === 'completed');
+  const failedRuns = validRuns.filter(r => r.state !== 'completed');
+  const completedAvg = completedRuns.length > 0 ? Math.round(completedRuns.reduce((s, r) => s + r.taskCount, 0) / completedRuns.length) : 0;
+  const failedAvg = failedRuns.length > 0 ? Math.round(failedRuns.reduce((s, r) => s + r.taskCount, 0) / failedRuns.length) : 0;
+  const countBuckets = {};
+  for (const run of validRuns) { const b = Math.floor(run.taskCount / 2) * 2; if (!countBuckets[b]) countBuckets[b] = { completed: 0, total: 0 }; countBuckets[b].total++; if (run.state === 'completed') countBuckets[b].completed++; }
+  const bestBucket = Object.entries(countBuckets).filter(([, v]) => v.total >= 5).map(([k, v]) => ({ start: Number(k), rate: v.completed / v.total })).sort((a, b) => b.rate - a.rate)[0];
+  const optimalRange = bestBucket ? [bestBucket.start, bestBucket.start + 1] : [];
+  const taskCountCorrelation = { completedAvg, failedAvg, optimalRange };
+
+  // escalationCorrelation
+  const escBuckets = { '0': { completed: 0, total: 0 }, '1-2': { completed: 0, total: 0 }, '3-5': { completed: 0, total: 0 }, '6+': { completed: 0, total: 0 } };
+  for (const run of validRuns) {
+    const count = (run.escalations || []).length;
+    const bucket = count === 0 ? '0' : count <= 2 ? '1-2' : count <= 5 ? '3-5' : '6+';
+    escBuckets[bucket].total++; if (run.state === 'completed') escBuckets[bucket].completed++;
+  }
+  const escalationCorrelation = {};
+  for (const [key, val] of Object.entries(escBuckets)) { escalationCorrelation[key] = { total: val.total, completed: val.completed, completionRate: val.total > 0 ? Math.round((val.completed / val.total) * 100) : 0 }; }
+
+  // topEscalationStages
+  const stageCounts = {};
+  for (const run of validRuns) { for (const esc of run.escalations || []) { if (esc.stage) stageCounts[esc.stage] = (stageCounts[esc.stage] || 0) + 1; } }
+  const topEscalationStages = Object.entries(stageCounts).map(([stage, count]) => ({ stage, count })).sort((a, b) => b.count - a.count).slice(0, 5);
+
+  // projectYield
+  const projectMap = {};
+  for (const run of validRuns) { if (!run.project) continue; if (!projectMap[run.project]) projectMap[run.project] = { spCompleted: 0, spTotal: 0 }; const ts = run.taskSummary; if (ts) { projectMap[run.project].spCompleted += ts.storyPointsCompleted || 0; projectMap[run.project].spTotal += ts.storyPointsTotal || 0; } }
+  const projectYield = Object.entries(projectMap).map(([project, data]) => ({ project, spCompleted: data.spCompleted, spTotal: data.spTotal, yieldPct: data.spTotal > 0 ? Math.round((data.spCompleted / data.spTotal) * 100) : 0 })).sort((a, b) => b.spTotal - a.spTotal);
+
+  // ppmtByDay — join run SP with pipeline tokens from efficiencyByDay
+  const dailySP = {};
+  for (const run of validRuns) { if (!run.date || !run.taskSummary) continue; dailySP[run.date] = (dailySP[run.date] || 0) + (run.taskSummary.storyPointsCompleted || 0); }
+  const pipelineTokensByDay = {};
+  for (const d of (sessionEff.efficiencyByDay || [])) { pipelineTokensByDay[d.date] = d.pipelineTokens || 0; }
+  const allDates = new Set([...Object.keys(dailySP), ...Object.keys(pipelineTokensByDay)]);
+  const ppmtByDay = [...allDates].sort().map(date => {
+    const sp = dailySP[date] || 0;
+    const tokens = pipelineTokensByDay[date] || 0;
+    const pp100mt = tokens > 0 ? Math.round((sp / (tokens / 100000000)) * 100) / 100 : 0;
+    return { date, spCompleted: sp, totalTokens: tokens, pp100mt };
+  });
+
+  const totalSP = ppmtByDay.reduce((s, d) => s + d.spCompleted, 0);
+  const totalTokens = ppmtByDay.reduce((s, d) => s + d.totalTokens, 0);
+  const pp100mt = totalTokens > 0 ? Math.round((totalSP / (totalTokens / 100000000)) * 100) / 100 : 0;
+  const pipelineTokens = totalTokens;
+
+  return { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield, ppmtByDay, pp100mt, pipelineTokens };
+}
+
 // Client-side recompute of sessionEfficiency for date-filtered sessions
 function recomputeSessionEfficiency(sessions) {
-  const pipeline = { sessions: 0, tokens: 0 };
-  const interactive = { sessions: 0, tokens: 0 };
+  const pipeline = { sessions: 0, tokens: 0, queries: 0 };
+  const interactive = { sessions: 0, tokens: 0, queries: 0 };
   const marathonSessions = [];
   const implPattern = /^(fix|add|update|create|build|refactor)\b/i;
   let implCount = 0, implTokens = 0;
@@ -1379,9 +1487,11 @@ function recomputeSessionEfficiency(sessions) {
     if (isPipeline) {
       pipeline.sessions++;
       pipeline.tokens += s.totalTokens || 0;
+      pipeline.queries += s.queryCount || 0;
     } else {
       interactive.sessions++;
       interactive.tokens += s.totalTokens || 0;
+      interactive.queries += s.queryCount || 0;
 
       // Marathon detection
       if ((s.queryCount || 0) >= 100) {
@@ -1453,7 +1563,7 @@ function recomputeSessionEfficiency(sessions) {
       if ((s.queryCount || 0) <= 20) dayMap[d].shortSessions++;
     }
   }
-  const efficiencyByDay = Object.keys(dayMap).filter(d => dayMap[d].sessions > 0).sort().map(date => {
+  const efficiencyByDay = Object.keys(dayMap).sort().map(date => {
     const dm = dayMap[date];
     return {
       date,
@@ -1462,6 +1572,7 @@ function recomputeSessionEfficiency(sessions) {
       pipelineCoveragePct: (dm.pipelineTokens + dm.tokens) > 0 ? Math.round(dm.pipelineTokens / (dm.pipelineTokens + dm.tokens) * 100) : 0,
       shortSessionPct: dm.sessions > 0 ? Math.round(dm.shortSessions / dm.sessions * 100) : 0,
       sessionCount: dm.sessions,
+      pipelineTokens: dm.pipelineTokens,
     };
   });
 
@@ -1525,6 +1636,92 @@ function generateClientSessionRecs(eff) {
       action: 'Split into multiple focused sessions. Each new session starts with minimal context overhead.' });
   }
 
+  return recs;
+}
+
+function generateClientPipelineRecs(analysis) {
+  if (!analysis) return [];
+  const { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield } = analysis;
+  if (!escalationCorrelation) return [];
+  const totalRuns = Object.values(escalationCorrelation).reduce((s, b) => s + b.total, 0);
+  if (totalRuns < 5) return [];
+
+  const recs = [];
+
+  // M-task splitting
+  if (taskSizeCompletion && taskSizeCompletion.M && taskSizeCompletion.S && taskSizeCompletion.M.total >= 5 && taskSizeCompletion.S.total >= 5) {
+    const gap = taskSizeCompletion.S.rate - taskSizeCompletion.M.rate;
+    if (gap > 15) {
+      recs.push({ id: 'm_task_splitting', priority: gap > 30 ? 1 : 2, ppmt_impact: Math.min(Math.round(gap * 0.5), 100),
+        title: 'Split M-tasks into smaller S-tasks',
+        detail: 'M tasks complete at ' + taskSizeCompletion.M.rate + '% vs S tasks at ' + taskSizeCompletion.S.rate + '% (' + gap + ' point gap across ' + taskSizeCompletion.M.total + ' M-tasks)',
+        action: 'Review backlog M-tasks and break each into 2\u20133 S-tasks to improve completion rate' });
+    }
+  }
+
+  // Parse failures
+  if (failureBreakdown && failureBreakdown.parse_failure > 2) {
+    const count = failureBreakdown.parse_failure;
+    recs.push({ id: 'parse_failures', priority: count > 5 ? 1 : 2, ppmt_impact: Math.min(count * 3, 100),
+      title: 'Fix parse failures affecting ' + count + ' runs',
+      detail: count + ' parse failures detected (runs with 0 tasks parsed) \u2014 each represents a total loss of output',
+      action: 'Audit ' + count + ' runs with parse failures; check orchestrator log format for breaking changes or schema drift' });
+  }
+
+  // Task count reduction
+  if (taskCountCorrelation && taskCountCorrelation.failedAvg > taskCountCorrelation.completedAvg + 1.5) {
+    const diff = Math.round((taskCountCorrelation.failedAvg - taskCountCorrelation.completedAvg) * 10) / 10;
+    recs.push({ id: 'task_count_reduction', priority: diff > 3 ? 1 : 2, ppmt_impact: Math.min(Math.round(diff * 5), 100),
+      title: 'Reduce task count per run',
+      detail: 'Failed runs average ' + taskCountCorrelation.failedAvg + ' tasks vs ' + taskCountCorrelation.completedAvg + ' for completed (' + diff + ' task difference)',
+      action: 'Target \u2264' + taskCountCorrelation.completedAvg + ' tasks per run' + (taskCountCorrelation.optimalRange.length ? '; optimal range is ' + taskCountCorrelation.optimalRange[0] + '\u2013' + taskCountCorrelation.optimalRange[1] : '') });
+  }
+
+  // PR review loops
+  if (failureBreakdown && failureBreakdown.max_iterations_pr_review > 2) {
+    const count = failureBreakdown.max_iterations_pr_review;
+    recs.push({ id: 'pr_review_loop', priority: count > 5 ? 1 : 3, ppmt_impact: Math.min(count * 4, 100),
+      title: 'Address PR review loops (' + count + ' runs hit max iterations)',
+      detail: count + ' runs terminated by hitting max PR review iterations \u2014 work was completed but PRs stalled',
+      action: 'Clarify PR acceptance criteria; consider smaller, more focused PRs' });
+  }
+
+  // Max turns exhausted
+  if (topEscalationStages && topEscalationStages.length > 0 && topEscalationStages[0].count > 10) {
+    const top = topEscalationStages[0];
+    recs.push({ id: 'max_turns_exhausted', priority: top.count > 20 ? 1 : 2, ppmt_impact: Math.min(Math.round(top.count * 2), 100),
+      title: 'Reorder or split stage \'' + top.stage + '\'',
+      detail: 'Stage \'' + top.stage + '\' has ' + top.count + ' escalations \u2014 the highest of any stage',
+      action: 'Reorder \'' + top.stage + '\' earlier in the pipeline or split into smaller sub-stages' });
+  }
+
+  // Low yield projects
+  if (projectYield) {
+    for (const proj of projectYield) {
+      if (proj.yieldPct < 20) {
+        recs.push({ id: 'project_yield_' + proj.project, priority: proj.yieldPct < 10 ? 1 : 3,
+          ppmt_impact: Math.min(Math.round((20 - proj.yieldPct) * 0.5 * proj.spTotal), 100),
+          title: 'Low yield for project \'' + proj.project + '\'',
+          detail: 'Project \'' + proj.project + '\' yields only ' + proj.yieldPct + '% (' + proj.spCompleted + '/' + proj.spTotal + ' SP completed)',
+          action: 'Investigate common failure modes in project \'' + proj.project + '\'' });
+      }
+    }
+  }
+
+  // 0-escalation failures
+  if (escalationCorrelation['0']) {
+    const zeroEscFail = escalationCorrelation['0'].total - escalationCorrelation['0'].completed;
+    const totalFailures = Object.values(escalationCorrelation).reduce((s, b) => s + (b.total - b.completed), 0);
+    if (totalFailures > 0 && zeroEscFail / totalFailures > 0.30) {
+      const pct = Math.round((zeroEscFail / totalFailures) * 100);
+      recs.push({ id: 'zero_escalation_failures', priority: pct > 60 ? 1 : 3, ppmt_impact: Math.min(zeroEscFail * 2, 100),
+        title: pct + '% of failures occur with 0 escalations',
+        detail: zeroEscFail + ' of ' + totalFailures + ' failed runs (' + pct + '%) had 0 escalations \u2014 tasks failing silently',
+        action: 'Review 0-escalation failures for early task setup errors or misunderstood requirements' });
+    }
+  }
+
+  recs.sort((a, b) => a.priority - b.priority);
   return recs;
 }
 
@@ -1649,15 +1846,19 @@ function applyDateFilter() {
   if (DATA.orchestrator && DATA.orchestrator.runs) {
     const filteredRuns = DATA.orchestrator.runs.filter(r => r.date && r.date >= fromDate && r.date <= toDate);
     const recomputed = recomputeOrchestratorSummary(filteredRuns);
-    // Preserve server-computed fields that can't be recomputed client-side
-    if (DATA.orchestrator.summary) {
-      recomputed.recommendations = DATA.orchestrator.summary.recommendations;
-      recomputed.ppmtAnalysis = DATA.orchestrator.summary.ppmtAnalysis;
-    }
+    // Recommendations will be generated after ppmtAnalysis is recomputed below
     filteredOrchestrator = { runs: filteredRuns, summary: recomputed };
   }
 
   const filteredSessionEff = recomputeSessionEfficiency(sessions);
+
+  // Recompute ppmtAnalysis + recommendations from filtered runs + pipeline tokens
+  if (filteredOrchestrator && filteredOrchestrator.runs) {
+    filteredOrchestrator.summary.ppmtAnalysis = recomputePpmtAnalysis(
+      filteredOrchestrator.runs, filteredSessionEff);
+    filteredOrchestrator.summary.recommendations = generateClientPipelineRecs(
+      filteredOrchestrator.summary.ppmtAnalysis);
+  }
   FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, orchestrator: filteredOrchestrator, sessionEfficiency: filteredSessionEff };
   render();
 }
@@ -1667,6 +1868,7 @@ function render() {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   renderHeroPPMT();
+  renderHeroInteractive();
   renderPPMTRecommendations();
   renderSessionEfficiency();
   renderProjectBreakdown();
@@ -1721,6 +1923,44 @@ function renderHeroPPMT() {
     '<div class="hero-ppmt-label">Points per 100M Pipeline Tokens</div>',
     '<div class="hero-ppmt-value">' + overallPP100MT.toFixed(2) + '<span class="hero-ppmt-trend ' + trendClass + '">' + trendArrow + '</span></div>',
     '<div class="hero-ppmt-sub">' + completedSP + ' SP completed \u00B7 ' + fmt(pipelineTokens) + ' pipeline tokens</div>',
+  ].join('');
+}
+
+// Hero Interactive — tokens per query with trend
+function renderHeroInteractive() {
+  const container = document.getElementById('heroInteractive');
+  if (!container) return;
+
+  const se = FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency);
+  if (!se || !se.interactive || se.interactive.queries === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-tertiary)">No interactive session data</div>';
+    return;
+  }
+
+  const tpq = Math.round(se.interactive.tokens / se.interactive.queries);
+  const tpqK = (tpq / 1000).toFixed(0);
+
+  // Trend: last 3 days vs prior 3 days of tokensPerQuery
+  const byDay = (se.efficiencyByDay || []).filter(d => d.tokensPerQuery > 0);
+  let trendClass = 'flat', trendArrow = '--';
+  if (byDay.length >= 6) {
+    const recent3 = byDay.slice(-3).reduce((s, d) => s + d.tokensPerQuery, 0) / 3;
+    const prior3 = byDay.slice(-6, -3).reduce((s, d) => s + d.tokensPerQuery, 0) / 3;
+    // Lower is better for tokens/query, so inverted arrows
+    if (recent3 < prior3 * 0.95) { trendClass = 'up'; trendArrow = '\u2193'; }
+    else if (recent3 > prior3 * 1.05) { trendClass = 'down'; trendArrow = '\u2191'; }
+    else { trendClass = 'flat'; trendArrow = '\u2192'; }
+  } else if (byDay.length >= 2) {
+    const last = byDay[byDay.length - 1].tokensPerQuery;
+    const prev = byDay[byDay.length - 2].tokensPerQuery;
+    if (last < prev * 0.95) { trendClass = 'up'; trendArrow = '\u2193'; }
+    else if (last > prev * 1.05) { trendClass = 'down'; trendArrow = '\u2191'; }
+  }
+
+  container.innerHTML = [
+    '<div class="hero-ppmt-label">Tokens per Query</div>',
+    '<div class="hero-ppmt-value">' + tpqK + 'K<span class="hero-ppmt-trend ' + trendClass + '">' + trendArrow + '</span></div>',
+    '<div class="hero-ppmt-sub">' + fmt(se.interactive.tokens) + ' tokens \u00B7 ' + fmt(se.interactive.queries) + ' queries \u00B7 ' + se.interactive.sessions + ' sessions</div>',
   ].join('');
 }
 
@@ -2078,10 +2318,64 @@ function buildDrawerContent(p) {
 }
 
 // Session Efficiency — pipeline/interactive split, session recs, context cost curve
-function renderSessionEfficiency() {
-  const container = document.getElementById('sessionEfficiencySection');
-  if (!container) return;
+function renderSplitInsights() {
+  const el = document.getElementById('splitInsights');
+  if (!el) return;
 
+  const se = FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency);
+  const orch = FILTERED.orchestrator || (DATA && DATA.orchestrator);
+  if (!se || !se.pipeline) { el.innerHTML = ''; return; }
+
+  const insights = [];
+  const pipe = se.pipeline;
+  const inter = se.interactive;
+  const ebd = se.efficiencyByDay || [];
+
+  // 1. Pipeline coverage trend
+  if (ebd.length >= 10) {
+    const firstHalf = ebd.slice(0, Math.floor(ebd.length / 2));
+    const secondHalf = ebd.slice(Math.floor(ebd.length / 2));
+    const earlyPct = Math.round(firstHalf.reduce((s, d) => s + d.pipelineCoveragePct, 0) / firstHalf.length);
+    const recentPct = Math.round(secondHalf.reduce((s, d) => s + d.pipelineCoveragePct, 0) / secondHalf.length);
+    const diff = recentPct - earlyPct;
+    if (Math.abs(diff) >= 3) {
+      const direction = diff > 0 ? 'grew' : 'dropped';
+      const color = diff > 0 ? '#059669' : '#DC2626';
+      insights.push({ value: earlyPct + '% \u2192 ' + recentPct + '%', text: 'Pipeline coverage ' + direction + ' over this period. ' + (diff > 0 ? 'More work is being tracked and optimized.' : 'More tokens are going to untracked interactive sessions.'), color });
+    }
+  }
+
+  // 2. Tokens/query comparison
+  if (pipe.queries > 0 && inter.queries > 0) {
+    const pipeTpq = Math.round(pipe.tokens / pipe.queries / 1000);
+    const interTpq = Math.round(inter.tokens / inter.queries / 1000);
+    if (interTpq > pipeTpq * 1.3) {
+      const ratio = (interTpq / pipeTpq).toFixed(1);
+      insights.push({ value: pipeTpq + 'K vs ' + interTpq + 'K', text: 'Pipeline queries cost ' + ratio + 'x less per query than interactive. Pipeline sessions are shorter and more focused, so context stays lean.', color: '#6366F1' });
+    }
+  }
+
+  // 3. Marathon session waste
+  const marathons = se.marathonSessions || [];
+  if (marathons.length > 0 && inter.tokens > 0) {
+    const marathonTokens = marathons.reduce((s, m) => s + m.totalTokens, 0);
+    const marathonPct = Math.round(marathonTokens / inter.tokens * 100);
+    if (marathonPct > 30) {
+      insights.push({ value: marathonPct + '% of interactive', text: marathons.length + ' marathon sessions (100+ queries) consume ' + fmt(marathonTokens) + ' tokens. Most of this is context re-reading, not new work.', color: '#F59E0B' });
+    }
+  }
+
+  if (!insights.length) { el.innerHTML = ''; return; }
+
+  el.innerHTML = '<div class="split-insights">' + insights.map(i =>
+    '<div class="split-insight" style="border-left-color:' + i.color + '">' +
+    '<span class="split-insight-value">' + i.value + '</span> ' +
+    '<span class="split-insight-text">' + i.text + '</span>' +
+    '</div>'
+  ).join('') + '</div>';
+}
+
+function renderSessionEfficiency() {
   // 1. Pipeline vs Interactive token split bar
   const se = FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency);
   const pipelineTokens = (se && se.pipeline && se.pipeline.tokens) || 0;
@@ -2121,6 +2415,9 @@ function renderSessionEfficiency() {
         </div>`;
     }
   }
+
+  // 1b. Split insights
+  renderSplitInsights();
 
   // 2. Session recommendations (from server-computed sessionEfficiency)
   const recsEl = document.getElementById('sessionRecs');
@@ -2307,62 +2604,44 @@ function renderProjectBreakdown() {
   document.getElementById('projectsBody').innerHTML = rows.join('');
 }
 
-// Top prompts — split by pipeline/interactive
-let activePromptTab = 'interactive';
-
-function switchPromptTab(type) {
-  activePromptTab = type;
-  document.querySelectorAll('.prompt-type-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.type === type);
-  });
-  renderTopPrompts();
-}
-
+// Top prompts — side-by-side pipeline/interactive columns
 function renderTopPrompts() {
   const allPrompts = FILTERED.topPrompts;
   if (!allPrompts.length) return;
 
-  const filtered = allPrompts.filter(p =>
-    activePromptTab === 'pipeline'
-      ? p.sessionType === 'pipeline_subagent'
-      : p.sessionType !== 'pipeline_subagent'
-  );
+  const pipelinePrompts = allPrompts.filter(p => p.sessionType === 'pipeline_subagent');
+  const interactivePrompts = allPrompts.filter(p => p.sessionType !== 'pipeline_subagent');
 
-  // Update tab counts
-  const pipelineCount = allPrompts.filter(p => p.sessionType === 'pipeline_subagent').length;
-  const interactiveCount = allPrompts.filter(p => p.sessionType !== 'pipeline_subagent').length;
-  document.querySelectorAll('.prompt-type-tab').forEach(t => {
-    const type = t.dataset.type;
-    const count = type === 'pipeline' ? pipelineCount : interactiveCount;
-    const label = type === 'pipeline' ? 'Pipeline' : 'Interactive';
-    t.textContent = label + ' (' + count + ')';
-  });
-
-  if (!filtered.length) {
-    document.getElementById('topPromptsList').innerHTML =
-      '<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">No ' + activePromptTab + ' prompts in this date range.</div>';
-    return;
+  function renderPromptList(prompts, containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!prompts.length) {
+      el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">No prompts in this date range.</div>';
+      return;
+    }
+    const maxTokens = prompts[0].totalTokens;
+    el.innerHTML = prompts.map((p, i) => {
+      const inPct = (p.inputTokens / p.totalTokens) * 100;
+      return `<div class="prompt-row" onclick="openDrilldown('${p.sessionId}')">
+        <div class="prompt-rank">${i + 1}</div>
+        <div>
+          <div class="prompt-text">${escapeHtml(p.prompt)}</div>
+          <div class="prompt-meta">${formatDate(p.date)} &middot; ${modelShort(p.model)}</div>
+          <div class="token-bar-wrap" style="width:${Math.max(10, (p.totalTokens / maxTokens) * 100)}%">
+            <div class="token-bar-in" style="width:${inPct}%"></div>
+            <div class="token-bar-out" style="width:${100 - inPct}%"></div>
+          </div>
+        </div>
+        <div class="prompt-tokens">
+          <div class="value">${fmt(p.totalTokens)}</div>
+          <div class="sub">${fmt(p.inputTokens)} read &middot; ${fmt(p.outputTokens)} written</div>
+        </div>
+      </div>`;
+    }).join('');
   }
 
-  const maxTokens = filtered[0].totalTokens;
-  document.getElementById('topPromptsList').innerHTML = filtered.map((p, i) => {
-    const inPct = (p.inputTokens / p.totalTokens) * 100;
-    return `<div class="prompt-row" onclick="openDrilldown('${p.sessionId}')">
-      <div class="prompt-rank">${i + 1}</div>
-      <div>
-        <div class="prompt-text">${escapeHtml(p.prompt)}</div>
-        <div class="prompt-meta">${formatDate(p.date)} &middot; ${modelShort(p.model)}</div>
-        <div class="token-bar-wrap" style="width:${Math.max(10, (p.totalTokens / maxTokens) * 100)}%">
-          <div class="token-bar-in" style="width:${inPct}%"></div>
-          <div class="token-bar-out" style="width:${100 - inPct}%"></div>
-        </div>
-      </div>
-      <div class="prompt-tokens">
-        <div class="value">${fmt(p.totalTokens)}</div>
-        <div class="sub">${fmt(p.inputTokens)} read &middot; ${fmt(p.outputTokens)} written</div>
-      </div>
-    </div>`;
-  }).join('');
+  renderPromptList(pipelinePrompts, 'topPromptsPipeline');
+  renderPromptList(interactivePrompts, 'topPromptsInteractive');
 }
 
 // Sessions
@@ -2677,7 +2956,7 @@ function renderEfficiencyTrends() {
 }
 
 fetchData();
-window.addEventListener('resize', () => { if (FILTERED) { renderSPPerTokenChart(); renderDriverCharts(); renderEfficiencyTrends(); } });
+window.addEventListener('resize', () => { if (FILTERED) { renderSPPerTokenChart(); renderDriverCharts(); renderEfficiencyTrends(); renderPipelineStackedChart((FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency) || {}).efficiencyByDay || []); } });
 </script>
 </body>
 </html>
