@@ -516,7 +516,7 @@ function parseOrchestratorLogs(projectCostMap = {}) {
   let projectDirNames;
   try { projectDirNames = fs.readdirSync(projectsRoot); } catch { return { runs: [], summary: emptySummary() }; }
 
-  const logPatterns = ['logs/implement-issue', 'logs/test-fix-loop'];
+  const logPatterns = ['logs/implement-issue', 'logs/test-fix-loop', 'logs/explore'];
 
   for (const projName of projectDirNames) {
     const projPath = path.join(projectsRoot, projName);
