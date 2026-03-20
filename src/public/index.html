@@ -2226,17 +2226,29 @@ function renderSpeedSection() {
       }).join('')}</div>`
     : '';
 
+  const velocityHtml = `<div style="margin-bottom:16px">
+    <div class="chart-card" style="padding:16px">
+      <h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 12px;display:inline-block">Story Point Velocity<div class="tooltip">Daily story points completed (left axis, green) and cumulative story points over time (right axis, purple). Based on task size markers: S=1pt, M=3pts, L=5pts.</div></h3>
+      <canvas id="velocityChart"></canvas>
+      <div class="legend" style="margin-top:8px">
+        <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div> Daily SP completed</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#A855F7"></div> Cumulative SP</div>
+      </div>
+    </div>
+  </div>`;
+
   el.innerHTML = stageTimeSeriesHtml + (bottleneckHtml ? `<div class="chart-card" style="padding:16px;margin-bottom:16px">
     <h3 style="font-size:14px;margin:0 0 4px">Pipeline Stage Performance</h3>
     ${bottleneckHtml}
-  </div>` : '');
-  if (topStages.length > 0) {
-    requestAnimationFrame(() => {
+  </div>` : '') + velocityHtml;
+  requestAnimationFrame(() => {
+    if (topStages.length > 0) {
       topStages.forEach((st, i) => {
         renderMiniTimeSeries('stageChart' + i, st.dailyData, { color: stageColors[i], format: v => Math.round(v) + 'm', dateRange: getLensDateRange() });
       });
-    });
-  }
+    }
+    renderVelocityChart();
+  });
 }
 
 function renderQualitySection() {
@@ -2305,16 +2317,8 @@ function renderQualitySection() {
         ${churnerHtml || '<div style="font-size:12px;color:var(--text-tertiary)">No churners detected</div>'}
       </div>
     </div>
-    <div style="margin-bottom:16px">
-      <div class="chart-card" style="padding:16px">
-        <h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 12px;display:inline-block">Story Point Velocity<div class="tooltip">Daily story points completed (left axis, green) and cumulative story points over time (right axis, purple). Based on task size markers: S=1pt, M=3pts, L=5pts.</div></h3>
-        <canvas id="velocityChart"></canvas>
-        <div class="legend" style="margin-top:8px">
-          <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div> Daily SP completed</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#A855F7"></div> Cumulative SP</div>
-        </div>
-      </div>
-    </div>`;
+`;
+
   requestAnimationFrame(() => {
     const qualityDateRange = getLensDateRange();
     renderMiniTimeSeries('qualityCompletionChart', completionData, { color: '#10B981', format: v => Math.round(v) + '%', dateRange: qualityDateRange });
