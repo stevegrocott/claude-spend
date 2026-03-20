@@ -996,8 +996,8 @@
         <canvas id="trendTpqChart"></canvas>
       </div>
       <div class="driver-card">
-        <h3>Pipeline Coverage %</h3>
-        <div class="driver-explainer">Higher is better. Pipeline work is tracked and optimized.</div>
+        <h3>Pipeline vs Interactive</h3>
+        <div class="driver-explainer">Daily token share. Growing pipeline (indigo) means more tracked, optimized work.</div>
         <canvas id="trendPipelineChart"></canvas>
       </div>
       <div class="driver-card">
@@ -2572,6 +2572,90 @@ function renderEfficiencyTrendChart(canvasId, data, options) {
   }
 }
 
+function renderPipelineStackedChart(byDay) {
+  const canvas = document.getElementById('trendPipelineChart');
+  if (!canvas || !byDay.length) return;
+  const ctx = canvas.getContext('2d');
+
+  const dpr = window.devicePixelRatio || 1;
+  const parentW = canvas.parentElement.clientWidth;
+  if (parentW < 50) return;
+  const w = parentW - 48;
+  const h = 120;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const chartH = h - 28;
+  const startX = 32;
+  const plotW = w - startX - 8;
+
+  // Y-axis: always 0-100%
+  ctx.font = '500 9px Inter, system-ui';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = i * 25;
+    const y = chartH - (chartH * i / 4) + 4;
+    ctx.fillStyle = '#94A3B8';
+    ctx.fillText(val + '%', startX - 4, y + 3);
+    ctx.strokeStyle = 'rgba(0,0,0,0.03)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w - 8, y); ctx.stroke();
+  }
+
+  function xPos(i) { return startX + (i / Math.max(1, byDay.length - 1)) * plotW; }
+  function yPos(pct) { return chartH + 4 - (pct / 100) * chartH; }
+
+  // Pipeline area (bottom, indigo)
+  ctx.beginPath();
+  ctx.moveTo(xPos(0), yPos(0));
+  byDay.forEach((d, i) => ctx.lineTo(xPos(i), yPos(d.pipelineCoveragePct)));
+  ctx.lineTo(xPos(byDay.length - 1), yPos(0));
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(99,102,241,0.35)';
+  ctx.fill();
+
+  // Interactive area (top, amber)
+  ctx.beginPath();
+  ctx.moveTo(xPos(0), yPos(100));
+  byDay.forEach((d, i) => ctx.lineTo(xPos(i), yPos(d.pipelineCoveragePct)));
+  ctx.lineTo(xPos(byDay.length - 1), yPos(100));
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(245,158,11,0.25)';
+  ctx.fill();
+
+  // Dividing line between pipeline and interactive
+  ctx.strokeStyle = '#6366F1'; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  byDay.forEach((d, i) => {
+    const x = xPos(i), y = yPos(d.pipelineCoveragePct);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // X labels
+  ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
+  ctx.font = '500 9px Inter, system-ui';
+  const step = Math.max(1, Math.floor(byDay.length / 6));
+  byDay.forEach((d, i) => {
+    if (i % step === 0 || i === byDay.length - 1) {
+      ctx.fillText(formatDate(d.date), xPos(i), chartH + 18);
+    }
+  });
+
+  // Legend (inline, small)
+  ctx.font = '600 9px Inter, system-ui';
+  const legendY = 10;
+  ctx.fillStyle = 'rgba(99,102,241,0.5)';
+  ctx.fillRect(startX, legendY - 5, 8, 8);
+  ctx.fillStyle = '#6366F1'; ctx.textAlign = 'left';
+  ctx.fillText('Pipeline', startX + 11, legendY + 2);
+  ctx.fillStyle = 'rgba(245,158,11,0.4)';
+  ctx.fillRect(startX + 65, legendY - 5, 8, 8);
+  ctx.fillStyle = '#F59E0B';
+  ctx.fillText('Interactive', startX + 76, legendY + 2);
+}
+
 function renderEfficiencyTrends() {
   const se = FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency);
   const byDay = (se && se.efficiencyByDay) || [];
@@ -2585,9 +2669,7 @@ function renderEfficiencyTrends() {
     byDay.map(d => ({ date: d.date, value: d.tokensPerQuery / 1000 })),
     { color: '#F43F5E', targetValue: 50, targetLabel: 'Target: 50K', lowerIsBetter: true });
 
-  renderEfficiencyTrendChart('trendPipelineChart',
-    byDay.map(d => ({ date: d.date, value: d.pipelineCoveragePct })),
-    { color: '#6366F1', targetValue: 40, targetLabel: 'Target: 40%', lowerIsBetter: false });
+  renderPipelineStackedChart(byDay);
 
   renderEfficiencyTrendChart('trendShortChart',
     byDay.map(d => ({ date: d.date, value: d.shortSessionPct })),
