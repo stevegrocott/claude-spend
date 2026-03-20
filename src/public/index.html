@@ -2261,12 +2261,23 @@ function renderQualitySection() {
         <h3 style="font-size:14px;margin:0 0 12px">Churners</h3>
         ${churnerHtml || '<div style="font-size:12px;color:var(--text-tertiary)">No churners detected</div>'}
       </div>
+    </div>
+    <div style="margin-bottom:16px">
+      <div class="chart-card" style="padding:16px">
+        <h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 12px;display:inline-block">Story Point Velocity<div class="tooltip">Daily story points completed (left axis, green) and cumulative story points over time (right axis, purple). Based on task size markers: S=1pt, M=3pts, L=5pts.</div></h3>
+        <canvas id="velocityChart"></canvas>
+        <div class="legend" style="margin-top:8px">
+          <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div> Daily SP completed</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#A855F7"></div> Cumulative SP</div>
+        </div>
+      </div>
     </div>`;
   requestAnimationFrame(() => {
     const qualityDateRange = getLensDateRange();
     renderMiniTimeSeries('qualityCompletionChart', completionData, { color: '#10B981', format: v => Math.round(v) + '%', dateRange: qualityDateRange });
     renderMiniTimeSeries('qualityIterChart', qualityData, { color: '#F59E0B', format: v => Number(v.toFixed(1)) + '', dateRange: qualityDateRange });
     renderMiniTimeSeries('testIterChart', testData, { color: '#6366F1', format: v => Number(v.toFixed(1)) + '', dateRange: qualityDateRange });
+    renderVelocityChart();
   });
 }
 
@@ -2844,6 +2855,98 @@ function renderContextOverheadChart() {
     if (i % step === 0 || i === days.length - 1) {
       const x = startX + (i / Math.max(1, days.length - 1)) * plotW;
       ctx.fillText(formatDate(d.date), x, chartH + 24);
+    }
+  });
+}
+
+// Story Point Velocity dual-axis line chart (Quality/Pipeline lens)
+function renderVelocityChart() {
+  const canvas = document.getElementById('velocityChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const orch = FILTERED.orchestrator || (DATA && DATA.orchestrator);
+  if (!orch || !orch.summary) return;
+  const data = orch.summary.velocityByDay || [];
+  if (!data.length) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 48;
+  const h = 200;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const chartH = h - 36;
+  const startX = 48;   // left margin for green (daily SP) axis labels
+  const endX = w - 40; // right margin for purple (cumulative) axis labels
+  const plotW = endX - startX;
+
+  const maxSP = Math.max(...data.map(d => d.spCompleted), 1);
+  const maxCumulative = Math.max(...data.map(d => d.cumulative), 1);
+
+  ctx.font = '500 10px Inter, system-ui';
+
+  // Left axis grid + labels (green, daily SP completed)
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = (maxSP / 4) * i;
+    const y = chartH - (chartH * i / 4) + 8;
+    ctx.fillStyle = '#10B981';
+    ctx.fillText(Math.round(val), startX - 10, y + 3);
+    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(endX, y); ctx.stroke();
+  }
+
+  // Right axis labels (purple, cumulative SP)
+  ctx.textAlign = 'left';
+  for (let i = 0; i <= 4; i++) {
+    const val = (maxCumulative / 4) * i;
+    const y = chartH - (chartH * i / 4) + 8;
+    ctx.fillStyle = '#A855F7';
+    ctx.fillText(Math.round(val), endX + 6, y + 3);
+  }
+
+  function xPos(i) { return startX + (i / Math.max(1, data.length - 1)) * plotW; }
+  function yLeft(val) { return chartH + 8 - (val / maxSP) * chartH; }
+  function yRight(val) { return chartH + 8 - (val / maxCumulative) * chartH; }
+
+  // Daily SP completed line (green, left axis)
+  ctx.strokeStyle = '#10B981'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  data.forEach((d, i) => {
+    const x = xPos(i), y = yLeft(d.spCompleted);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  data.forEach((d, i) => {
+    ctx.fillStyle = '#10B981';
+    ctx.beginPath(); ctx.arc(xPos(i), yLeft(d.spCompleted), 3, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // Cumulative SP line (purple, right axis)
+  ctx.strokeStyle = '#A855F7'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  data.forEach((d, i) => {
+    const x = xPos(i), y = yRight(d.cumulative);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  data.forEach((d, i) => {
+    ctx.fillStyle = '#A855F7';
+    ctx.beginPath(); ctx.arc(xPos(i), yRight(d.cumulative), 3, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // X labels
+  ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
+  ctx.font = '500 10px Inter, system-ui';
+  const step = Math.max(1, Math.floor(data.length / 7));
+  data.forEach((d, i) => {
+    if (i % step === 0 || i === data.length - 1) {
+      ctx.fillText(formatDate(d.date), xPos(i), chartH + 24);
     }
   });
 }
