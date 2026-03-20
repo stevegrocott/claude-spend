@@ -1746,14 +1746,44 @@ function renderInsights() {
     ],
   };
 
-  // Velocity stats pills for quality lens (pipeline story point throughput)
-  const orchForVelocity = FILTERED.orchestrator || (DATA && DATA.orchestrator);
-  const vs = orchForVelocity && orchForVelocity.summary && orchForVelocity.summary.velocityStats;
-  if (vs) {
+  // PP/MT stats pills for quality lens (pipeline productivity)
+  const orchForPPMT = FILTERED.orchestrator || (DATA && DATA.orchestrator);
+  const ppmtA = orchForPPMT && orchForPPMT.summary && orchForPPMT.summary.ppmtAnalysis;
+  if (ppmtA) {
+    // Current PP/MT from latest ppmtByDay entry with non-zero value
+    const ppmtDays = (ppmtA.ppmtByDay || []).filter(d => d.ppmt > 0);
+    const latestPPMT = ppmtDays.length > 0 ? ppmtDays[ppmtDays.length - 1].ppmt : null;
+
+    // Trend: compare avg PP/MT of recent 3 active days vs prior 3 active days
+    let trendArrow = '→';
+    if (ppmtDays.length >= 2) {
+      const recentDays = ppmtDays.slice(-3);
+      const priorDays = ppmtDays.slice(-6, -3);
+      if (recentDays.length > 0 && priorDays.length > 0) {
+        const recentAvg = recentDays.reduce((s, d) => s + d.ppmt, 0) / recentDays.length;
+        const priorAvg = priorDays.reduce((s, d) => s + d.ppmt, 0) / priorDays.length;
+        if (recentAvg > priorAvg * 1.05) trendArrow = '↑';
+        else if (recentAvg < priorAvg * 0.95) trendArrow = '↓';
+      }
+    }
+
+    // Yield %: total SP completed / total SP attempted across all projects
+    const py = ppmtA.projectYield || [];
+    const totalSpCompleted = py.reduce((s, p) => s + (p.spCompleted || 0), 0);
+    const totalSpTotal = py.reduce((s, p) => s + (p.spTotal || 0), 0);
+    const yieldPct = totalSpTotal > 0 ? Math.round((totalSpCompleted / totalSpTotal) * 100) : null;
+
+    // Top waste category: largest failure type from failureBreakdown
+    const fb = ppmtA.failureBreakdown || {};
+    const wasteLabels = { parse_failure: 'parse fail', error: 'error', max_iterations_pr_review: 'max iterations', stuck_running: 'stuck', other: 'other' };
+    const wasteEntries = Object.entries(fb).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a);
+    const topWaste = wasteEntries.length > 0 ? wasteEntries[0] : null;
+
     lensStats.quality.push(
-      { label: 'SP/week avg', value: vs.avgSPPerWeek != null ? String(Math.round(vs.avgSPPerWeek)) : '—', sub: 'story points', tip: 'Average story points completed per week, weighted by task size (S=1, M=3, L=5)' },
-      { label: 'SP completed', value: vs.completedSP != null ? String(vs.completedSP) : '—', sub: 'story points', tip: 'Total story points completed across all pipeline runs' },
-      { label: 'SP total', value: vs.totalSP != null ? String(vs.totalSP) : '—', sub: 'story points', tip: 'Total story points across all tasks (completed + pending)' },
+      { label: 'Current PP/MT', value: latestPPMT != null ? latestPPMT.toFixed(2) : '—', sub: 'pts per M tokens', tip: 'Story points completed per million tokens on the most recent active day — higher is better' },
+      { label: 'PP/MT trend', value: trendArrow, sub: 'recent 3d vs prior 3d', tip: 'Trend in PP/MT: ↑ improving, ↓ declining, → stable (comparing last 3 active days vs prior 3)' },
+      { label: 'Yield', value: yieldPct != null ? yieldPct + '%' : '—', sub: 'SP completed', tip: 'Percentage of story points completed vs attempted across all pipeline runs' },
+      { label: 'Top waste', value: topWaste ? (wasteLabels[topWaste[0]] || topWaste[0]) : '—', sub: topWaste ? String(topWaste[1]) + ' runs' : 'none', tip: 'Most common failure category by run count — the biggest source of pipeline waste' },
     );
   }
 
