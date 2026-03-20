@@ -748,6 +748,87 @@
     font-size: 15px; color: var(--text-secondary); font-weight: 500;
     max-width: 600px; margin: 0 auto; line-height: 1.7;
   }
+
+  /* ---- HERO PP/100MT ---- */
+  .hero-ppmt {
+    text-align: center; margin-bottom: 36px; padding: 24px 20px;
+    background: var(--white); border-radius: var(--radius);
+    border: 1px solid var(--border); box-shadow: var(--shadow-md);
+  }
+  .hero-ppmt-value {
+    font-size: 64px; font-weight: 800; letter-spacing: -3px;
+    background: var(--gradient-main); -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent; background-clip: text;
+    line-height: 1.1; margin-bottom: 4px;
+    display: inline-flex; align-items: baseline; gap: 12px;
+  }
+  .hero-ppmt-trend {
+    font-size: 22px; letter-spacing: 0;
+    -webkit-text-fill-color: initial; background: none;
+    -webkit-background-clip: initial; background-clip: initial;
+  }
+  .hero-ppmt-trend.up { color: #059669; }
+  .hero-ppmt-trend.down { color: #DC2626; }
+  .hero-ppmt-trend.flat { color: var(--text-tertiary); }
+  .hero-ppmt-label {
+    font-size: 14px; font-weight: 600; color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;
+  }
+  .hero-ppmt-sub {
+    font-size: 13px; color: var(--text-tertiary); font-weight: 500;
+    margin-top: 8px;
+  }
+
+  /* ---- SECTION EXPLAINER ---- */
+  .section-explainer {
+    font-size: 13px; color: var(--text-tertiary); font-weight: 500;
+    margin: -8px 0 20px; line-height: 1.5;
+  }
+
+  /* ---- DRIVER CHARTS ---- */
+  .drivers-section { margin-bottom: 32px; }
+  .drivers-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 800px) { .drivers-grid { grid-template-columns: 1fr; } }
+  .driver-card {
+    background: var(--white); border-radius: var(--radius);
+    padding: 20px 24px; border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+  }
+  .driver-card h3 {
+    font-size: 13px; font-weight: 700; color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;
+  }
+  .driver-card .driver-explainer {
+    font-size: 12px; color: var(--text-tertiary); font-weight: 500;
+    line-height: 1.5; margin-bottom: 14px;
+  }
+  .driver-card canvas { display: block; }
+  .driver-stat {
+    display: flex; align-items: baseline; gap: 16px;
+    justify-content: center; padding: 20px 0;
+  }
+  .driver-stat-item { text-align: center; }
+  .driver-stat-value {
+    font-size: 36px; font-weight: 800; letter-spacing: -1.5px; line-height: 1;
+  }
+  .driver-stat-label {
+    font-size: 12px; font-weight: 600; color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;
+  }
+  .driver-stat-vs {
+    font-size: 20px; font-weight: 700; color: var(--text-tertiary);
+  }
+
+  /* ---- DASHBOARD FOOTER ---- */
+  .dashboard-footer {
+    text-align: center; padding: 20px;
+    font-size: 13px; color: var(--text-tertiary); font-weight: 500;
+    line-height: 1.7; max-width: 700px; margin: 0 auto 16px;
+    border-top: 1px solid var(--border);
+  }
 </style>
 </head>
 <body>
@@ -785,21 +866,53 @@
     </div>
   </div>
 
-  <!-- Value proposition -->
-  <div class="hero-section animate delay-1">
-    <h2 class="hero-title">Your Claude Code usage, visualized.</h2>
-    <p class="hero-subtitle">See where your tokens actually go.</p>
-  </div>
+  <!-- Hero PP/100MT -->
+  <div id="heroPPMT" class="hero-ppmt animate delay-1"></div>
 
-  <div id="pipelineRecs-quality"></div>
-
-  <!-- Points per Token chart -->
+  <!-- PP/100MT Line Chart -->
   <div style="margin-bottom:32px">
     <div class="chart-card" style="padding:16px">
-      <h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 12px;display:inline-block">Points per Token<div class="tooltip">Story points completed per million tokens consumed each day. Higher means more efficient use of tokens to deliver completed work.</div></h3>
+      <h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 12px;display:inline-block">PP/100MT Over Time<div class="tooltip">Completed story points per 100 million pipeline tokens each day. Higher means more efficient pipeline usage.</div></h3>
       <canvas id="spPerTokenChart"></canvas>
       <div class="legend" style="margin-top:8px">
-        <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div> SP / million tokens</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#6366F1"></div> PP / 100M pipeline tokens</div>
+      </div>
+    </div>
+    <p class="section-explainer">Daily efficiency trend using only pipeline tokens as the denominator.</p>
+  </div>
+
+  <!-- Efficiency Recommendations -->
+  <div id="pipelineRecs-quality"></div>
+
+  <!-- What Drives Your Score -->
+  <div class="drivers-section animate delay-3">
+    <div class="section-header">
+      <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+      </div>
+      <div class="section-title">What Drives Your Score</div>
+    </div>
+    <p class="section-explainer">These four factors explain most of the variance in your PP/100MT.</p>
+    <div class="drivers-grid">
+      <div class="driver-card">
+        <h3>Yield % Trend</h3>
+        <div class="driver-explainer">What percentage of attempted story points actually complete. The single strongest predictor of PP/100MT.</div>
+        <canvas id="yieldTrendChart"></canvas>
+      </div>
+      <div class="driver-card">
+        <h3>Task Size Completion</h3>
+        <div class="driver-explainer">S tasks complete 2.6x more often than M tasks. Splitting M-to-S is the highest-leverage change.</div>
+        <canvas id="taskSizeChart"></canvas>
+      </div>
+      <div class="driver-card">
+        <h3>Failure Breakdown</h3>
+        <div class="driver-explainer">Where your tokens go to die. Parse failures are 100% waste -- zero points, full token cost.</div>
+        <canvas id="failureChart"></canvas>
+      </div>
+      <div class="driver-card">
+        <h3>Task Count vs Outcome</h3>
+        <div class="driver-explainer">Issues with 5+ tasks fail ~70% of the time. Keep issues to 2-3 tasks.</div>
+        <div id="taskCountStat" class="driver-stat"></div>
       </div>
     </div>
   </div>
@@ -819,6 +932,7 @@
           <tr>
             <th>Project</th>
             <th style="text-align:right">Total Tokens</th>
+            <th style="text-align:right" class="has-tooltip has-tooltip-below">PP/100MT<div class="tooltip">Completed story points per 100M pipeline tokens for this project. Higher is more efficient.</div></th>
             <th style="text-align:right">Sessions</th>
             <th style="text-align:right">Queries</th>
           </tr>
@@ -879,6 +993,10 @@
         <tbody id="sessionsBody"></tbody>
       </table>
     </div>
+  </div>
+
+  <div class="dashboard-footer">
+    PP/100MT measures completed story points per 100M pipeline tokens. Charts above explain factors that move this number. Recommendations tell you what to change. Non-pipeline session analysis is in the Session Efficiency section.
   </div>
 
   <div class="footer">
@@ -1198,9 +1316,15 @@ function applyDateFilter() {
     }
     flushPrompt();
   });
+  // Build pp100mt lookup from original data
+  const origPP100MT = {};
+  if (DATA.projectBreakdown) {
+    DATA.projectBreakdown.forEach(p => { origPP100MT[p.project] = p.pp100mt || 0; });
+  }
   const projectBreakdown = Object.values(projMap).map(p => ({
     project: p.project, inputTokens: p.inputTokens, outputTokens: p.outputTokens, totalTokens: p.totalTokens,
     sessionCount: p.sessionCount, queryCount: p.queryCount,
+    pp100mt: origPP100MT[p.project] || 0,
     modelBreakdown: Object.values(p.modelMap).sort((a, b) => b.totalTokens - a.totalTokens),
     topPrompts: p.allPrompts.sort((a, b) => b.totalTokens - a.totalTokens).slice(0, 10),
   })).sort((a, b) => b.totalTokens - a.totalTokens);
@@ -1255,36 +1379,76 @@ function render() {
   if (!FILTERED) return;
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'block';
-  renderPPMTRecommendations();
+  renderHeroPPMT();
   renderSPPerTokenChart();
+  renderPPMTRecommendations();
+  renderDriverCharts();
   renderProjectBreakdown();
   renderTopPrompts();
   renderSessions();
 }
 
-// Points per Token chart — SP completed per million tokens by day
+// Hero PP/100MT — single large number with trend arrow
+function renderHeroPPMT() {
+  const container = document.getElementById('heroPPMT');
+  if (!container) return;
+
+  const orch = FILTERED.orchestrator || (DATA && DATA.orchestrator);
+  if (!orch || !orch.summary || !orch.summary.ppmtAnalysis) {
+    container.innerHTML = '<div class="hero-section"><h2 class="hero-title">Your Claude Code usage, visualized.</h2><p class="hero-subtitle">See where your tokens actually go.</p></div>';
+    return;
+  }
+
+  const analysis = orch.summary.ppmtAnalysis;
+  const pipelineTokens = analysis.pipelineTokens || 0;
+  const completedSP = (orch.summary.velocityStats && orch.summary.velocityStats.completedSP) || 0;
+  const overallPP100MT = pipelineTokens > 0
+    ? Math.round((completedSP / (pipelineTokens / 100_000_000)) * 100) / 100
+    : 0;
+
+  // Trend: last 3 days vs prior 3 days
+  const byDay = analysis.ppmtByDay || [];
+  const daysWithData = byDay.filter(d => d.pp100mt > 0);
+  let trendClass = 'flat';
+  let trendArrow = '--';
+  if (daysWithData.length >= 6) {
+    const recent3 = daysWithData.slice(-3).reduce((s, d) => s + d.pp100mt, 0) / 3;
+    const prior3 = daysWithData.slice(-6, -3).reduce((s, d) => s + d.pp100mt, 0) / 3;
+    if (recent3 > prior3 * 1.05) { trendClass = 'up'; trendArrow = '\u2191'; }
+    else if (recent3 < prior3 * 0.95) { trendClass = 'down'; trendArrow = '\u2193'; }
+    else { trendClass = 'flat'; trendArrow = '\u2192'; }
+  } else if (daysWithData.length >= 2) {
+    const last = daysWithData[daysWithData.length - 1].pp100mt;
+    const prev = daysWithData[daysWithData.length - 2].pp100mt;
+    if (last > prev * 1.05) { trendClass = 'up'; trendArrow = '\u2191'; }
+    else if (last < prev * 0.95) { trendClass = 'down'; trendArrow = '\u2193'; }
+  }
+
+  container.innerHTML = [
+    '<div class="hero-ppmt-label">Points per 100M Pipeline Tokens</div>',
+    '<div class="hero-ppmt-value">' + overallPP100MT.toFixed(2) + '<span class="hero-ppmt-trend ' + trendClass + '">' + trendArrow + '</span></div>',
+    '<div class="hero-ppmt-sub">' + completedSP + ' SP completed \u00B7 ' + fmt(pipelineTokens) + ' pipeline tokens</div>',
+  ].join('');
+}
+
+// Points per Token chart — PP/100MT by day using pipeline tokens
 function renderSPPerTokenChart() {
   const canvas = document.getElementById('spPerTokenChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
   const orch = FILTERED.orchestrator || (DATA && DATA.orchestrator);
-  if (!orch || !orch.summary) return;
-  const velocityByDay = orch.summary.velocityByDay || [];
-  const dailyUsage = FILTERED.dailyUsage || [];
+  if (!orch || !orch.summary || !orch.summary.ppmtAnalysis) return;
+  const ppmtByDay = orch.summary.ppmtAnalysis.ppmtByDay || [];
 
-  // Build token lookup by date
-  const tokensByDate = {};
-  dailyUsage.forEach(d => { tokensByDate[d.date] = d.totalTokens || 0; });
-
-  // Join: only days that have both SP and token data, with tokens > 0
-  const data = velocityByDay
-    .filter(d => tokensByDate[d.date] && tokensByDate[d.date] > 0)
+  // Use ppmtByDay directly — filter to days with data
+  const data = ppmtByDay
+    .filter(d => d.totalTokens > 0 || d.spCompleted > 0)
     .map(d => ({
       date: d.date,
-      spPerMToken: (d.spCompleted / tokensByDate[d.date]) * 1e6,
+      pp100mt: d.pp100mt,
       sp: d.spCompleted,
-      tokens: tokensByDate[d.date],
+      tokens: d.totalTokens,
     }));
 
   if (!data.length) return;
@@ -1301,7 +1465,7 @@ function renderSPPerTokenChart() {
   const startX = 48;
   const plotW = w - startX - 8;
 
-  const maxVal = Math.max(...data.map(d => d.spPerMToken), 0.01);
+  const maxVal = Math.max(...data.map(d => d.pp100mt), 0.01);
 
   // Grid + left axis labels
   ctx.font = '500 10px Inter, system-ui';
@@ -1309,7 +1473,7 @@ function renderSPPerTokenChart() {
   for (let i = 0; i <= 4; i++) {
     const val = (maxVal / 4) * i;
     const y = chartH - (chartH * i / 4) + 8;
-    ctx.fillStyle = '#F59E0B';
+    ctx.fillStyle = '#6366F1';
     ctx.fillText(val < 1 ? val.toFixed(2) : val.toFixed(1), startX - 10, y + 3);
     ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w, y); ctx.stroke();
@@ -1319,18 +1483,18 @@ function renderSPPerTokenChart() {
   function yPos(val) { return chartH + 8 - (val / maxVal) * chartH; }
 
   // Line
-  ctx.strokeStyle = '#F59E0B'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#6366F1'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
   ctx.beginPath();
   data.forEach((d, i) => {
-    const x = xPos(i), y = yPos(d.spPerMToken);
+    const x = xPos(i), y = yPos(d.pp100mt);
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   });
   ctx.stroke();
 
   // Dots
-  ctx.fillStyle = '#F59E0B';
+  ctx.fillStyle = '#6366F1';
   data.forEach((d, i) => {
-    ctx.beginPath(); ctx.arc(xPos(i), yPos(d.spPerMToken), 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(xPos(i), yPos(d.pp100mt), 3, 0, Math.PI * 2); ctx.fill();
   });
 
   // X labels
@@ -1342,6 +1506,227 @@ function renderSPPerTokenChart() {
       ctx.fillText(formatDate(d.date), xPos(i), chartH + 24);
     }
   });
+}
+
+// Driver charts — 4 charts explaining PP/100MT factors
+function renderDriverCharts() {
+  const orch = FILTERED.orchestrator || (DATA && DATA.orchestrator);
+  if (!orch || !orch.summary) return;
+  const summary = orch.summary;
+  const analysis = summary.ppmtAnalysis || {};
+
+  // (a) Yield % Trend — green line chart
+  renderYieldTrendChart(summary.yieldByDay || []);
+
+  // (b) Task Size Completion — grouped bar chart
+  renderTaskSizeChart(analysis.taskSizeCompletion || {});
+
+  // (c) Failure Breakdown — horizontal bar chart
+  renderFailureChart(analysis.failureBreakdown || {});
+
+  // (d) Task Count vs Outcome — comparison stat
+  renderTaskCountStat(analysis.taskCountCorrelation || {});
+}
+
+function renderYieldTrendChart(yieldByDay) {
+  const canvas = document.getElementById('yieldTrendChart');
+  if (!canvas || !yieldByDay.length) return;
+  const ctx = canvas.getContext('2d');
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 48;
+  const h = 140;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const chartH = h - 30;
+  const startX = 36;
+  const plotW = w - startX - 8;
+  const maxVal = 100;
+
+  // Grid
+  ctx.font = '500 10px Inter, system-ui';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = (maxVal / 4) * i;
+    const y = chartH - (chartH * i / 4) + 4;
+    ctx.fillStyle = '#10B981';
+    ctx.fillText(val + '%', startX - 6, y + 3);
+    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+
+  function xPos(i) { return startX + (i / Math.max(1, yieldByDay.length - 1)) * plotW; }
+  function yPos(val) { return chartH + 4 - (val / maxVal) * chartH; }
+
+  // Line
+  ctx.strokeStyle = '#10B981'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  yieldByDay.forEach((d, i) => {
+    const x = xPos(i), y = yPos(d.yieldPct);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Dots
+  ctx.fillStyle = '#10B981';
+  yieldByDay.forEach((d, i) => {
+    ctx.beginPath(); ctx.arc(xPos(i), yPos(d.yieldPct), 2.5, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // X labels
+  ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
+  const step = Math.max(1, Math.floor(yieldByDay.length / 5));
+  yieldByDay.forEach((d, i) => {
+    if (i % step === 0 || i === yieldByDay.length - 1) {
+      ctx.fillText(formatDate(d.date), xPos(i), chartH + 18);
+    }
+  });
+}
+
+function renderTaskSizeChart(taskSize) {
+  const canvas = document.getElementById('taskSizeChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const sizes = ['S', 'M', 'L'];
+  const hasData = sizes.some(s => taskSize[s] && taskSize[s].total > 0);
+  if (!hasData) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 48;
+  const h = 140;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const chartH = h - 36;
+  const barGroupW = (w - 40) / sizes.length;
+  const barW = 24;
+  const gap = 4;
+  const maxVal = Math.max(...sizes.map(s => (taskSize[s] || {}).total || 0), 1);
+
+  sizes.forEach((size, i) => {
+    const data = taskSize[size] || { completed: 0, total: 0 };
+    const groupX = 20 + i * barGroupW + barGroupW / 2;
+
+    // Total bar (background)
+    const totalH = (data.total / maxVal) * chartH;
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    ctx.beginPath();
+    ctx.fillRect(groupX - barW - gap / 2, chartH - totalH + 4, barW, totalH);
+
+    // Completed bar
+    const compH = (data.completed / maxVal) * chartH;
+    ctx.fillStyle = '#6366F1';
+    ctx.beginPath();
+    ctx.fillRect(groupX + gap / 2, chartH - compH + 4, barW, compH);
+
+    // Labels
+    ctx.fillStyle = '#475569'; ctx.textAlign = 'center';
+    ctx.font = '700 12px Inter, system-ui';
+    ctx.fillText(size, groupX, chartH + 20);
+
+    // Counts on top of bars
+    ctx.font = '600 10px Inter, system-ui';
+    ctx.fillStyle = '#94A3B8';
+    ctx.fillText(data.total, groupX - barW / 2 - gap / 2, chartH - totalH - 2);
+    ctx.fillStyle = '#6366F1';
+    ctx.fillText(data.completed, groupX + barW / 2 + gap / 2, chartH - compH - 2);
+  });
+
+  // Legend
+  ctx.font = '500 10px Inter, system-ui';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(0,0,0,0.06)';
+  ctx.fillRect(w - 130, chartH + 14, 8, 8);
+  ctx.fillStyle = '#94A3B8';
+  ctx.fillText('Total', w - 118, chartH + 22);
+  ctx.fillStyle = '#6366F1';
+  ctx.fillRect(w - 70, chartH + 14, 8, 8);
+  ctx.fillText('Done', w - 58, chartH + 22);
+}
+
+function renderFailureChart(breakdown) {
+  const canvas = document.getElementById('failureChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const items = [
+    { key: 'parse_failure', label: 'Parse Failure', color: '#EF4444' },
+    { key: 'max_iterations_pr_review', label: 'Max Iterations', color: '#F59E0B' },
+    { key: 'error', label: 'Error', color: '#F97316' },
+    { key: 'running', label: 'Still Running', color: '#94A3B8' },
+    { key: 'other', label: 'Other', color: '#CBD5E1' },
+  ].map(item => ({ ...item, count: breakdown[item.key] || 0 }))
+   .filter(item => item.count > 0);
+
+  if (!items.length) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 48;
+  const h = 140;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const maxCount = Math.max(...items.map(i => i.count), 1);
+  const barH = 18;
+  const gap = 8;
+  const labelW = 100;
+  const barArea = w - labelW - 50;
+  const startY = 10;
+
+  items.forEach((item, i) => {
+    const y = startY + i * (barH + gap);
+    const barW = (item.count / maxCount) * barArea;
+
+    // Label
+    ctx.fillStyle = '#475569';
+    ctx.font = '500 11px Inter, system-ui';
+    ctx.textAlign = 'right';
+    ctx.fillText(item.label, labelW - 8, y + barH / 2 + 4);
+
+    // Bar
+    ctx.fillStyle = item.color;
+    ctx.beginPath();
+    ctx.fillRect(labelW, y, Math.max(barW, 4), barH);
+
+    // Count
+    ctx.fillStyle = '#475569';
+    ctx.textAlign = 'left';
+    ctx.font = '700 11px Inter, system-ui';
+    ctx.fillText(item.count, labelW + barW + 8, y + barH / 2 + 4);
+  });
+}
+
+function renderTaskCountStat(correlation) {
+  const container = document.getElementById('taskCountStat');
+  if (!container) return;
+
+  const completedAvg = correlation.completedAvg || 0;
+  const failedAvg = correlation.failedAvg || 0;
+  const optimal = (correlation.optimalRange || []).join('-') || '2-3';
+
+  container.innerHTML = [
+    '<div class="driver-stat-item">',
+    '<div class="driver-stat-value" style="color:#10B981">' + completedAvg + '</div>',
+    '<div class="driver-stat-label">Avg tasks<br>(completed)</div>',
+    '</div>',
+    '<div class="driver-stat-vs">vs</div>',
+    '<div class="driver-stat-item">',
+    '<div class="driver-stat-value" style="color:#EF4444">' + failedAvg + '</div>',
+    '<div class="driver-stat-label">Avg tasks<br>(failed)</div>',
+    '</div>',
+    '<div class="driver-stat-item" style="margin-left:8px">',
+    '<div class="driver-stat-value" style="color:var(--text-secondary);font-size:20px">' + optimal + '</div>',
+    '<div class="driver-stat-label">Optimal<br>range</div>',
+    '</div>',
+  ].join('');
 }
 
 // Project accordion
@@ -1418,13 +1803,14 @@ function renderProjectBreakdown() {
       '<div style="flex:1;max-width:60px;height:3px;background:var(--bg);border-radius:4px;overflow:hidden">',
       '<div style="width:' + barPct + '%;height:100%;background:var(--indigo);border-radius:4px"></div>',
       '</div><div><div>' + fmt(p.totalTokens) + '</div><div style="font-size:11px;font-weight:500;color:var(--text-tertiary);margin-top:1px">' + fmt(p.inputTokens) + ' in\u00a0\u00b7\u00a0' + fmt(p.outputTokens) + ' out</div></div></div></td>',
+      '<td class="token-num" style="vertical-align:top;padding-top:12px">' + (p.pp100mt != null ? p.pp100mt.toFixed(2) : '--') + '</td>',
       '<td class="token-num" style="vertical-align:top;padding-top:12px">' + p.sessionCount + '</td>',
       '<td class="token-num" style="vertical-align:top;padding-top:12px">' + p.queryCount + '</td>',
       '</tr>',
     ].join('');
     const drawerRow = [
       '<tr class="proj-drawer" id="proj-drawer-' + i + '">',
-      '<td colspan="4"><div class="proj-drawer-inner"><div class="proj-drawer-content">',
+      '<td colspan="5"><div class="proj-drawer-inner"><div class="proj-drawer-content">',
       buildDrawerContent(p),
       '</div></div></td></tr>',
     ].join('');
@@ -1564,7 +1950,7 @@ function closeDrilldown() {
 }
 
 fetchData();
-window.addEventListener('resize', () => { if (FILTERED) { renderSPPerTokenChart(); } });
+window.addEventListener('resize', () => { if (FILTERED) { renderSPPerTokenChart(); renderDriverCharts(); } });
 </script>
 </body>
 </html>
