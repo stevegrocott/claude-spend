@@ -1369,6 +1369,83 @@ function recomputeOrchestratorSummary(runs) {
   };
 }
 
+// Client-side recompute of ppmtAnalysis from filtered runs + session efficiency
+function recomputePpmtAnalysis(runs, sessionEff) {
+  const validRuns = runs.filter(r => r.state !== 'initializing');
+
+  // taskSizeCompletion
+  const taskSizeCompletion = { S: { completed: 0, failed: 0, total: 0, rate: 0 }, M: { completed: 0, failed: 0, total: 0, rate: 0 }, L: { completed: 0, failed: 0, total: 0, rate: 0 } };
+  for (const run of validRuns) {
+    const ts = run.taskSummary; if (!ts) continue;
+    for (const size of ['S', 'M', 'L']) {
+      taskSizeCompletion[size].completed += (ts.completed && ts.completed[size]) || 0;
+      taskSizeCompletion[size].failed += (ts.failed && ts.failed[size]) || 0;
+    }
+  }
+  for (const size of ['S', 'M', 'L']) { const s = taskSizeCompletion[size]; s.total = s.completed + s.failed; s.rate = s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0; }
+
+  // failureBreakdown
+  const failureBreakdown = { parse_failure: 0, error: 0, max_iterations_pr_review: 0, running: 0, other: 0 };
+  for (const run of validRuns) {
+    if (run.state === 'error' && run.taskCount === 0) failureBreakdown.parse_failure++;
+    else if (run.state === 'error') failureBreakdown.error++;
+    else if (run.state === 'max_iterations_pr_review') failureBreakdown.max_iterations_pr_review++;
+    else if (run.state === 'running') failureBreakdown.running++;
+    else if (run.state !== 'completed') failureBreakdown.other++;
+  }
+
+  // taskCountCorrelation
+  const completedRuns = validRuns.filter(r => r.state === 'completed');
+  const failedRuns = validRuns.filter(r => r.state !== 'completed');
+  const completedAvg = completedRuns.length > 0 ? Math.round(completedRuns.reduce((s, r) => s + r.taskCount, 0) / completedRuns.length) : 0;
+  const failedAvg = failedRuns.length > 0 ? Math.round(failedRuns.reduce((s, r) => s + r.taskCount, 0) / failedRuns.length) : 0;
+  const countBuckets = {};
+  for (const run of validRuns) { const b = Math.floor(run.taskCount / 2) * 2; if (!countBuckets[b]) countBuckets[b] = { completed: 0, total: 0 }; countBuckets[b].total++; if (run.state === 'completed') countBuckets[b].completed++; }
+  const bestBucket = Object.entries(countBuckets).filter(([, v]) => v.total >= 5).map(([k, v]) => ({ start: Number(k), rate: v.completed / v.total })).sort((a, b) => b.rate - a.rate)[0];
+  const optimalRange = bestBucket ? [bestBucket.start, bestBucket.start + 1] : [];
+  const taskCountCorrelation = { completedAvg, failedAvg, optimalRange };
+
+  // escalationCorrelation
+  const escBuckets = { '0': { completed: 0, total: 0 }, '1-2': { completed: 0, total: 0 }, '3-5': { completed: 0, total: 0 }, '6+': { completed: 0, total: 0 } };
+  for (const run of validRuns) {
+    const count = (run.escalations || []).length;
+    const bucket = count === 0 ? '0' : count <= 2 ? '1-2' : count <= 5 ? '3-5' : '6+';
+    escBuckets[bucket].total++; if (run.state === 'completed') escBuckets[bucket].completed++;
+  }
+  const escalationCorrelation = {};
+  for (const [key, val] of Object.entries(escBuckets)) { escalationCorrelation[key] = { total: val.total, completed: val.completed, completionRate: val.total > 0 ? Math.round((val.completed / val.total) * 100) : 0 }; }
+
+  // topEscalationStages
+  const stageCounts = {};
+  for (const run of validRuns) { for (const esc of run.escalations || []) { if (esc.stage) stageCounts[esc.stage] = (stageCounts[esc.stage] || 0) + 1; } }
+  const topEscalationStages = Object.entries(stageCounts).map(([stage, count]) => ({ stage, count })).sort((a, b) => b.count - a.count).slice(0, 5);
+
+  // projectYield
+  const projectMap = {};
+  for (const run of validRuns) { if (!run.project) continue; if (!projectMap[run.project]) projectMap[run.project] = { spCompleted: 0, spTotal: 0 }; const ts = run.taskSummary; if (ts) { projectMap[run.project].spCompleted += ts.storyPointsCompleted || 0; projectMap[run.project].spTotal += ts.storyPointsTotal || 0; } }
+  const projectYield = Object.entries(projectMap).map(([project, data]) => ({ project, spCompleted: data.spCompleted, spTotal: data.spTotal, yieldPct: data.spTotal > 0 ? Math.round((data.spCompleted / data.spTotal) * 100) : 0 })).sort((a, b) => b.spTotal - a.spTotal);
+
+  // ppmtByDay — join run SP with pipeline tokens from efficiencyByDay
+  const dailySP = {};
+  for (const run of validRuns) { if (!run.date || !run.taskSummary) continue; dailySP[run.date] = (dailySP[run.date] || 0) + (run.taskSummary.storyPointsCompleted || 0); }
+  const pipelineTokensByDay = {};
+  for (const d of (sessionEff.efficiencyByDay || [])) { pipelineTokensByDay[d.date] = d.pipelineTokens || 0; }
+  const allDates = new Set([...Object.keys(dailySP), ...Object.keys(pipelineTokensByDay)]);
+  const ppmtByDay = [...allDates].sort().map(date => {
+    const sp = dailySP[date] || 0;
+    const tokens = pipelineTokensByDay[date] || 0;
+    const pp100mt = tokens > 0 ? Math.round((sp / (tokens / 100000000)) * 100) / 100 : 0;
+    return { date, spCompleted: sp, totalTokens: tokens, pp100mt };
+  });
+
+  const totalSP = ppmtByDay.reduce((s, d) => s + d.spCompleted, 0);
+  const totalTokens = ppmtByDay.reduce((s, d) => s + d.totalTokens, 0);
+  const pp100mt = totalTokens > 0 ? Math.round((totalSP / (totalTokens / 100000000)) * 100) / 100 : 0;
+  const pipelineTokens = totalTokens;
+
+  return { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield, ppmtByDay, pp100mt, pipelineTokens };
+}
+
 // Client-side recompute of sessionEfficiency for date-filtered sessions
 function recomputeSessionEfficiency(sessions) {
   const pipeline = { sessions: 0, tokens: 0, queries: 0 };
@@ -1473,7 +1550,7 @@ function recomputeSessionEfficiency(sessions) {
       if ((s.queryCount || 0) <= 20) dayMap[d].shortSessions++;
     }
   }
-  const efficiencyByDay = Object.keys(dayMap).filter(d => dayMap[d].sessions > 0).sort().map(date => {
+  const efficiencyByDay = Object.keys(dayMap).sort().map(date => {
     const dm = dayMap[date];
     return {
       date,
@@ -1482,6 +1559,7 @@ function recomputeSessionEfficiency(sessions) {
       pipelineCoveragePct: (dm.pipelineTokens + dm.tokens) > 0 ? Math.round(dm.pipelineTokens / (dm.pipelineTokens + dm.tokens) * 100) : 0,
       shortSessionPct: dm.sessions > 0 ? Math.round(dm.shortSessions / dm.sessions * 100) : 0,
       sessionCount: dm.sessions,
+      pipelineTokens: dm.pipelineTokens,
     };
   });
 
@@ -1669,15 +1747,20 @@ function applyDateFilter() {
   if (DATA.orchestrator && DATA.orchestrator.runs) {
     const filteredRuns = DATA.orchestrator.runs.filter(r => r.date && r.date >= fromDate && r.date <= toDate);
     const recomputed = recomputeOrchestratorSummary(filteredRuns);
-    // Preserve server-computed fields that can't be recomputed client-side
+    // Preserve server recommendations (depend on full dataset patterns)
     if (DATA.orchestrator.summary) {
       recomputed.recommendations = DATA.orchestrator.summary.recommendations;
-      recomputed.ppmtAnalysis = DATA.orchestrator.summary.ppmtAnalysis;
     }
     filteredOrchestrator = { runs: filteredRuns, summary: recomputed };
   }
 
   const filteredSessionEff = recomputeSessionEfficiency(sessions);
+
+  // Recompute ppmtAnalysis from filtered runs + filtered pipeline tokens
+  if (filteredOrchestrator && filteredOrchestrator.runs) {
+    filteredOrchestrator.summary.ppmtAnalysis = recomputePpmtAnalysis(
+      filteredOrchestrator.runs, filteredSessionEff);
+  }
   FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, orchestrator: filteredOrchestrator, sessionEfficiency: filteredSessionEff };
   render();
 }

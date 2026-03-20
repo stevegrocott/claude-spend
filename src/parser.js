@@ -1698,12 +1698,13 @@ function computeSessionEfficiency(sessions) {
     dayMap[d].tokens += s.totalTokens || 0;
     if ((s.queryCount || 0) <= 20) dayMap[d].shortSessions++;
   }
-  // Add pipeline tokens per day
+  // Add pipeline tokens per day (create entry if needed for pipeline-only days)
   for (const s of sessions) {
     const type = s.sessionType || categorizeSession(s);
     if (type !== 'pipeline_subagent') continue;
     const d = s.date;
-    if (!d || !dayMap[d]) continue;
+    if (!d) continue;
+    if (!dayMap[d]) dayMap[d] = { queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0 };
     dayMap[d].pipelineTokens += s.totalTokens || 0;
   }
   const efficiencyByDay = Object.keys(dayMap).sort().map(date => {
@@ -1715,6 +1716,7 @@ function computeSessionEfficiency(sessions) {
       pipelineCoveragePct: (dm.pipelineTokens + dm.tokens) > 0 ? Math.round(dm.pipelineTokens / (dm.pipelineTokens + dm.tokens) * 100) : 0,
       shortSessionPct: dm.sessions > 0 ? Math.round(dm.shortSessions / dm.sessions * 100) : 0,
       sessionCount: dm.sessions,
+      pipelineTokens: dm.pipelineTokens,
     };
   });
 
