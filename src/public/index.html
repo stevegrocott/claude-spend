@@ -345,6 +345,33 @@
     font-size: 12px; color: #0D9488; font-weight: 500; line-height: 1.4;
   }
 
+  /* ---- SESSION EFFICIENCY ---- */
+  .session-efficiency-section { margin-bottom: 32px; }
+  .token-split-bar {
+    display: flex; height: 28px; border-radius: 6px; overflow: hidden;
+    background: var(--surface); margin: 12px 0 8px;
+  }
+  .token-split-pipeline {
+    background: #6366F1; display: flex; align-items: center;
+    justify-content: center; color: white; font-size: 11px; font-weight: 700;
+    transition: width 0.5s;
+  }
+  .token-split-interactive {
+    background: #F59E0B; display: flex; align-items: center;
+    justify-content: center; color: white; font-size: 11px; font-weight: 700;
+    transition: width 0.5s;
+  }
+  .token-split-legend {
+    display: flex; gap: 16px; flex-wrap: wrap;
+  }
+  .token-split-legend-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; color: var(--text-secondary);
+  }
+  .token-split-legend-dot {
+    width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+  }
+
   /* ---- INSIGHTS ---- */
   .insights-section { margin-bottom: 32px; }
   .insight-card {
@@ -917,6 +944,33 @@
     </div>
   </div>
 
+  <!-- Session Efficiency -->
+  <div class="session-efficiency-section animate delay-4" id="sessionEfficiencySection">
+    <div class="section-header">
+      <div class="section-icon" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      </div>
+      <div class="section-title">Session Efficiency</div>
+    </div>
+    <p class="section-explainer">Tokens spent outside the pipeline don't produce tracked story points. These recommendations help you get more value from interactive sessions.</p>
+
+    <!-- Pipeline vs Interactive token split -->
+    <div class="chart-card" style="padding:16px;margin-bottom:16px">
+      <h3 style="font-size:14px;margin:0 0 2px">Pipeline vs Interactive Token Split</h3>
+      <div id="tokenSplitBar"></div>
+    </div>
+
+    <!-- Session recommendations -->
+    <div id="sessionRecs" style="margin-bottom:16px"></div>
+
+    <!-- Context cost curve -->
+    <div class="chart-card" style="padding:16px">
+      <h3 style="font-size:14px;margin:0 0 4px">Context Cost Curve</h3>
+      <div class="driver-explainer" style="margin-bottom:12px">Average tokens per query at different session lengths — longer sessions accumulate context that inflates every subsequent query.</div>
+      <canvas id="contextCostChart"></canvas>
+    </div>
+  </div>
+
   <!-- Projects -->
   <div class="projects-section animate delay-4">
     <div class="section-header">
@@ -1393,6 +1447,7 @@ function render() {
   document.getElementById('app').style.display = 'block';
   renderHeroPPMT();
   renderPPMTRecommendations();
+  renderSessionEfficiency();
   renderProjectBreakdown();
   renderTopPrompts();
   renderSessions();
@@ -1400,6 +1455,7 @@ function render() {
   requestAnimationFrame(() => {
     renderSPPerTokenChart();
     renderDriverCharts();
+    renderContextCostChart();
   });
 }
 
@@ -1797,6 +1853,193 @@ function buildDrawerContent(p) {
     ].join('');
   });
   return '<div class="drawer-prompt-list">' + items.join('') + '</div>';
+}
+
+// Session Efficiency — pipeline/interactive split, session recs, context cost curve
+function renderSessionEfficiency() {
+  const container = document.getElementById('sessionEfficiencySection');
+  if (!container) return;
+
+  // 1. Pipeline vs Interactive token split bar
+  const orch = FILTERED.orchestrator || (DATA && DATA.orchestrator);
+  const pipelineTokens = (orch && orch.summary && orch.summary.ppmtAnalysis && orch.summary.ppmtAnalysis.pipelineTokens) || 0;
+  const totalTokens = FILTERED.totals.totalTokens || 0;
+  const interactiveTokens = Math.max(0, totalTokens - pipelineTokens);
+
+  const splitBar = document.getElementById('tokenSplitBar');
+  if (splitBar) {
+    if (totalTokens > 0) {
+      const pipePct = Math.round((pipelineTokens / totalTokens) * 100);
+      const intPct = 100 - pipePct;
+      splitBar.innerHTML = `
+        <div class="token-split-bar">
+          <div class="token-split-pipeline" style="width:${pipePct}%">${pipePct > 10 ? pipePct + '%' : ''}</div>
+          <div class="token-split-interactive" style="width:${intPct}%">${intPct > 10 ? intPct + '%' : ''}</div>
+        </div>
+        <div class="token-split-legend">
+          <div class="token-split-legend-item">
+            <div class="token-split-legend-dot" style="background:#6366F1"></div>
+            Pipeline ${pipePct}% (${fmt(pipelineTokens)})
+          </div>
+          <div class="token-split-legend-item">
+            <div class="token-split-legend-dot" style="background:#F59E0B"></div>
+            Interactive ${intPct}% (${fmt(interactiveTokens)})
+          </div>
+        </div>`;
+    } else {
+      // Fallback: illustrative 26%/74% split
+      splitBar.innerHTML = `
+        <div class="token-split-bar">
+          <div class="token-split-pipeline" style="width:26%">26%</div>
+          <div class="token-split-interactive" style="width:74%">74%</div>
+        </div>
+        <div class="token-split-legend">
+          <div class="token-split-legend-item"><div class="token-split-legend-dot" style="background:#6366F1"></div>Pipeline 26%</div>
+          <div class="token-split-legend-item"><div class="token-split-legend-dot" style="background:#F59E0B"></div>Interactive 74%</div>
+        </div>`;
+    }
+  }
+
+  // 2. Session recommendations (non-pipeline patterns)
+  const recsEl = document.getElementById('sessionRecs');
+  if (recsEl) {
+    const sessionRecs = [
+      {
+        title: 'Start fresh sessions for new tasks',
+        detail: 'Each new task should begin in a new session. Carrying context from prior work inflates every prompt in the new session.',
+        action: 'Open a new Claude Code session when switching tasks or starting unrelated work.',
+      },
+      {
+        title: 'Avoid vague openers like "yes" or "continue"',
+        detail: 'Short prompts that rely on accumulated context trigger long tool chains as Claude re-establishes intent. These are among the highest token-per-word exchanges.',
+        action: 'Be explicit in every message. Repeat the goal if continuing a conversation.',
+      },
+      {
+        title: 'Keep sessions under 20 queries',
+        detail: 'Context window growth is roughly quadratic: query 20 costs ~4\u00d7 more than query 10. The longer the session, the more tokens every new message costs.',
+        action: 'Break long sessions into focused sub-sessions. /clear resets context mid-session.',
+      },
+    ];
+    const cards = sessionRecs.map(r => `
+      <div class="ppmt-rec-card">
+        <div class="ppmt-rec-header"><div class="ppmt-rec-title">${r.title}</div></div>
+        <div class="ppmt-rec-detail">${r.detail}</div>
+        <div class="ppmt-rec-action">${r.action}</div>
+      </div>`).join('');
+    recsEl.innerHTML = `<div class="recs-lens">
+      <div class="recs-lens-header">
+        <div class="recs-lens-icon" style="background:#FEF3C7">&#x23F0;</div>
+        <div class="recs-lens-title">Session Patterns</div>
+      </div>
+      ${cards}
+    </div>`;
+  }
+}
+
+function renderContextCostChart() {
+  const canvas = document.getElementById('contextCostChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const sessions = FILTERED.sessions || [];
+
+  // Bucket sessions by query count, compute avg tokens-per-query per bucket
+  const buckets = [
+    { label: '1\u20135', min: 1, max: 5, total: 0, count: 0 },
+    { label: '6\u201310', min: 6, max: 10, total: 0, count: 0 },
+    { label: '11\u201320', min: 11, max: 20, total: 0, count: 0 },
+    { label: '21\u201340', min: 21, max: 40, total: 0, count: 0 },
+    { label: '41+', min: 41, max: Infinity, total: 0, count: 0 },
+  ];
+
+  sessions.forEach(s => {
+    const qc = s.queryCount || 0;
+    if (qc === 0) return;
+    const bucket = buckets.find(b => qc >= b.min && qc <= b.max);
+    if (bucket) {
+      bucket.total += (s.totalTokens || 0) / qc;
+      bucket.count++;
+    }
+  });
+
+  const data = buckets.filter(b => b.count > 0).map(b => ({
+    label: b.label,
+    avgTpq: Math.round(b.total / b.count),
+  }));
+
+  if (!data.length) {
+    canvas.style.display = 'none';
+    return;
+  }
+
+  const dpr = window.devicePixelRatio || 1;
+  const parentW = canvas.parentElement.clientWidth;
+  if (parentW < 50) return;
+  const w = parentW - 48;
+  const h = 160;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const chartH = h - 36;
+  const startX = 60;
+  const plotW = w - startX - 16;
+  const maxVal = Math.max(...data.map(d => d.avgTpq), 1);
+  const niceCeil = Math.ceil(maxVal / 1000) * 1000 || 1000;
+
+  // Grid + Y labels
+  ctx.font = '500 10px Inter, system-ui';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = (niceCeil / 4) * i;
+    const y = chartH - (chartH * i / 4) + 8;
+    ctx.fillStyle = '#F59E0B';
+    const label = val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val.toString();
+    ctx.fillText(label, startX - 6, y + 3);
+    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w - 8, y); ctx.stroke();
+  }
+
+  function xPos(i) { return startX + (i / Math.max(1, data.length - 1)) * plotW; }
+  function yPos(val) { return chartH + 8 - (val / niceCeil) * chartH; }
+
+  // Area fill
+  ctx.fillStyle = 'rgba(245,158,11,0.08)';
+  ctx.beginPath();
+  data.forEach((d, i) => {
+    const x = xPos(i), y = yPos(d.avgTpq);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(xPos(data.length - 1), chartH + 8);
+  ctx.lineTo(xPos(0), chartH + 8);
+  ctx.closePath(); ctx.fill();
+
+  // Line
+  ctx.strokeStyle = '#F59E0B'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  data.forEach((d, i) => {
+    const x = xPos(i), y = yPos(d.avgTpq);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Dots
+  ctx.fillStyle = '#F59E0B';
+  data.forEach((d, i) => {
+    ctx.beginPath(); ctx.arc(xPos(i), yPos(d.avgTpq), 3, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // X labels (session length buckets)
+  ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
+  ctx.font = '500 10px Inter, system-ui';
+  data.forEach((d, i) => {
+    ctx.fillText(d.label, xPos(i), chartH + 22);
+  });
+
+  // X axis title
+  ctx.fillStyle = '#94A3B8';
+  ctx.fillText('Session length (queries)', startX + plotW / 2, h - 4);
 }
 
 // Project breakdown
