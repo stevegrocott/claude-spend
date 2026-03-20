@@ -1656,7 +1656,13 @@ function applyDateFilter() {
   let filteredOrchestrator = DATA.orchestrator;
   if (DATA.orchestrator && DATA.orchestrator.runs) {
     const filteredRuns = DATA.orchestrator.runs.filter(r => r.date && r.date >= fromDate && r.date <= toDate);
-    filteredOrchestrator = { runs: filteredRuns, summary: recomputeOrchestratorSummary(filteredRuns) };
+    const recomputed = recomputeOrchestratorSummary(filteredRuns);
+    // Preserve server-computed fields that can't be recomputed client-side
+    if (DATA.orchestrator.summary) {
+      recomputed.recommendations = DATA.orchestrator.summary.recommendations;
+      recomputed.ppmtAnalysis = DATA.orchestrator.summary.ppmtAnalysis;
+    }
+    filteredOrchestrator = { runs: filteredRuns, summary: recomputed };
   }
 
   const clientInsights = clientGenerateInsights(sessions, topPrompts, totals);
