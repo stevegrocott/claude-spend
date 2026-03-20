@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession } = require('./parser');
+const { parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession, computeSessionEfficiency, generateSessionRecommendations } = require('./parser');
 
 // Test parseTaskSummary function
 describe('parseTaskSummary', () => {
@@ -521,6 +521,198 @@ describe('categorizeSession', () => {
       firstPrompt: 'Implement task 7 on branch feature/issue-938 in the current working directory',
     };
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+});
+
+describe('computeSessionEfficiency', () => {
+  function makeSession(overrides) {
+    return {
+      sessionId: 'test-session',
+      project: 'test-project',
+      date: '2026-03-01',
+      firstPrompt: 'Hello world',
+      totalTokens: 10000,
+      queryCount: 5,
+      queries: [
+        { inputTokens: 500, outputTokens: 500, totalTokens: 1000, userPrompt: 'hello', model: 'sonnet' },
+        { inputTokens: 600, outputTokens: 600, totalTokens: 1200, userPrompt: 'world', model: 'sonnet' },
+      ],
+      sessionType: 'interactive',
+      ...overrides,
+    };
+  }
+
+  test('splits sessions into pipeline and interactive categories', () => {
+    const sessions = [
+      makeSession({ sessionType: 'pipeline_subagent', totalTokens: 5000 }),
+      makeSession({ sessionType: 'pipeline_subagent', totalTokens: 3000 }),
+      makeSession({ sessionType: 'interactive', totalTokens: 2000 }),
+    ];
+    const result = computeSessionEfficiency(sessions);
+    assert.strictEqual(result.pipeline.sessions, 2);
+    assert.strictEqual(result.pipeline.tokens, 8000);
+    assert.strictEqual(result.interactive.sessions, 1);
+    assert.strictEqual(result.interactive.tokens, 2000);
+    assert.strictEqual(result.pipelinePct, 80);
+    assert.strictEqual(result.interactivePct, 20);
+  });
+
+  test('identifies marathon sessions (100+ queries) sorted by tokens desc', () => {
+    const sessions = [
+      makeSession({ queryCount: 150, totalTokens: 50000, date: '2026-03-01', firstPrompt: 'Big session' }),
+      makeSession({ queryCount: 200, totalTokens: 80000, date: '2026-03-02', firstPrompt: 'Bigger session' }),
+      makeSession({ queryCount: 10, totalTokens: 1000 }),
+    ];
+    const result = computeSessionEfficiency(sessions);
+    assert.strictEqual(result.marathonSessions.length, 2);
+    assert.strictEqual(result.marathonSessions[0].totalTokens, 80000);
+    assert.strictEqual(result.marathonSessions[1].totalTokens, 50000);
+  });
+
+  test('counts implementation-like prompts outside pipeline', () => {
+    const sessions = [
+      makeSession({ sessionType: 'interactive', firstPrompt: 'fix the login bug', totalTokens: 5000 }),
+      makeSession({ sessionType: 'interactive', firstPrompt: 'add user endpoint', totalTokens: 3000 }),
+      makeSession({ sessionType: 'interactive', firstPrompt: 'What is the weather?', totalTokens: 1000 }),
+      makeSession({ sessionType: 'pipeline_subagent', firstPrompt: 'create the feature', totalTokens: 2000 }),
+    ];
+    const result = computeSessionEfficiency(sessions);
+    assert.strictEqual(result.implementationOutsidePipeline.count, 2);
+    assert.strictEqual(result.implementationOutsidePipeline.totalTokens, 8000);
+  });
+
+  test('computes context balloon curve with correct buckets', () => {
+    // Session with 12 queries to cover first two buckets
+    const queries = [];
+    for (let i = 0; i < 12; i++) {
+      queries.push({ inputTokens: 100, outputTokens: 100, totalTokens: (i + 1) * 100, userPrompt: `q${i}`, model: 'sonnet' });
+    }
+    const sessions = [makeSession({ queries, queryCount: 12 })];
+    const result = computeSessionEfficiency(sessions);
+    assert.strictEqual(result.contextBalloonCurve.length, 4);
+    assert.strictEqual(result.contextBalloonCurve[0].bucket, '1-10');
+    assert.strictEqual(result.contextBalloonCurve[1].bucket, '11-50');
+    // Bucket 1-10: queries 1-10 with tokens 100,200,...,1000 => avg 550
+    assert.strictEqual(result.contextBalloonCurve[0].avgTokensPerQuery, 550);
+    // Bucket 11-50: queries 11-12 with tokens 1100,1200 => avg 1150
+    assert.strictEqual(result.contextBalloonCurve[1].avgTokensPerQuery, 1150);
+  });
+
+  test('handles empty sessions array', () => {
+    const result = computeSessionEfficiency([]);
+    assert.strictEqual(result.pipeline.sessions, 0);
+    assert.strictEqual(result.interactive.sessions, 0);
+    assert.strictEqual(result.pipelinePct, 0);
+    assert.strictEqual(result.marathonSessions.length, 0);
+    assert.strictEqual(result.implementationOutsidePipeline.count, 0);
+    assert.strictEqual(result.contextBalloonCurve.length, 4);
+  });
+});
+
+describe('generateSessionRecommendations', () => {
+  function makeEfficiency(overrides) {
+    return {
+      pipeline: { sessions: 10, tokens: 50000 },
+      interactive: { sessions: 5, tokens: 30000 },
+      pipelinePct: 63,
+      interactivePct: 37,
+      marathonSessions: [],
+      implementationOutsidePipeline: { count: 2, totalTokens: 5000 },
+      contextBalloonCurve: [
+        { bucket: '1-10', avgTokensPerQuery: 1000 },
+        { bucket: '11-50', avgTokensPerQuery: 2000 },
+        { bucket: '51-100', avgTokensPerQuery: 3000 },
+        { bucket: '100+', avgTokensPerQuery: 5000 },
+      ],
+      ...overrides,
+    };
+  }
+
+  test('(a) generates marathon session rec when session has > 200 queries', () => {
+    const eff = makeEfficiency({
+      marathonSessions: [
+        { date: '2026-03-01', firstPrompt: 'Fix all the things in the entire codebase right now', totalTokens: 100000, queryCount: 250 },
+      ],
+    });
+    const recs = generateSessionRecommendations(eff);
+    const rec = recs.find(r => r.id === 'marathon_sessions');
+    assert.ok(rec, 'expected marathon_sessions recommendation');
+    assert.ok(rec.title.includes('200'), 'title should mention 200 queries threshold');
+  });
+
+  test('(a) does NOT generate marathon rec when all sessions have <= 200 queries', () => {
+    const eff = makeEfficiency({
+      marathonSessions: [
+        { date: '2026-03-01', firstPrompt: 'Something', totalTokens: 50000, queryCount: 150 },
+      ],
+    });
+    const recs = generateSessionRecommendations(eff);
+    assert.ok(!recs.find(r => r.id === 'marathon_sessions'), 'should not trigger for <= 200 queries');
+  });
+
+  test('(b) generates implementation outside pipeline rec when > 10 sessions', () => {
+    const eff = makeEfficiency({
+      implementationOutsidePipeline: { count: 15, totalTokens: 75000 },
+    });
+    const recs = generateSessionRecommendations(eff);
+    const rec = recs.find(r => r.id === 'implementation_outside_pipeline');
+    assert.ok(rec, 'expected implementation_outside_pipeline recommendation');
+    assert.ok(rec.detail.includes('15'), 'detail should mention count');
+  });
+
+  test('(b) does NOT generate impl rec when <= 10 sessions', () => {
+    const eff = makeEfficiency({
+      implementationOutsidePipeline: { count: 10, totalTokens: 50000 },
+    });
+    const recs = generateSessionRecommendations(eff);
+    assert.ok(!recs.find(r => r.id === 'implementation_outside_pipeline'), 'should not trigger for <= 10');
+  });
+
+  test('(c) generates low pipeline coverage rec when pipelinePct < 40', () => {
+    const eff = makeEfficiency({ pipelinePct: 30, interactivePct: 70 });
+    const recs = generateSessionRecommendations(eff);
+    const rec = recs.find(r => r.id === 'low_pipeline_coverage');
+    assert.ok(rec, 'expected low_pipeline_coverage recommendation');
+    assert.ok(rec.detail.includes('30%'), 'detail should mention pipeline pct');
+  });
+
+  test('(c) does NOT generate low pipeline rec when pipelinePct >= 40', () => {
+    const eff = makeEfficiency({ pipelinePct: 40, interactivePct: 60 });
+    const recs = generateSessionRecommendations(eff);
+    assert.ok(!recs.find(r => r.id === 'low_pipeline_coverage'), 'should not trigger for >= 40%');
+  });
+
+  test('(d) generates context balloon rec when 100+ avg exceeds 10x of 1-10 avg', () => {
+    const eff = makeEfficiency({
+      contextBalloonCurve: [
+        { bucket: '1-10', avgTokensPerQuery: 1000 },
+        { bucket: '11-50', avgTokensPerQuery: 3000 },
+        { bucket: '51-100', avgTokensPerQuery: 5000 },
+        { bucket: '100+', avgTokensPerQuery: 11000 },
+      ],
+    });
+    const recs = generateSessionRecommendations(eff);
+    const rec = recs.find(r => r.id === 'context_balloon');
+    assert.ok(rec, 'expected context_balloon recommendation');
+    assert.ok(rec.detail.includes('11'), 'detail should mention ratio');
+  });
+
+  test('(d) does NOT generate context balloon rec when ratio <= 10x', () => {
+    const eff = makeEfficiency({
+      contextBalloonCurve: [
+        { bucket: '1-10', avgTokensPerQuery: 1000 },
+        { bucket: '11-50', avgTokensPerQuery: 2000 },
+        { bucket: '51-100', avgTokensPerQuery: 3000 },
+        { bucket: '100+', avgTokensPerQuery: 10000 },
+      ],
+    });
+    const recs = generateSessionRecommendations(eff);
+    assert.ok(!recs.find(r => r.id === 'context_balloon'), 'should not trigger for <= 10x');
+  });
+
+  test('returns empty array when no thresholds are exceeded', () => {
+    const recs = generateSessionRecommendations(makeEfficiency());
+    assert.deepStrictEqual(recs, []);
   });
 });
 

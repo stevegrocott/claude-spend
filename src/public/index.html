@@ -1437,7 +1437,7 @@ function applyDateFilter() {
     filteredOrchestrator = { runs: filteredRuns, summary: recomputed };
   }
 
-  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, orchestrator: filteredOrchestrator };
+  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, orchestrator: filteredOrchestrator, sessionEfficiency: DATA.sessionEfficiency };
   render();
 }
 
@@ -1861,10 +1861,10 @@ function renderSessionEfficiency() {
   if (!container) return;
 
   // 1. Pipeline vs Interactive token split bar
-  const orch = FILTERED.orchestrator || (DATA && DATA.orchestrator);
-  const pipelineTokens = (orch && orch.summary && orch.summary.ppmtAnalysis && orch.summary.ppmtAnalysis.pipelineTokens) || 0;
-  const totalTokens = FILTERED.totals.totalTokens || 0;
-  const interactiveTokens = Math.max(0, totalTokens - pipelineTokens);
+  const se = FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency);
+  const pipelineTokens = (se && se.pipeline && se.pipeline.tokens) || 0;
+  const interactiveTokens = (se && se.interactive && se.interactive.tokens) || 0;
+  const totalTokens = pipelineTokens + interactiveTokens || FILTERED.totals.totalTokens || 0;
 
   const splitBar = document.getElementById('tokenSplitBar');
   if (splitBar) {
@@ -1900,39 +1900,29 @@ function renderSessionEfficiency() {
     }
   }
 
-  // 2. Session recommendations (non-pipeline patterns)
+  // 2. Session recommendations (from server-computed sessionEfficiency)
   const recsEl = document.getElementById('sessionRecs');
   if (recsEl) {
-    const sessionRecs = [
-      {
-        title: 'Start fresh sessions for new tasks',
-        detail: 'Each new task should begin in a new session. Carrying context from prior work inflates every prompt in the new session.',
-        action: 'Open a new Claude Code session when switching tasks or starting unrelated work.',
-      },
-      {
-        title: 'Avoid vague openers like "yes" or "continue"',
-        detail: 'Short prompts that rely on accumulated context trigger long tool chains as Claude re-establishes intent. These are among the highest token-per-word exchanges.',
-        action: 'Be explicit in every message. Repeat the goal if continuing a conversation.',
-      },
-      {
-        title: 'Keep sessions under 20 queries',
-        detail: 'Context window growth is roughly quadratic: query 20 costs ~4\u00d7 more than query 10. The longer the session, the more tokens every new message costs.',
-        action: 'Break long sessions into focused sub-sessions. /clear resets context mid-session.',
-      },
-    ];
-    const cards = sessionRecs.map(r => `
-      <div class="ppmt-rec-card">
-        <div class="ppmt-rec-header"><div class="ppmt-rec-title">${r.title}</div></div>
-        <div class="ppmt-rec-detail">${r.detail}</div>
-        <div class="ppmt-rec-action">${r.action}</div>
-      </div>`).join('');
-    recsEl.innerHTML = `<div class="recs-lens">
-      <div class="recs-lens-header">
-        <div class="recs-lens-icon" style="background:#FEF3C7">&#x23F0;</div>
-        <div class="recs-lens-title">Session Patterns</div>
-      </div>
-      ${cards}
-    </div>`;
+    const se = FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency);
+    const sessionRecs = (se && se.recommendations) || [];
+
+    if (sessionRecs.length > 0) {
+      const cards = sessionRecs.map(r => `
+        <div class="ppmt-rec-card">
+          <div class="ppmt-rec-header"><div class="ppmt-rec-title">${escapeHtml(r.title)}</div></div>
+          <div class="ppmt-rec-detail">${escapeHtml(r.detail)}</div>
+          <div class="ppmt-rec-action">${escapeHtml(r.action)}</div>
+        </div>`).join('');
+      recsEl.innerHTML = `<div class="recs-lens">
+        <div class="recs-lens-header">
+          <div class="recs-lens-icon" style="background:#FEF3C7">&#x23F0;</div>
+          <div class="recs-lens-title">Session Patterns</div>
+        </div>
+        ${cards}
+      </div>`;
+    } else {
+      recsEl.innerHTML = '';
+    }
   }
 }
 

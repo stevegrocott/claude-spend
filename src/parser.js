@@ -472,6 +472,9 @@ async function parseAllSessions() {
       : 0;
   }
 
+  const sessionEfficiency = computeSessionEfficiency(sessions);
+  sessionEfficiency.recommendations = generateSessionRecommendations(sessionEfficiency);
+
   return {
     sessions,
     dailyUsage,
@@ -481,6 +484,7 @@ async function parseAllSessions() {
     totals: grandTotals,
     insights: [...insights, ...orchestratorInsights],
     orchestrator,
+    sessionEfficiency,
   };
 }
 
@@ -1574,4 +1578,142 @@ function generatePPMTRecommendations(analysis) {
   return recs;
 }
 
-module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession };
+function computeSessionEfficiency(sessions) {
+  const pipeline = { sessions: 0, tokens: 0 };
+  const interactive = { sessions: 0, tokens: 0 };
+
+  for (const s of sessions) {
+    const type = s.sessionType || categorizeSession(s);
+    if (type === 'pipeline_subagent') {
+      pipeline.sessions++;
+      pipeline.tokens += s.totalTokens || 0;
+    } else {
+      interactive.sessions++;
+      interactive.tokens += s.totalTokens || 0;
+    }
+  }
+
+  const totalTokens = pipeline.tokens + interactive.tokens;
+  const pipelinePct = totalTokens > 0 ? Math.round((pipeline.tokens / totalTokens) * 100) : 0;
+  const interactivePct = totalTokens > 0 ? 100 - pipelinePct : 0;
+
+  // Marathon sessions: 100+ queries
+  const marathonSessions = sessions
+    .filter(s => (s.queryCount || 0) >= 100)
+    .map(s => ({
+      date: s.date,
+      firstPrompt: s.firstPrompt,
+      totalTokens: s.totalTokens || 0,
+      queryCount: s.queryCount || 0,
+    }))
+    .sort((a, b) => b.totalTokens - a.totalTokens);
+
+  // Implementation-like prompts outside pipeline
+  const implPattern = /^(fix|add|update|create|build|refactor)\b/i;
+  const implSessions = sessions.filter(s => {
+    const type = s.sessionType || categorizeSession(s);
+    return type === 'interactive' && s.firstPrompt && implPattern.test(s.firstPrompt);
+  });
+  const implementationOutsidePipeline = {
+    count: implSessions.length,
+    totalTokens: implSessions.reduce((sum, s) => sum + (s.totalTokens || 0), 0),
+  };
+
+  // Context balloon curve
+  const bucketDefs = [
+    { bucket: '1-10', min: 1, max: 10 },
+    { bucket: '11-50', min: 11, max: 50 },
+    { bucket: '51-100', min: 51, max: 100 },
+    { bucket: '100+', min: 101, max: Infinity },
+  ];
+  const bucketTotals = bucketDefs.map(() => ({ totalTokens: 0, count: 0 }));
+
+  for (const s of sessions) {
+    const queries = s.queries || [];
+    for (let i = 0; i < queries.length; i++) {
+      const position = i + 1; // 1-indexed
+      const qTokens = queries[i].totalTokens || 0;
+      for (let b = 0; b < bucketDefs.length; b++) {
+        if (position >= bucketDefs[b].min && position <= bucketDefs[b].max) {
+          bucketTotals[b].totalTokens += qTokens;
+          bucketTotals[b].count++;
+          break;
+        }
+      }
+    }
+  }
+
+  const contextBalloonCurve = bucketDefs.map((def, i) => ({
+    bucket: def.bucket,
+    avgTokensPerQuery: bucketTotals[i].count > 0
+      ? Math.round(bucketTotals[i].totalTokens / bucketTotals[i].count)
+      : 0,
+  }));
+
+  return {
+    pipeline,
+    interactive,
+    pipelinePct,
+    interactivePct,
+    marathonSessions,
+    implementationOutsidePipeline,
+    contextBalloonCurve,
+  };
+}
+
+function generateSessionRecommendations(efficiency) {
+  const recs = [];
+
+  // (a) Marathon sessions warning if any session has > 200 queries
+  const extremeMarathons = efficiency.marathonSessions.filter(s => s.queryCount > 200);
+  if (extremeMarathons.length > 0) {
+    const cited = extremeMarathons.slice(0, 3).map(s =>
+      `${s.date}: "${(s.firstPrompt || '').slice(0, 60)}" (${s.totalTokens.toLocaleString()} tokens)`
+    ).join('; ');
+    recs.push({
+      id: 'marathon_sessions',
+      title: `${extremeMarathons.length} session(s) exceed 200 queries`,
+      detail: `Sessions with extremely long conversations waste tokens on bloated context. Examples: ${cited}`,
+      action: 'Break long sessions into smaller, focused sessions to avoid context balloon costs',
+    });
+  }
+
+  // (b) Implementation outside pipeline
+  if (efficiency.implementationOutsidePipeline.count > 10) {
+    recs.push({
+      id: 'implementation_outside_pipeline',
+      title: `${efficiency.implementationOutsidePipeline.count} implementation sessions outside pipeline`,
+      detail: `${efficiency.implementationOutsidePipeline.count} interactive sessions start with implementation verbs (fix/add/update/create/build/refactor), consuming ${efficiency.implementationOutsidePipeline.totalTokens.toLocaleString()} tokens outside the tracked pipeline`,
+      action: 'Route implementation work through the pipeline for better tracking and cost attribution',
+    });
+  }
+
+  // (c) Low pipeline coverage
+  if (efficiency.pipelinePct < 40) {
+    recs.push({
+      id: 'low_pipeline_coverage',
+      title: `Only ${efficiency.pipelinePct}% of tokens are pipeline-tracked`,
+      detail: `Pipeline sessions account for just ${efficiency.pipelinePct}% of total token spend. Interactive sessions consume ${efficiency.interactivePct}% without structured tracking`,
+      action: 'Increase pipeline usage to improve cost visibility and PP/100MT measurement accuracy',
+    });
+  }
+
+  // (d) Context balloon warning
+  const curve = efficiency.contextBalloonCurve;
+  const avg1to10 = curve.find(c => c.bucket === '1-10');
+  const avg100plus = curve.find(c => c.bucket === '100+');
+  if (avg1to10 && avg100plus && avg1to10.avgTokensPerQuery > 0 &&
+      avg100plus.avgTokensPerQuery > avg1to10.avgTokensPerQuery * 10) {
+    const ratio = Math.round(avg100plus.avgTokensPerQuery / avg1to10.avgTokensPerQuery);
+    recs.push({
+      id: 'context_balloon',
+      title: `Context balloon: ${ratio}x token growth at query 100+`,
+      detail: `Average tokens/query at position 100+ is ${avg100plus.avgTokensPerQuery.toLocaleString()} vs ${avg1to10.avgTokensPerQuery.toLocaleString()} at positions 1-10 (${ratio}x increase)`,
+      action: 'Start new sessions before reaching 100 queries to avoid exponential context costs',
+    });
+  }
+
+  return recs;
+}
+
+module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession, computeSessionEfficiency, generateSessionRecommendations };
