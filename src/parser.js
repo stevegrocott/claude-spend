@@ -14,6 +14,9 @@ const PRICING = {
   opus:   { input: 15.0,  output: 75.0 },
 };
 
+// Task size story point values
+const SIZE_POINTS = { S: 1, M: 3, L: 5 };
+
 function getModelPricing(model) {
   const m = (model || '').toLowerCase();
   if (m.includes('haiku'))  return PRICING.haiku;
@@ -38,7 +41,6 @@ function parseTaskSummary(raw) {
   const tasks = raw.tasks || [];
   const completed = { S: 0, M: 0, L: 0 };
   const failed = { S: 0, M: 0, L: 0 };
-  const sizePoints = { S: 1, M: 3, L: 5 };
 
   let storyPointsCompleted = 0;
   let storyPointsTotal = 0;
@@ -47,7 +49,7 @@ function parseTaskSummary(raw) {
     const desc = task.description || '';
     const sizeMatch = desc.match(/\*\*\((S|M|L)\)\*\*/);
     const size = sizeMatch ? sizeMatch[1] : 'S';
-    const points = sizePoints[size];
+    const points = SIZE_POINTS[size];
 
     storyPointsTotal += points;
 
@@ -111,9 +113,9 @@ function extractSessionData(entries) {
       const model = entry.message.model || 'unknown';
       if (model === '<synthetic>') continue;
 
-      const cacheReadTokens = usage.cache_read_input_tokens || 0;
-      const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
-      const inputTokens = (usage.input_tokens || 0) + cacheCreationTokens + cacheReadTokens;
+      const inputTokens = (usage.input_tokens || 0)
+        + (usage.cache_creation_input_tokens || 0)
+        + (usage.cache_read_input_tokens || 0);
       const outputTokens = usage.output_tokens || 0;
 
       const tools = [];
@@ -131,8 +133,6 @@ function extractSessionData(entries) {
         inputTokens,
         outputTokens,
         totalTokens: inputTokens + outputTokens,
-        cacheReadTokens,
-        cacheCreationTokens,
         cost: calculateCost(inputTokens, outputTokens, model),
         tools,
       });
@@ -201,13 +201,11 @@ async function parseAllSessions() {
       const queries = extractSessionData(entries);
       if (queries.length === 0) continue;
 
-      let inputTokens = 0, outputTokens = 0, estimatedCost = 0, cacheReadTokens = 0, cacheCreationTokens = 0;
+      let inputTokens = 0, outputTokens = 0, estimatedCost = 0;
       for (const q of queries) {
         inputTokens += q.inputTokens;
         outputTokens += q.outputTokens;
         estimatedCost += q.cost || 0;
-        cacheReadTokens += q.cacheReadTokens || 0;
-        cacheCreationTokens += q.cacheCreationTokens || 0;
       }
       const totalTokens = inputTokens + outputTokens;
 
@@ -279,7 +277,7 @@ async function parseAllSessions() {
       // Daily
       if (date !== 'unknown') {
         if (!dailyMap[date]) {
-          dailyMap[date] = { date, inputTokens: 0, outputTokens: 0, totalTokens: 0, sessions: 0, queries: 0, estimatedCost: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
+          dailyMap[date] = { date, inputTokens: 0, outputTokens: 0, totalTokens: 0, sessions: 0, queries: 0, estimatedCost: 0 };
         }
         dailyMap[date].inputTokens += inputTokens;
         dailyMap[date].outputTokens += outputTokens;
@@ -287,8 +285,6 @@ async function parseAllSessions() {
         dailyMap[date].sessions += 1;
         dailyMap[date].queries += queries.length;
         dailyMap[date].estimatedCost += estimatedCost;
-        dailyMap[date].cacheReadTokens += cacheReadTokens;
-        dailyMap[date].cacheCreationTokens += cacheCreationTokens;
       }
 
       // Model
@@ -658,11 +654,14 @@ function parseOrchestratorLogs(projectCostMap = {}) {
     }
   }
 
-  // Build velocityByDay with cumulative tracking
+  // Build velocityByDay with cumulative tracking and calculate stats in one pass
+  let totalSP = 0, completedSP = 0;
   const velocityByDay = Object.entries(dailyVelocity)
     .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
     .reduce((acc, [date, data]) => {
       const cumulative = acc.length > 0 ? acc[acc.length - 1].cumulative + data.spCompleted : data.spCompleted;
+      totalSP += data.spTotal;
+      completedSP += data.spCompleted;
       acc.push({
         date,
         spCompleted: data.spCompleted,
@@ -672,9 +671,6 @@ function parseOrchestratorLogs(projectCostMap = {}) {
       return acc;
     }, []);
 
-  // Calculate velocity statistics
-  const totalSP = velocityByDay.reduce((sum, day) => sum + day.spTotal, 0);
-  const completedSP = velocityByDay.reduce((sum, day) => sum + day.spCompleted, 0);
   const avgSPPerDay = velocityByDay.length > 0 ? Math.round((completedSP / velocityByDay.length) * 10) / 10 : 0;
   const avgSPPerWeek = velocityByDay.length > 0 ? Math.round((completedSP / (velocityByDay.length / 7)) * 10) / 10 : 0;
 
