@@ -1628,6 +1628,92 @@ function generateClientSessionRecs(eff) {
   return recs;
 }
 
+function generateClientPipelineRecs(analysis) {
+  if (!analysis) return [];
+  const { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield } = analysis;
+  if (!escalationCorrelation) return [];
+  const totalRuns = Object.values(escalationCorrelation).reduce((s, b) => s + b.total, 0);
+  if (totalRuns < 5) return [];
+
+  const recs = [];
+
+  // M-task splitting
+  if (taskSizeCompletion && taskSizeCompletion.M && taskSizeCompletion.S && taskSizeCompletion.M.total >= 5 && taskSizeCompletion.S.total >= 5) {
+    const gap = taskSizeCompletion.S.rate - taskSizeCompletion.M.rate;
+    if (gap > 15) {
+      recs.push({ id: 'm_task_splitting', priority: gap > 30 ? 1 : 2, ppmt_impact: Math.min(Math.round(gap * 0.5), 100),
+        title: 'Split M-tasks into smaller S-tasks',
+        detail: 'M tasks complete at ' + taskSizeCompletion.M.rate + '% vs S tasks at ' + taskSizeCompletion.S.rate + '% (' + gap + ' point gap across ' + taskSizeCompletion.M.total + ' M-tasks)',
+        action: 'Review backlog M-tasks and break each into 2\u20133 S-tasks to improve completion rate' });
+    }
+  }
+
+  // Parse failures
+  if (failureBreakdown && failureBreakdown.parse_failure > 2) {
+    const count = failureBreakdown.parse_failure;
+    recs.push({ id: 'parse_failures', priority: count > 5 ? 1 : 2, ppmt_impact: Math.min(count * 3, 100),
+      title: 'Fix parse failures affecting ' + count + ' runs',
+      detail: count + ' parse failures detected (runs with 0 tasks parsed) \u2014 each represents a total loss of output',
+      action: 'Audit ' + count + ' runs with parse failures; check orchestrator log format for breaking changes or schema drift' });
+  }
+
+  // Task count reduction
+  if (taskCountCorrelation && taskCountCorrelation.failedAvg > taskCountCorrelation.completedAvg + 1.5) {
+    const diff = Math.round((taskCountCorrelation.failedAvg - taskCountCorrelation.completedAvg) * 10) / 10;
+    recs.push({ id: 'task_count_reduction', priority: diff > 3 ? 1 : 2, ppmt_impact: Math.min(Math.round(diff * 5), 100),
+      title: 'Reduce task count per run',
+      detail: 'Failed runs average ' + taskCountCorrelation.failedAvg + ' tasks vs ' + taskCountCorrelation.completedAvg + ' for completed (' + diff + ' task difference)',
+      action: 'Target \u2264' + taskCountCorrelation.completedAvg + ' tasks per run' + (taskCountCorrelation.optimalRange.length ? '; optimal range is ' + taskCountCorrelation.optimalRange[0] + '\u2013' + taskCountCorrelation.optimalRange[1] : '') });
+  }
+
+  // PR review loops
+  if (failureBreakdown && failureBreakdown.max_iterations_pr_review > 2) {
+    const count = failureBreakdown.max_iterations_pr_review;
+    recs.push({ id: 'pr_review_loop', priority: count > 5 ? 1 : 3, ppmt_impact: Math.min(count * 4, 100),
+      title: 'Address PR review loops (' + count + ' runs hit max iterations)',
+      detail: count + ' runs terminated by hitting max PR review iterations \u2014 work was completed but PRs stalled',
+      action: 'Clarify PR acceptance criteria; consider smaller, more focused PRs' });
+  }
+
+  // Max turns exhausted
+  if (topEscalationStages && topEscalationStages.length > 0 && topEscalationStages[0].count > 10) {
+    const top = topEscalationStages[0];
+    recs.push({ id: 'max_turns_exhausted', priority: top.count > 20 ? 1 : 2, ppmt_impact: Math.min(Math.round(top.count * 2), 100),
+      title: 'Reorder or split stage \'' + top.stage + '\'',
+      detail: 'Stage \'' + top.stage + '\' has ' + top.count + ' escalations \u2014 the highest of any stage',
+      action: 'Reorder \'' + top.stage + '\' earlier in the pipeline or split into smaller sub-stages' });
+  }
+
+  // Low yield projects
+  if (projectYield) {
+    for (const proj of projectYield) {
+      if (proj.yieldPct < 20) {
+        recs.push({ id: 'project_yield_' + proj.project, priority: proj.yieldPct < 10 ? 1 : 3,
+          ppmt_impact: Math.min(Math.round((20 - proj.yieldPct) * 0.5 * proj.spTotal), 100),
+          title: 'Low yield for project \'' + proj.project + '\'',
+          detail: 'Project \'' + proj.project + '\' yields only ' + proj.yieldPct + '% (' + proj.spCompleted + '/' + proj.spTotal + ' SP completed)',
+          action: 'Investigate common failure modes in project \'' + proj.project + '\'' });
+      }
+    }
+  }
+
+  // 0-escalation failures
+  if (escalationCorrelation['0']) {
+    const zeroEscFail = escalationCorrelation['0'].total - escalationCorrelation['0'].completed;
+    const totalFailures = Object.values(escalationCorrelation).reduce((s, b) => s + (b.total - b.completed), 0);
+    if (totalFailures > 0 && zeroEscFail / totalFailures > 0.30) {
+      const pct = Math.round((zeroEscFail / totalFailures) * 100);
+      recs.push({ id: 'zero_escalation_failures', priority: pct > 60 ? 1 : 3, ppmt_impact: Math.min(zeroEscFail * 2, 100),
+        title: pct + '% of failures occur with 0 escalations',
+        detail: zeroEscFail + ' of ' + totalFailures + ' failed runs (' + pct + '%) had 0 escalations \u2014 tasks failing silently',
+        action: 'Review 0-escalation failures for early task setup errors or misunderstood requirements' });
+    }
+  }
+
+  recs.sort((a, b) => a.priority - b.priority);
+  return recs;
+}
+
 function applyDateFilter() {
   if (!DATA) return;
   const from = document.getElementById('dateFrom').value;
@@ -1749,19 +1835,18 @@ function applyDateFilter() {
   if (DATA.orchestrator && DATA.orchestrator.runs) {
     const filteredRuns = DATA.orchestrator.runs.filter(r => r.date && r.date >= fromDate && r.date <= toDate);
     const recomputed = recomputeOrchestratorSummary(filteredRuns);
-    // Preserve server recommendations (depend on full dataset patterns)
-    if (DATA.orchestrator.summary) {
-      recomputed.recommendations = DATA.orchestrator.summary.recommendations;
-    }
+    // Recommendations will be generated after ppmtAnalysis is recomputed below
     filteredOrchestrator = { runs: filteredRuns, summary: recomputed };
   }
 
   const filteredSessionEff = recomputeSessionEfficiency(sessions);
 
-  // Recompute ppmtAnalysis from filtered runs + filtered pipeline tokens
+  // Recompute ppmtAnalysis + recommendations from filtered runs + pipeline tokens
   if (filteredOrchestrator && filteredOrchestrator.runs) {
     filteredOrchestrator.summary.ppmtAnalysis = recomputePpmtAnalysis(
       filteredOrchestrator.runs, filteredSessionEff);
+    filteredOrchestrator.summary.recommendations = generateClientPipelineRecs(
+      filteredOrchestrator.summary.ppmtAnalysis);
   }
   FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, orchestrator: filteredOrchestrator, sessionEfficiency: filteredSessionEff };
   render();
