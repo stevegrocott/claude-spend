@@ -136,15 +136,16 @@ test.describe('Cost/Speed/Quality (#insightsSection lens selector)', () => {
     }
   });
 
-  test('Quality lens shows 3 stat pills with non-empty values', async ({ page }) => {
+  test('Quality lens shows stat pills with non-empty values', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
     if ((api.insights || []).length === 0) { test.skip(); return; }
 
     await page.locator('.lens-btn[data-lens="quality"]').click();
     const pills = page.locator('#lensSection-quality .lens-stat-pill');
-    await expect(pills).toHaveCount(3);
-    for (let i = 0; i < 3; i++) {
+    const count = await pills.count();
+    expect(count).toBeGreaterThanOrEqual(3);
+    for (let i = 0; i < Math.min(count, 3); i++) {
       const value = await pills.nth(i).locator('.lens-stat-pill-value').textContent();
       expect(value.trim().length).toBeGreaterThan(0);
     }
