@@ -2365,22 +2365,6 @@ function renderSplitInsights() {
     }
   }
 
-  // 4. SP productivity
-  if (orch && orch.summary && orch.summary.ppmtAnalysis) {
-    const pa = orch.summary.ppmtAnalysis;
-    const totalSP = pa.ppmtByDay ? pa.ppmtByDay.reduce((s, d) => s + d.spCompleted, 0) : 0;
-    if (totalSP > 0 && pipe.tokens > 0) {
-      const tokensPerSP = Math.round(pipe.tokens / totalSP / 1e6);
-      insights.push({ value: totalSP + ' SP from ' + fmt(pipe.tokens), text: totalSP + ' story points completed at ' + tokensPerSP + 'M tokens per SP. The ' + fmt(inter.tokens) + ' interactive tokens produced no tracked output.', color: '#8B5CF6' });
-    }
-  }
-
-  // 5. Implementation work outside pipeline
-  const impl = se.implementationOutsidePipeline;
-  if (impl && impl.count > 20) {
-    insights.push({ value: impl.count + ' sessions', text: impl.count + ' interactive sessions start with implementation verbs (fix/add/update/create). Running these through the pipeline would track their output and optimize token use.', color: '#14B8A6' });
-  }
-
   if (!insights.length) { el.innerHTML = ''; return; }
 
   el.innerHTML = '<div class="split-insights">' + insights.map(i =>
