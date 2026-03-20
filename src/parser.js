@@ -28,6 +28,46 @@ function calculateCost(inputTokens, outputTokens, model) {
   return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
 }
 
+function parseTaskSummary(raw) {
+  // If upstream provides task_summary, use it directly
+  if (raw.task_summary) {
+    return raw.task_summary;
+  }
+
+  // Otherwise, parse task descriptions for size markers
+  const tasks = raw.tasks || [];
+  const completed = { S: 0, M: 0, L: 0 };
+  const failed = { S: 0, M: 0, L: 0 };
+  const sizePoints = { S: 1, M: 3, L: 5 };
+
+  let storyPointsCompleted = 0;
+  let storyPointsTotal = 0;
+
+  for (const task of tasks) {
+    const desc = task.description || '';
+    const sizeMatch = desc.match(/\*\*\((S|M|L)\)\*\*/);
+    const size = sizeMatch ? sizeMatch[1] : 'S';
+    const points = sizePoints[size];
+
+    storyPointsTotal += points;
+
+    if (task.status === 'completed') {
+      completed[size]++;
+      storyPointsCompleted += points;
+    } else if (task.status === 'failed') {
+      failed[size]++;
+    }
+  }
+
+  return {
+    completed,
+    failed,
+    total: tasks.length,
+    storyPointsCompleted,
+    storyPointsTotal,
+  };
+}
+
 async function parseJSONLFile(filePath) {
   const lines = [];
   const stream = fs.createReadStream(filePath, { encoding: 'utf-8' });
@@ -71,9 +111,9 @@ function extractSessionData(entries) {
       const model = entry.message.model || 'unknown';
       if (model === '<synthetic>') continue;
 
-      const inputTokens = (usage.input_tokens || 0)
-        + (usage.cache_creation_input_tokens || 0)
-        + (usage.cache_read_input_tokens || 0);
+      const cacheReadTokens = usage.cache_read_input_tokens || 0;
+      const cacheCreationTokens = usage.cache_creation_input_tokens || 0;
+      const inputTokens = (usage.input_tokens || 0) + cacheCreationTokens + cacheReadTokens;
       const outputTokens = usage.output_tokens || 0;
 
       const tools = [];
@@ -91,6 +131,8 @@ function extractSessionData(entries) {
         inputTokens,
         outputTokens,
         totalTokens: inputTokens + outputTokens,
+        cacheReadTokens,
+        cacheCreationTokens,
         cost: calculateCost(inputTokens, outputTokens, model),
         tools,
       });
@@ -159,11 +201,13 @@ async function parseAllSessions() {
       const queries = extractSessionData(entries);
       if (queries.length === 0) continue;
 
-      let inputTokens = 0, outputTokens = 0, estimatedCost = 0;
+      let inputTokens = 0, outputTokens = 0, estimatedCost = 0, cacheReadTokens = 0, cacheCreationTokens = 0;
       for (const q of queries) {
         inputTokens += q.inputTokens;
         outputTokens += q.outputTokens;
         estimatedCost += q.cost || 0;
+        cacheReadTokens += q.cacheReadTokens || 0;
+        cacheCreationTokens += q.cacheCreationTokens || 0;
       }
       const totalTokens = inputTokens + outputTokens;
 
@@ -235,7 +279,7 @@ async function parseAllSessions() {
       // Daily
       if (date !== 'unknown') {
         if (!dailyMap[date]) {
-          dailyMap[date] = { date, inputTokens: 0, outputTokens: 0, totalTokens: 0, sessions: 0, queries: 0, estimatedCost: 0 };
+          dailyMap[date] = { date, inputTokens: 0, outputTokens: 0, totalTokens: 0, sessions: 0, queries: 0, estimatedCost: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
         }
         dailyMap[date].inputTokens += inputTokens;
         dailyMap[date].outputTokens += outputTokens;
@@ -243,6 +287,8 @@ async function parseAllSessions() {
         dailyMap[date].sessions += 1;
         dailyMap[date].queries += queries.length;
         dailyMap[date].estimatedCost += estimatedCost;
+        dailyMap[date].cacheReadTokens += cacheReadTokens;
+        dailyMap[date].cacheCreationTokens += cacheCreationTokens;
       }
 
       // Model
@@ -558,6 +604,7 @@ function parseOrchestratorLogs(projectCostMap = {}) {
             date,
             dirName: entry,
             estimatedCost,
+            taskSummary: parseTaskSummary(raw),
           });
         } catch {
           // Skip malformed status.json
@@ -1154,4 +1201,4 @@ function fmt(n) {
   return n.toLocaleString();
 }
 
-module.exports = { parseAllSessions };
+module.exports = { parseAllSessions, parseTaskSummary };
