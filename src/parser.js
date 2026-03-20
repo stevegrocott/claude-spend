@@ -32,9 +32,16 @@ function calculateCost(inputTokens, outputTokens, model) {
 }
 
 function parseTaskSummary(raw) {
-  // If upstream provides task_summary, use it directly
+  // If upstream provides task_summary, normalize field names
   if (raw.task_summary) {
-    return raw.task_summary;
+    const ts = raw.task_summary;
+    return {
+      completed: ts.completed || { S: 0, M: 0, L: 0 },
+      failed: ts.failed || { S: 0, M: 0, L: 0 },
+      total: (raw.tasks || []).length,
+      storyPointsCompleted: ts.storyPointsCompleted ?? ts.sp_completed ?? 0,
+      storyPointsTotal: ts.storyPointsTotal ?? ts.sp_total ?? 0,
+    };
   }
 
   // Otherwise, parse task descriptions for size markers

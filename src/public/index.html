@@ -1629,6 +1629,30 @@ function recomputeOrchestratorSummary(runs) {
     }
   }
 
+  // Compute velocity by day from taskSummary in each run
+  const dailyVelocity = {};
+  for (const run of validRuns) {
+    if (run.date && run.taskSummary) {
+      if (!dailyVelocity[run.date]) dailyVelocity[run.date] = { spCompleted: 0, spTotal: 0 };
+      dailyVelocity[run.date].spCompleted += run.taskSummary.storyPointsCompleted || run.taskSummary.sp_completed || 0;
+      dailyVelocity[run.date].spTotal += run.taskSummary.storyPointsTotal || run.taskSummary.sp_total || 0;
+    }
+  }
+  const sortedDates = Object.keys(dailyVelocity).sort();
+  let cumulative = 0;
+  const velocityByDay = sortedDates.map(date => {
+    cumulative += dailyVelocity[date].spCompleted;
+    return { date, spCompleted: dailyVelocity[date].spCompleted, spTotal: dailyVelocity[date].spTotal, cumulative };
+  });
+  const totalSP = velocityByDay.reduce((s, d) => s + d.spTotal, 0);
+  const completedSP = velocityByDay.reduce((s, d) => s + d.spCompleted, 0);
+  const days = sortedDates.length || 1;
+  const velocityStats = {
+    totalSP, completedSP,
+    avgSPPerDay: Math.round(completedSP / days * 10) / 10,
+    avgSPPerWeek: Math.round(completedSP / days * 7 * 10) / 10,
+  };
+
   return {
     totalRuns: validRuns.length,
     completedRuns: completedRuns.length,
@@ -1644,6 +1668,8 @@ function recomputeOrchestratorSummary(runs) {
     runsWithEscalations,
     allEscalations,
     stageModelTotals,
+    velocityByDay,
+    velocityStats,
   };
 }
 
