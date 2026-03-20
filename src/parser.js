@@ -1587,17 +1587,19 @@ function generatePPMTRecommendations(analysis) {
 }
 
 function computeSessionEfficiency(sessions) {
-  const pipeline = { sessions: 0, tokens: 0 };
-  const interactive = { sessions: 0, tokens: 0 };
+  const pipeline = { sessions: 0, tokens: 0, queries: 0 };
+  const interactive = { sessions: 0, tokens: 0, queries: 0 };
 
   for (const s of sessions) {
     const type = s.sessionType || categorizeSession(s);
     if (type === 'pipeline_subagent') {
       pipeline.sessions++;
       pipeline.tokens += s.totalTokens || 0;
+      pipeline.queries += s.queryCount || 0;
     } else {
       interactive.sessions++;
       interactive.tokens += s.totalTokens || 0;
+      interactive.queries += s.queryCount || 0;
     }
   }
 

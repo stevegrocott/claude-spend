@@ -1353,8 +1353,8 @@ function recomputeOrchestratorSummary(runs) {
 
 // Client-side recompute of sessionEfficiency for date-filtered sessions
 function recomputeSessionEfficiency(sessions) {
-  const pipeline = { sessions: 0, tokens: 0 };
-  const interactive = { sessions: 0, tokens: 0 };
+  const pipeline = { sessions: 0, tokens: 0, queries: 0 };
+  const interactive = { sessions: 0, tokens: 0, queries: 0 };
   const marathonSessions = [];
   const implPattern = /^(fix|add|update|create|build|refactor)\b/i;
   let implCount = 0, implTokens = 0;
@@ -1379,9 +1379,11 @@ function recomputeSessionEfficiency(sessions) {
     if (isPipeline) {
       pipeline.sessions++;
       pipeline.tokens += s.totalTokens || 0;
+      pipeline.queries += s.queryCount || 0;
     } else {
       interactive.sessions++;
       interactive.tokens += s.totalTokens || 0;
+      interactive.queries += s.queryCount || 0;
 
       // Marathon detection
       if ((s.queryCount || 0) >= 100) {
