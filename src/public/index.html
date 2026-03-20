@@ -322,6 +322,28 @@
     border-radius: 20px; white-space: nowrap; flex-shrink: 0;
     background: #ECFDF5; color: #047857; margin-top: 2px;
   }
+  .ppmt-rec-card {
+    padding: 10px 0; border-top: 1px solid var(--border);
+  }
+  .ppmt-rec-card:first-of-type { border-top: none; padding-top: 0; }
+  .ppmt-rec-header {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+    margin-bottom: 4px;
+  }
+  .ppmt-rec-title {
+    font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.4;
+  }
+  .ppmt-impact-badge {
+    font-size: 11px; font-weight: 700; padding: 2px 7px;
+    border-radius: 20px; white-space: nowrap; flex-shrink: 0;
+    background: #EEF2FF; color: #4338CA;
+  }
+  .ppmt-rec-detail {
+    font-size: 12px; color: var(--text-tertiary); line-height: 1.5; margin-bottom: 4px;
+  }
+  .ppmt-rec-action {
+    font-size: 12px; color: #0D9488; font-weight: 500; line-height: 1.4;
+  }
 
   /* ---- INSIGHTS ---- */
   .insights-section { margin-bottom: 32px; }
@@ -1125,259 +1147,48 @@ async function refreshData() {
   applyDateFilter();
 }
 
-// ── Recommendations engine (client-side, mirrors parser.js) ───────────────────
-const REC_PRICING = { opus: { input: 5, output: 25 }, sonnet: { input: 3, output: 15 }, haiku: { input: 1, output: 5 } };
-function recModelTier(m) {
-  if (!m) return null;
-  if (m.includes('opus')) return 'opus';
-  if (m.includes('sonnet')) return 'sonnet';
-  if (m.includes('haiku')) return 'haiku';
-  return null;
-}
-function recEstimateCost(inp, out, tier) {
-  const p = REC_PRICING[tier] || REC_PRICING.sonnet;
-  return (inp / 1_000_000) * p.input + (out / 1_000_000) * p.output;
-}
-function recFmtDollars(n) {
-  if (n >= 1) return '$' + n.toFixed(2);
-  if (n >= 0.01) return '$' + n.toFixed(3);
-  return '$' + n.toFixed(4);
-}
-function dateRangeMonths() {
-  const dr = FILTERED && FILTERED.totals && FILTERED.totals.dateRange;
-  if (!dr || !dr.from || !dr.to) return 1;
-  const diff = (new Date(dr.to) - new Date(dr.from)) / (1000 * 60 * 60 * 24 * 30.44);
-  return Math.max(diff, 1);
-}
-function recFmtTokenSaving(totalTokens) {
-  const perMonth = totalTokens / dateRangeMonths();
-  return '~' + fmt(Math.round(perMonth)) + ' tokens/mo';
-}
+function renderPPMTRecommendations() {
+  const recs = (FILTERED.orchestrator && FILTERED.orchestrator.summary && FILTERED.orchestrator.summary.recommendations) || [];
 
-function clientGenerateRecommendations(sessions, allPrompts, totals, filteredOrchestrator) {
-  const recs = { model: [], context: [], conversation: [], pipeline: [] };
+  // Clear old lens slots
+  ['cost', 'speed'].forEach(k => {
+    const el = document.getElementById('pipelineRecs-' + k);
+    if (el) el.innerHTML = '';
+  });
 
-  // MODEL LENS
-  const opusSessions = sessions.filter(s => recModelTier(s.model) === 'opus');
-  if (opusSessions.length > 0) {
-    const simpleOpus = opusSessions.filter(s => s.queryCount < 15 && s.totalTokens < 300_000);
-    if (simpleOpus.length >= 2) {
-      const tokens = simpleOpus.reduce((s, ses) => s + (ses.totalTokens || 0), 0);
-      const label = recFmtTokenSaving(tokens);
-      recs.model.push({
-        text: `Switch ${simpleOpus.length} simple sessions from Opus→Sonnet — frees ${label}`,
-        detail: `${simpleOpus.length} sessions had <15 queries but used expensive Opus. Example: "${((simpleOpus[0].firstPrompt || '') + '').substring(0, 60)}". Sonnet handles these equally well and uses less of your token budget.`,
-        saving: { tokens, label },
-      });
-    }
-  }
-  const heavyStarts = sessions.filter(s => s.queries && s.queries[0] && s.queries[0].inputTokens > 50_000);
-  if (heavyStarts.length >= 3) {
-    const avgStartInput = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0) / heavyStarts.length;
-    const totalOverhead = heavyStarts.reduce((s, ses) => s + ses.queries[0].inputTokens, 0);
-    const label = recFmtTokenSaving(totalOverhead);
-    recs.model.push({
-      text: `Your CLAUDE.md burns ~${fmt(Math.round(avgStartInput))} tokens per session in context overhead`,
-      detail: `Sessions start with ~${fmt(Math.round(avgStartInput))} tokens before your first message. Trimming unused sections frees headroom across every conversation.`,
-      saving: { tokens: totalOverhead, label },
-    });
-  }
-  if (sessions.length >= 5) {
-    const tierTokens = { opus: 0, sonnet: 0, haiku: 0 };
-    for (const s of sessions) { const t = recModelTier(s.model); if (t) tierTokens[t] += s.totalTokens; }
-    const total = tierTokens.opus + tierTokens.sonnet + tierTokens.haiku;
-    if (total > 0 && tierTokens.opus / total > 0.5) {
-      const opusPct = Math.round(tierTokens.opus / total * 100);
-      const shiftableTokens = Math.round(tierTokens.opus * 0.4);
-      const label = recFmtTokenSaving(shiftableTokens);
-      if (recs.model.length < 3) {
-        recs.model.push({
-          text: `${opusPct}% of tokens use Opus — shifting routine tasks to Sonnet frees ${label}`,
-          detail: `Opus is ideal for complex reasoning but over-powered for file edits and one-shot tasks. Use /model to switch for routine work and stretch your token budget.`,
-          saving: { tokens: shiftableTokens, label },
-        });
-      }
-    }
+  const container = document.getElementById('pipelineRecs-quality');
+  if (!container) return;
+
+  if (!recs.length) {
+    container.innerHTML = '';
+    return;
   }
 
-  // CONTEXT LENS
-  const shortExpensive = allPrompts.filter(p => p.prompt.trim().length < 30 && p.totalTokens > 100_000);
-  if (shortExpensive.length > 0) {
-    const worst = [...shortExpensive].sort((a, b) => b.totalTokens - a.totalTokens)[0];
-    const wastedInp = shortExpensive.reduce((s, p) => s + (p.inputTokens || 0), 0);
-    const wastedOut = shortExpensive.reduce((s, p) => s + (p.outputTokens || 0), 0);
-    const wastedTokens = shortExpensive.reduce((s, p) => s + (p.totalTokens || 0), 0);
-    const saveable = Math.round(wastedTokens * 0.6);
-    const label = recFmtTokenSaving(saveable);
-    recs.context.push({
-      text: `"${worst.prompt.trim().substring(0, 35)}" cost ${fmt(worst.totalTokens)} tokens — specific prompts cut this 50-80%`,
-      detail: `${shortExpensive.length} short messages triggered expensive tool chains (${fmt(wastedTokens)} tokens total). Saying "Yes, update auth.js line 42 and run tests" beats "Yes".`,
-      saving: { tokens: saveable, label },
-    });
-  }
-  if (sessions.length >= 10) {
-    const shortSess = sessions.filter(s => s.queryCount >= 3 && s.queryCount <= 15);
-    const longSess  = sessions.filter(s => s.queryCount > 80);
-    if (shortSess.length >= 3 && longSess.length >= 2) {
-      const shortAvg = shortSess.reduce((s, ses) => s + ses.totalTokens / ses.queryCount, 0) / shortSess.length;
-      const longAvg  = longSess.reduce((s, ses) => s + ses.totalTokens / ses.queryCount, 0) / longSess.length;
-      const ratio = (longAvg / Math.max(shortAvg, 1)).toFixed(1);
-      if (ratio >= 2) {
-        recs.context.push({
-          text: `Long conversations cost ${ratio}x more per message — start a fresh session per task`,
-          detail: `Short sessions average ~${fmt(Math.round(shortAvg))} tokens/msg vs ~${fmt(Math.round(longAvg))} in long ones. Every message re-reads the full history.`,
-          saving: null,
-        });
-      }
-    }
-  }
-  if (totals.totalTokens > 0) {
-    const outputPct = (totals.totalOutputTokens / totals.totalTokens) * 100;
-    if (outputPct < 3) {
-      recs.context.push({
-        text: `${outputPct.toFixed(1)}% of tokens are actual responses — shorter sessions save more than shorter answers`,
-        detail: `The other ${(100 - outputPct).toFixed(1)}% is Claude re-reading context. Session length matters far more than response length.`,
-        saving: null,
-      });
-    }
-  }
+  const sorted = [...recs].sort((a, b) => a.priority - b.priority);
 
-  // CONVERSATION LENS
-  const marathonSessions = sessions.filter(s => s.queryCount > 200);
-  if (marathonSessions.length >= 2) {
-    const mTokens = marathonSessions.reduce((s, ses) => s + ses.totalTokens, 0);
-    const mPct = Math.round(mTokens / Math.max(totals.totalTokens, 1) * 100);
-    const top = [...marathonSessions].sort((a, b) => b.totalTokens - a.totalTokens)[0];
-    recs.conversation.push({
-      text: `${marathonSessions.length} marathon sessions (200+ msgs) consumed ${mPct}% of total tokens`,
-      detail: `Biggest: "${(top.firstPrompt || '').substring(0, 60)}" with ${top.queryCount} messages. Break large tasks into focused sessions to reset context.`,
-      saving: null,
-    });
-  }
-  if (sessions.length >= 5) {
-    const toolHeavy = sessions.filter(s => {
-      const u = (s.queries || []).filter(q => q.userPrompt).length;
-      return u > 0 && (s.queryCount - u) > u * 4;
-    });
-    if (toolHeavy.length >= 2) {
-      const avgR = Math.round(toolHeavy.reduce((s, ses) => {
-        const u = (ses.queries || []).filter(q => q.userPrompt).length;
-        return s + (ses.queryCount - u) / Math.max(u, 1);
-      }, 0) / toolHeavy.length);
-      recs.conversation.push({
-        text: `${toolHeavy.length} sessions had ${avgR}x more tool calls than messages — point Claude to specific files`,
-        detail: `"Fix auth.js:42" triggers fewer tool calls than "fix the login bug". Each tool call re-reads the full conversation.`,
-        saving: null,
-      });
-    }
-  }
-  if (sessions.length >= 5) {
-    const projTokens = {};
-    for (const s of sessions) { const p = s.project || 'unknown'; projTokens[p] = (projTokens[p] || 0) + s.totalTokens; }
-    const sorted = Object.entries(projTokens).sort((a, b) => b[1] - a[1]);
-    if (sorted.length >= 2) {
-      const [topP, topT] = sorted[0];
-      const pct = Math.round(topT / Math.max(totals.totalTokens, 1) * 100);
-      if (pct >= 60) {
-        const shortName = topP.replace(/^[A-Za-z]--/, '').replace(/^Users-[^-]+-/, '').replace(/-/g, '/') || topP;
-        recs.conversation.push({
-          text: `"${shortName.substring(0, 40)}" uses ${pct}% of tokens — optimise here first for biggest impact`,
-          detail: `Applying shorter sessions and specific prompts to this project alone would meaningfully reduce your total spend.`,
-          saving: null,
-        });
-      }
-    }
-  }
-
-  // PIPELINE LENS — use filtered orchestrator data when date filter is active
-  const orch = filteredOrchestrator || (DATA && DATA.orchestrator);
-  if (orch && orch.summary && orch.summary.totalRuns >= 3) {
-    const s = orch.summary;
-    if (s.avgQualityIterations > 2) {
-      const worst = (s.topChurners || []).filter(r => r.qualityIterations > 3).slice(0, 3);
-      const suffix = worst.length > 0 ? ` Worst: ${worst.map(r => `#${r.issue} (${r.qualityIterations}x)`).join(', ')}` : '';
-      recs.pipeline.push({
-        text: `Quality loop averages ${s.avgQualityIterations}x — tighten implementer prompt to converge in 1-2 iterations`,
-        detail: `Ideal is 1-2 quality iterations per run. Each extra iteration adds a full review+fix cycle.${suffix}`,
-        saving: null,
-      });
-    }
-    if (s.avgTestIterations > 2) {
-      recs.pipeline.push({
-        text: `Test loop averages ${s.avgTestIterations}x — add "run tests before committing" to implementer prompt`,
-        detail: `Each test iteration means implementation shipped without passing tests.`,
-        saving: null,
-      });
-    }
-    const highChurnRuns = (orch.runs || []).filter(r => r.qualityIterations > 3);
-    if (highChurnRuns.length >= 2 && s.avgQualityIterations > 2) {
-      const pct = Math.round(highChurnRuns.length / Math.max(s.totalRuns, 1) * 100);
-      recs.pipeline.push({
-        text: `${pct}% of runs churn 3+ quality loops — route complex tasks directly to Sonnet`,
-        detail: `Runs with 3+ quality iterations likely needed a more capable model from the start.`,
-        saving: null,
-      });
-    } else if (s.stageAvgs && s.stageAvgs.length > 0 && s.stageAvgs[0].avgSeconds > 300 && recs.pipeline.length < 3) {
-      const slowest = s.stageAvgs[0];
-      recs.pipeline.push({
-        text: `"${slowest.name}" stage averages ${Math.round(slowest.avgSeconds / 60)}m — split large tasks or cache file reads`,
-        detail: `Long stages accumulate context per turn. Breaking tasks reduces per-turn reads.`,
-        saving: null,
-      });
-    }
-    if (s.completionRate < 50 && s.totalRuns >= 5 && recs.pipeline.length < 3) {
-      recs.pipeline.push({
-        text: `Only ${s.completionRate}% of runs complete — investigate error patterns in orchestrator logs`,
-        detail: `${s.errorRuns} of ${s.totalRuns} runs ended in error.`,
-        saving: null,
-      });
-    }
-  }
-
-  for (const key of Object.keys(recs)) recs[key] = recs[key].slice(0, 3);
-  return recs;
-}
-
-function renderRecommendations() {
-  const recs = FILTERED.recommendations || {};
-
-  const lenses = [
-    { key: 'model',        label: 'Model',        icon: '⚡', color: '#EEF2FF', dot: '#6366F1',  target: 'cost' },
-    { key: 'context',      label: 'Context',       icon: '📝', color: '#FEF3C7', dot: '#D97706',  target: 'cost' },
-    { key: 'conversation', label: 'Conversation',  icon: '💬', color: '#ECFDF5', dot: '#10B981',  target: 'speed' },
-    { key: 'pipeline',     label: 'Pipeline',      icon: '⚙️', color: '#F0FDFA', dot: '#0D9488',  target: 'quality' },
-  ];
-
-  // Group rendered HTML by target lens section
-  const byLens = { cost: [], speed: [], quality: [] };
-  for (const lens of lenses) {
-    const items = (recs[lens.key] || []);
-    if (!items.length) continue;
-    const itemsHtml = items.map(rec => {
-      const savingBadge = rec.saving ? `<span class="rec-saving">${rec.saving.label}</span>` : '';
-      const detailHtml = rec.detail ? `<div class="rec-detail">${escapeHtml(rec.detail)}</div>` : '';
-      return `<div class="rec-item" onclick="this.classList.toggle('expanded')">
-        <div class="rec-dot" style="background:${lens.dot}"></div>
-        <div class="rec-body">
-          <div class="rec-text">${escapeHtml(rec.text)}</div>
-          ${detailHtml}
-        </div>
-        ${savingBadge}
-      </div>`;
-    }).join('');
-    byLens[lens.target].push(`<div class="recs-lens">
-      <div class="recs-lens-header">
-        <div class="recs-lens-icon" style="background:${lens.color}">${lens.icon}</div>
-        <div class="recs-lens-title">${lens.label}</div>
+  const cardsHtml = sorted.map(rec => {
+    const impact = rec.ppmt_impact > 0
+      ? `<span class="ppmt-impact-badge">+${rec.ppmt_impact} PP/MT</span>`
+      : '';
+    return `<div class="ppmt-rec-card">
+      <div class="ppmt-rec-header">
+        <div class="ppmt-rec-title">${escapeHtml(rec.title)}</div>
+        ${impact}
       </div>
-      ${itemsHtml}
-    </div>`);
-  }
+      <div class="ppmt-rec-detail">${escapeHtml(rec.detail)}</div>
+      <div class="ppmt-rec-action">${escapeHtml(rec.action)}</div>
+    </div>`;
+  }).join('');
 
-  for (const [lensKey, blocks] of Object.entries(byLens)) {
-    document.getElementById('pipelineRecs-' + lensKey).innerHTML = blocks.join('');
-  }
+  container.innerHTML = `<div class="recs-lens">
+    <div class="recs-lens-header">
+      <div class="recs-lens-icon" style="background:#F0FDF4">&#x26A1;</div>
+      <div class="recs-lens-title">Efficiency</div>
+    </div>
+    ${cardsHtml}
+  </div>`;
 }
+
 
 function clientGenerateInsights(sessions, allPrompts, totals) {
   const insights = [];
@@ -1851,8 +1662,7 @@ function applyDateFilter() {
   const clientInsights = clientGenerateInsights(sessions, topPrompts, totals);
   const orchestratorInsights = clientGenerateOrchestratorInsights(filteredOrchestrator);
   const insights = [...clientInsights, ...orchestratorInsights];
-  const recommendations = clientGenerateRecommendations(sessions, topPrompts, totals, filteredOrchestrator);
-  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, insights, recommendations, orchestrator: filteredOrchestrator };
+  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, insights, orchestrator: filteredOrchestrator };
   render();
 }
 
@@ -1861,7 +1671,7 @@ function render() {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   renderStats();
-  renderRecommendations();
+  renderPPMTRecommendations();
   renderInsights();
   renderCostSection();
   renderSpeedSection();

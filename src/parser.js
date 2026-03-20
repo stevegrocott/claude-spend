@@ -422,6 +422,7 @@ async function parseAllSessions() {
   // Parse orchestrator logs from project directories
   const orchestrator = parseOrchestratorLogs(projectCostMap);
   orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs, dailyUsage);
+  orchestrator.summary.recommendations = generatePPMTRecommendations(orchestrator.summary.ppmtAnalysis);
   const orchestratorInsights = generateOrchestratorInsights(orchestrator);
 
   return {
