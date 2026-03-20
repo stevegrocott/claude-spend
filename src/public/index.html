@@ -869,6 +869,40 @@
     line-height: 1.7; max-width: 700px; margin: 0 auto 16px;
     border-top: 1px solid var(--border);
   }
+
+  /* ---- TWO-COLUMN COMPARISON LAYOUT ---- */
+  .overview-section {
+    background: var(--white); border-radius: var(--radius);
+    padding: 24px; margin-bottom: 24px;
+    border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+  }
+  .comparison-layout {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 24px; margin-bottom: 32px;
+  }
+  @media (max-width: 900px) { .comparison-layout { grid-template-columns: 1fr; } }
+  .column-section { min-width: 0; }
+  .column-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 16px; padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+  }
+  .column-header-dot {
+    width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  }
+  .column-header-title {
+    font-size: 15px; font-weight: 700; letter-spacing: -0.3px;
+  }
+  .column-card {
+    background: var(--white); border-radius: var(--radius-sm);
+    padding: 16px 20px; margin-bottom: 14px;
+    border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+  }
+  .column-card h4 {
+    font-size: 12px; font-weight: 700; color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;
+  }
+  .column-card canvas { display: block; }
 </style>
 </head>
 <body>
@@ -906,104 +940,90 @@
     </div>
   </div>
 
-  <!-- Hero PP/100MT -->
-  <div id="heroPPMT" class="hero-ppmt animate delay-1"></div>
-
-  <!-- PP/100MT Line Chart -->
-  <div style="margin-bottom:32px">
-    <div class="chart-card" style="padding:16px">
-      <h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 12px;display:inline-block">PP/100MT Over Time<div class="tooltip">Completed story points per 100 million pipeline tokens each day. Higher means more efficient pipeline usage.</div></h3>
-      <canvas id="spPerTokenChart"></canvas>
-      <div class="legend" style="margin-top:8px">
-        <div class="legend-item"><div class="legend-dot" style="background:#6366F1"></div> PP / 100M pipeline tokens</div>
-      </div>
+  <!-- Overview: Token Split + Stacked Area -->
+  <div class="overview-section animate delay-2">
+    <h3 style="font-size:13px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Pipeline vs Interactive Token Split</h3>
+    <div id="tokenSplitBar"></div>
+    <div style="margin-top:16px">
+      <canvas id="trendPipelineChart"></canvas>
     </div>
-    <p class="section-explainer">Daily efficiency trend using only pipeline tokens as the denominator.</p>
   </div>
 
-  <!-- Efficiency Recommendations -->
-  <div id="pipelineRecs-quality"></div>
-
-  <!-- What Drives Your Score -->
-  <div class="drivers-section animate delay-3">
-    <div class="section-header">
-      <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+  <!-- Two-Column Comparison -->
+  <div class="comparison-layout">
+    <!-- Pipeline Column -->
+    <div class="column-section">
+      <div class="column-header">
+        <div class="column-header-dot" style="background:#6366F1"></div>
+        <div class="column-header-title">Pipeline</div>
       </div>
-      <div class="section-title">What Drives Your Score</div>
-    </div>
-    <p class="section-explainer">These four factors explain most of the variance in your PP/100MT.</p>
-    <div class="drivers-grid">
-      <div class="driver-card">
-        <h3>Yield % Trend</h3>
+
+      <div class="column-card" id="heroPPMT"></div>
+
+      <div class="column-card">
+        <h4>PP/100MT Over Time</h4>
+        <canvas id="spPerTokenChart"></canvas>
+      </div>
+
+      <div id="pipelineRecs-quality"></div>
+
+      <div class="column-card">
+        <h4>Yield % Trend</h4>
         <div class="driver-explainer">What percentage of attempted story points actually complete. The single strongest predictor of PP/100MT.</div>
         <canvas id="yieldTrendChart"></canvas>
       </div>
-      <div class="driver-card">
-        <h3>Task Size Completion</h3>
+
+      <div class="column-card">
+        <h4>Task Size Completion</h4>
         <div class="driver-explainer">S tasks complete 2.6x more often than M tasks. Splitting M-to-S is the highest-leverage change.</div>
         <canvas id="taskSizeChart"></canvas>
       </div>
-      <div class="driver-card">
-        <h3>Failure Breakdown</h3>
+
+      <div class="column-card">
+        <h4>Failure Breakdown</h4>
         <div class="driver-explainer">Where your tokens go to die. Parse failures are 100% waste -- zero points, full token cost.</div>
         <canvas id="failureChart"></canvas>
       </div>
-      <div class="driver-card">
-        <h3>Task Count vs Outcome</h3>
+
+      <div class="column-card">
+        <h4>Task Count vs Outcome</h4>
         <div class="driver-explainer">Issues with 5+ tasks fail ~70% of the time. Keep issues to 2-3 tasks.</div>
         <div id="taskCountStat" class="driver-stat"></div>
       </div>
     </div>
-  </div>
 
-  <!-- Session Efficiency -->
-  <div class="session-efficiency-section animate delay-4" id="sessionEfficiencySection">
-    <div class="section-header">
-      <div class="section-icon" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    <!-- Interactive Column -->
+    <div class="column-section">
+      <div class="column-header">
+        <div class="column-header-dot" style="background:#F59E0B"></div>
+        <div class="column-header-title">Interactive</div>
       </div>
-      <div class="section-title">Session Efficiency</div>
-    </div>
-    <p class="section-explainer">Tokens spent outside the pipeline don't produce tracked story points. These recommendations help you get more value from interactive sessions.</p>
 
-    <!-- Pipeline vs Interactive token split -->
-    <div class="chart-card" style="padding:16px;margin-bottom:16px">
-      <h3 style="font-size:14px;margin:0 0 2px">Pipeline vs Interactive Token Split</h3>
-      <div id="tokenSplitBar"></div>
-    </div>
+      <div class="column-card" id="heroInteractive"></div>
 
-    <!-- Session recommendations -->
-    <div id="sessionRecs" style="margin-bottom:16px"></div>
+      <div class="column-card">
+        <h4>Tokens / Query Over Time</h4>
+        <canvas id="trendTpqChart"></canvas>
+      </div>
 
-    <!-- Context cost curve -->
-    <div class="chart-card" style="padding:16px">
-      <h3 style="font-size:14px;margin:0 0 4px">Context Cost Curve</h3>
-      <div class="driver-explainer" style="margin-bottom:12px">Average tokens per query at different session lengths — longer sessions accumulate context that inflates every subsequent query.</div>
-      <canvas id="contextCostChart"></canvas>
-    </div>
-    <h3 style="margin:24px 0 4px;font-size:14px;font-weight:700;color:var(--text-secondary)">Efficiency Trends</h3>
-    <p class="section-explainer">7-day rolling averages of behaviors that drive interactive session efficiency.</p>
-    <div class="drivers-grid">
-      <div class="driver-card">
-        <h3>Queries / Session</h3>
+      <div id="sessionRecs"></div>
+
+      <div class="column-card">
+        <h4>Queries / Session</h4>
         <div class="driver-explainer">Lower is better. Shorter sessions waste less on context re-reading.</div>
         <canvas id="trendQueriesChart"></canvas>
       </div>
-      <div class="driver-card">
-        <h3>Tokens / Query (K)</h3>
-        <div class="driver-explainer">Lower is better. Lean context means each query costs less.</div>
-        <canvas id="trendTpqChart"></canvas>
-      </div>
-      <div class="driver-card">
-        <h3>Pipeline vs Interactive</h3>
-        <div class="driver-explainer">Daily token share. Growing pipeline (indigo) means more tracked, optimized work.</div>
-        <canvas id="trendPipelineChart"></canvas>
-      </div>
-      <div class="driver-card">
-        <h3>Short Sessions %</h3>
+
+      <div class="column-card">
+        <h4>Short Sessions %</h4>
         <div class="driver-explainer">Higher is better. Sessions under 20 queries are most token-efficient.</div>
         <canvas id="trendShortChart"></canvas>
+      </div>
+
+      <div class="column-card">
+        <h4>Context Cost Curve</h4>
+        <div class="driver-explainer">Average tokens per query at different session lengths — longer sessions accumulate context that inflates every subsequent query.</div>
+        <canvas id="contextCostChart"></canvas>
       </div>
     </div>
   </div>
@@ -1088,10 +1108,6 @@
         <tbody id="sessionsBody"></tbody>
       </table>
     </div>
-  </div>
-
-  <div class="dashboard-footer">
-    PP/100MT measures completed story points per 100M pipeline tokens. Charts above explain factors that move this number. Recommendations tell you what to change. Non-pipeline session analysis is in the Session Efficiency section.
   </div>
 
   <div class="footer">
@@ -1669,6 +1685,7 @@ function render() {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   renderHeroPPMT();
+  renderHeroInteractive();
   renderPPMTRecommendations();
   renderSessionEfficiency();
   renderProjectBreakdown();
@@ -1723,6 +1740,44 @@ function renderHeroPPMT() {
     '<div class="hero-ppmt-label">Points per 100M Pipeline Tokens</div>',
     '<div class="hero-ppmt-value">' + overallPP100MT.toFixed(2) + '<span class="hero-ppmt-trend ' + trendClass + '">' + trendArrow + '</span></div>',
     '<div class="hero-ppmt-sub">' + completedSP + ' SP completed \u00B7 ' + fmt(pipelineTokens) + ' pipeline tokens</div>',
+  ].join('');
+}
+
+// Hero Interactive — tokens per query with trend
+function renderHeroInteractive() {
+  const container = document.getElementById('heroInteractive');
+  if (!container) return;
+
+  const se = FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency);
+  if (!se || !se.interactive || se.interactive.queries === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-tertiary)">No interactive session data</div>';
+    return;
+  }
+
+  const tpq = Math.round(se.interactive.tokens / se.interactive.queries);
+  const tpqK = (tpq / 1000).toFixed(0);
+
+  // Trend: last 3 days vs prior 3 days of tokensPerQuery
+  const byDay = (se.efficiencyByDay || []).filter(d => d.tokensPerQuery > 0);
+  let trendClass = 'flat', trendArrow = '--';
+  if (byDay.length >= 6) {
+    const recent3 = byDay.slice(-3).reduce((s, d) => s + d.tokensPerQuery, 0) / 3;
+    const prior3 = byDay.slice(-6, -3).reduce((s, d) => s + d.tokensPerQuery, 0) / 3;
+    // Lower is better for tokens/query, so inverted arrows
+    if (recent3 < prior3 * 0.95) { trendClass = 'up'; trendArrow = '\u2193'; }
+    else if (recent3 > prior3 * 1.05) { trendClass = 'down'; trendArrow = '\u2191'; }
+    else { trendClass = 'flat'; trendArrow = '\u2192'; }
+  } else if (byDay.length >= 2) {
+    const last = byDay[byDay.length - 1].tokensPerQuery;
+    const prev = byDay[byDay.length - 2].tokensPerQuery;
+    if (last < prev * 0.95) { trendClass = 'up'; trendArrow = '\u2193'; }
+    else if (last > prev * 1.05) { trendClass = 'down'; trendArrow = '\u2191'; }
+  }
+
+  container.innerHTML = [
+    '<div class="hero-ppmt-label">Tokens per Query</div>',
+    '<div class="hero-ppmt-value">' + tpqK + 'K<span class="hero-ppmt-trend ' + trendClass + '">' + trendArrow + '</span></div>',
+    '<div class="hero-ppmt-sub">' + fmt(se.interactive.tokens) + ' tokens \u00B7 ' + fmt(se.interactive.queries) + ' queries \u00B7 ' + se.interactive.sessions + ' sessions</div>',
   ].join('');
 }
 
@@ -2081,9 +2136,6 @@ function buildDrawerContent(p) {
 
 // Session Efficiency — pipeline/interactive split, session recs, context cost curve
 function renderSessionEfficiency() {
-  const container = document.getElementById('sessionEfficiencySection');
-  if (!container) return;
-
   // 1. Pipeline vs Interactive token split bar
   const se = FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency);
   const pipelineTokens = (se && se.pipeline && se.pipeline.tokens) || 0;
@@ -2679,7 +2731,7 @@ function renderEfficiencyTrends() {
 }
 
 fetchData();
-window.addEventListener('resize', () => { if (FILTERED) { renderSPPerTokenChart(); renderDriverCharts(); renderEfficiencyTrends(); } });
+window.addEventListener('resize', () => { if (FILTERED) { renderSPPerTokenChart(); renderDriverCharts(); renderEfficiencyTrends(); renderPipelineStackedChart((FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency) || {}).efficiencyByDay || []); } });
 </script>
 </body>
 </html>
