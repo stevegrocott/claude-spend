@@ -406,6 +406,55 @@ test.describe('API Data Consistency', () => {
   });
 });
 
+// ─── Session Efficiency ─────────────────────────────────────────────────────
+
+test.describe('Session Efficiency', () => {
+  test('session efficiency section renders', async ({ page }) => {
+    await waitForDashboard(page);
+    const section = page.locator('#sessionEfficiencySection');
+    await expect(section).toBeAttached();
+  });
+
+  test('pipeline/interactive split bar renders with percentages', async ({ page }) => {
+    await waitForDashboard(page);
+    const splitBar = page.locator('#tokenSplitBar');
+    const count = await splitBar.count();
+    if (count === 0) { test.skip(); return; }
+
+    const text = await splitBar.textContent();
+    expect(text).toMatch(/\d+%/);
+  });
+
+  test('context cost chart canvas exists', async ({ page }) => {
+    await waitForDashboard(page);
+    const canvas = page.locator('#contextCostChart');
+    await expect(canvas).toBeAttached();
+  });
+
+  test('session recommendations render when data exists', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    const recs = api.sessionEfficiency?.recommendations || [];
+    if (recs.length === 0) { test.skip(); return; }
+
+    const cards = page.locator('#sessionRecs .ppmt-rec-card');
+    const count = await cards.count();
+    expect(count).toBeGreaterThan(0);
+  });
+
+  test('API sessionEfficiency has pipeline and interactive token counts', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    const se = api.sessionEfficiency;
+    if (!se) { test.skip(); return; }
+
+    expect(se).toHaveProperty('pipeline');
+    expect(se).toHaveProperty('interactive');
+    expect(typeof se.pipeline.tokens).toBe('number');
+    expect(typeof se.interactive.tokens).toBe('number');
+  });
+});
+
 // ─── Dashboard Footer ───────────────────────────────────────────────────────
 
 test.describe('Dashboard Footer', () => {

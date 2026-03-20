@@ -345,6 +345,33 @@
     font-size: 12px; color: #0D9488; font-weight: 500; line-height: 1.4;
   }
 
+  /* ---- SESSION EFFICIENCY ---- */
+  .session-efficiency-section { margin-bottom: 32px; }
+  .token-split-bar {
+    display: flex; height: 28px; border-radius: 6px; overflow: hidden;
+    background: var(--surface); margin: 12px 0 8px;
+  }
+  .token-split-pipeline {
+    background: #6366F1; display: flex; align-items: center;
+    justify-content: center; color: white; font-size: 11px; font-weight: 700;
+    transition: width 0.5s;
+  }
+  .token-split-interactive {
+    background: #F59E0B; display: flex; align-items: center;
+    justify-content: center; color: white; font-size: 11px; font-weight: 700;
+    transition: width 0.5s;
+  }
+  .token-split-legend {
+    display: flex; gap: 16px; flex-wrap: wrap;
+  }
+  .token-split-legend-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; color: var(--text-secondary);
+  }
+  .token-split-legend-dot {
+    width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+  }
+
   /* ---- INSIGHTS ---- */
   .insights-section { margin-bottom: 32px; }
   .insight-card {
@@ -499,6 +526,19 @@
 
   /* ---- TOP PROMPTS ---- */
   .top-prompts { margin-bottom: 32px; }
+  .prompt-type-tabs {
+    display: flex; gap: 4px; margin-bottom: 12px;
+  }
+  .prompt-type-tab {
+    font-family: var(--font); font-size: 13px; font-weight: 600;
+    padding: 6px 16px; border-radius: 20px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--white);
+    color: var(--text-secondary); transition: all 0.15s;
+  }
+  .prompt-type-tab:hover { border-color: var(--indigo); color: var(--indigo); }
+  .prompt-type-tab.active {
+    background: var(--indigo); color: white; border-color: var(--indigo);
+  }
   .prompts-card {
     background: var(--white); border-radius: var(--radius);
     border: 1px solid var(--border); box-shadow: var(--shadow-sm);
@@ -917,6 +957,33 @@
     </div>
   </div>
 
+  <!-- Session Efficiency -->
+  <div class="session-efficiency-section animate delay-4" id="sessionEfficiencySection">
+    <div class="section-header">
+      <div class="section-icon" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      </div>
+      <div class="section-title">Session Efficiency</div>
+    </div>
+    <p class="section-explainer">Tokens spent outside the pipeline don't produce tracked story points. These recommendations help you get more value from interactive sessions.</p>
+
+    <!-- Pipeline vs Interactive token split -->
+    <div class="chart-card" style="padding:16px;margin-bottom:16px">
+      <h3 style="font-size:14px;margin:0 0 2px">Pipeline vs Interactive Token Split</h3>
+      <div id="tokenSplitBar"></div>
+    </div>
+
+    <!-- Session recommendations -->
+    <div id="sessionRecs" style="margin-bottom:16px"></div>
+
+    <!-- Context cost curve -->
+    <div class="chart-card" style="padding:16px">
+      <h3 style="font-size:14px;margin:0 0 4px">Context Cost Curve</h3>
+      <div class="driver-explainer" style="margin-bottom:12px">Average tokens per query at different session lengths — longer sessions accumulate context that inflates every subsequent query.</div>
+      <canvas id="contextCostChart"></canvas>
+    </div>
+  </div>
+
   <!-- Projects -->
   <div class="projects-section animate delay-4">
     <div class="section-header">
@@ -948,7 +1015,11 @@
       <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
         <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
       </div>
-      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">Most Expensive Prompts<div class="tooltip">Your top 20 individual messages ranked by how many tokens they used. Short vague messages like "Yes" often rank highest because they trigger long chains of tool calls where Claude tries to figure out what you meant.</div></div>
+      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">Most Expensive Prompts<div class="tooltip">Your top individual messages ranked by token usage, split by pipeline-tracked (producing story points) and interactive (untracked) sessions.</div></div>
+    </div>
+    <div class="prompt-type-tabs" id="promptTypeTabs">
+      <button class="prompt-type-tab active" data-type="interactive" onclick="switchPromptTab('interactive')">Interactive</button>
+      <button class="prompt-type-tab" data-type="pipeline" onclick="switchPromptTab('pipeline')">Pipeline</button>
     </div>
     <div class="prompts-card" id="topPromptsList"></div>
   </div>
@@ -1256,6 +1327,153 @@ function recomputeOrchestratorSummary(runs) {
   };
 }
 
+// Client-side recompute of sessionEfficiency for date-filtered sessions
+function recomputeSessionEfficiency(sessions) {
+  const pipeline = { sessions: 0, tokens: 0 };
+  const interactive = { sessions: 0, tokens: 0 };
+  const marathonSessions = [];
+  const implPattern = /^(fix|add|update|create|build|refactor)\b/i;
+  let implCount = 0, implTokens = 0;
+
+  const modelStats = {};
+  const lengthBuckets = {
+    short: { count: 0, tokens: 0 },
+    medium: { count: 0, tokens: 0 },
+    long: { count: 0, tokens: 0 },
+  };
+
+  // Context balloon buckets
+  const balloonBuckets = [
+    { bucket: '1-10', min: 1, max: 10, total: 0, count: 0 },
+    { bucket: '11-50', min: 11, max: 50, total: 0, count: 0 },
+    { bucket: '51-100', min: 51, max: 100, total: 0, count: 0 },
+    { bucket: '100+', min: 101, max: Infinity, total: 0, count: 0 },
+  ];
+
+  for (const s of sessions) {
+    const isPipeline = s.sessionType === 'pipeline_subagent';
+    if (isPipeline) {
+      pipeline.sessions++;
+      pipeline.tokens += s.totalTokens || 0;
+    } else {
+      interactive.sessions++;
+      interactive.tokens += s.totalTokens || 0;
+
+      // Marathon detection
+      if ((s.queryCount || 0) >= 100) {
+        marathonSessions.push({ date: s.date, firstPrompt: s.firstPrompt, totalTokens: s.totalTokens || 0, queryCount: s.queryCount || 0 });
+      }
+
+      // Implementation-like prompts
+      if (s.firstPrompt && implPattern.test(s.firstPrompt)) {
+        implCount++;
+        implTokens += s.totalTokens || 0;
+      }
+
+      // Model stats
+      const m = (s.model || '').includes('opus') ? 'opus' : (s.model || '').includes('sonnet') ? 'sonnet' : (s.model || '').includes('haiku') ? 'haiku' : 'other';
+      if (!modelStats[m]) modelStats[m] = { sessions: 0, tokens: 0, queries: 0 };
+      modelStats[m].sessions++;
+      modelStats[m].tokens += s.totalTokens || 0;
+      modelStats[m].queries += s.queryCount || 0;
+
+      // Session length buckets
+      const qc = s.queryCount || 0;
+      if (qc <= 20) { lengthBuckets.short.count++; lengthBuckets.short.tokens += s.totalTokens || 0; }
+      else if (qc <= 50) { lengthBuckets.medium.count++; lengthBuckets.medium.tokens += s.totalTokens || 0; }
+      else { lengthBuckets.long.count++; lengthBuckets.long.tokens += s.totalTokens || 0; }
+    }
+
+    // Context balloon — per-query position analysis
+    const queries = s.queries || [];
+    for (let i = 0; i < queries.length; i++) {
+      const pos = i + 1;
+      const qTokens = queries[i].totalTokens || 0;
+      for (const b of balloonBuckets) {
+        if (pos >= b.min && pos <= b.max) { b.total += qTokens; b.count++; break; }
+      }
+    }
+  }
+
+  // Finalize model stats
+  for (const m of Object.keys(modelStats)) {
+    const ms = modelStats[m];
+    ms.avgTokensPerQuery = ms.queries > 0 ? Math.round(ms.tokens / ms.queries) : 0;
+    ms.avgTokensPerSession = ms.sessions > 0 ? Math.round(ms.tokens / ms.sessions) : 0;
+    ms.avgQueriesPerSession = ms.sessions > 0 ? Math.round(ms.queries / ms.sessions) : 0;
+  }
+
+  const totalTokens = pipeline.tokens + interactive.tokens;
+  const pipelinePct = totalTokens > 0 ? Math.round((pipeline.tokens / totalTokens) * 100) : 0;
+
+  const contextBalloonCurve = balloonBuckets.map(b => ({
+    bucket: b.bucket,
+    avgTokensPerQuery: b.count > 0 ? Math.round(b.total / b.count) : 0,
+  }));
+
+  marathonSessions.sort((a, b) => b.totalTokens - a.totalTokens);
+
+  const efficiency = {
+    pipeline, interactive,
+    pipelinePct, interactivePct: totalTokens > 0 ? 100 - pipelinePct : 0,
+    marathonSessions,
+    implementationOutsidePipeline: { count: implCount, totalTokens: implTokens },
+    contextBalloonCurve,
+    modelStats,
+    lengthBuckets,
+  };
+
+  // Generate recommendations client-side (same logic as server)
+  efficiency.recommendations = generateClientSessionRecs(efficiency);
+  return efficiency;
+}
+
+function generateClientSessionRecs(eff) {
+  const recs = [];
+  const ms = eff.modelStats || {};
+  const lb = eff.lengthBuckets || {};
+
+  if (lb.long && lb.short && lb.long.count > 0 && lb.short.count > 0) {
+    const longAvg = Math.round(lb.long.tokens / lb.long.count);
+    const shortAvg = Math.round(lb.short.tokens / lb.short.count);
+    const ratio = shortAvg > 0 ? Math.round(longAvg / shortAvg) : 0;
+    const longPct = eff.interactive.tokens > 0 ? Math.round((lb.long.tokens / eff.interactive.tokens) * 100) : 0;
+    if (ratio > 3 && longPct > 50) {
+      recs.push({ id: 'session_length', title: '50+ query sessions consume ' + longPct + '% of interactive tokens',
+        detail: lb.long.count + ' long sessions average ' + (longAvg / 1e6).toFixed(1) + 'M tokens each \u2014 ' + ratio + 'x more than short sessions at ' + (shortAvg / 1e6).toFixed(1) + 'M each. Use /clear mid-session to reset context.',
+        action: 'Target under 50 queries per session. Start fresh or /clear when context drifts.' });
+    }
+  }
+
+  if (ms.opus && ms.sonnet && ms.opus.sessions >= 5 && ms.sonnet.sessions >= 5) {
+    const ratio = ms.sonnet.avgTokensPerQuery > 0 ? (ms.opus.avgTokensPerQuery / ms.sonnet.avgTokensPerQuery).toFixed(1) : 0;
+    if (ratio > 1.5) {
+      recs.push({ id: 'model_cost', title: 'Opus costs ' + ratio + 'x more per query than Sonnet',
+        detail: 'Opus averages ' + (ms.opus.avgTokensPerQuery / 1000).toFixed(0) + 'K tokens/query across ' + ms.opus.sessions + ' sessions vs Sonnet at ' + (ms.sonnet.avgTokensPerQuery / 1000).toFixed(0) + 'K across ' + ms.sonnet.sessions + ' sessions.',
+        action: 'Use Sonnet for exploration and iterative work. Reserve Opus for complex reasoning.' });
+    }
+  }
+
+  const curve = eff.contextBalloonCurve;
+  const avg1 = curve.find(c => c.bucket === '1-10');
+  const avg100 = curve.find(c => c.bucket === '100+');
+  if (avg1 && avg100 && avg1.avgTokensPerQuery > 0 && avg100.avgTokensPerQuery > avg1.avgTokensPerQuery * 2) {
+    const ratio = Math.round(avg100.avgTokensPerQuery / avg1.avgTokensPerQuery);
+    recs.push({ id: 'context_balloon', title: 'Queries at position 100+ cost ' + ratio + 'x more than early queries',
+      detail: 'First 10 queries average ' + (avg1.avgTokensPerQuery / 1000).toFixed(0) + 'K tokens each. After query 100: ' + (avg100.avgTokensPerQuery / 1000).toFixed(0) + 'K.',
+      action: 'The cheapest fix: ask the same question in a new session instead of a long one.' });
+  }
+
+  const extremeMarathons = eff.marathonSessions.filter(s => s.queryCount > 200);
+  if (extremeMarathons.length > 0) {
+    const top = extremeMarathons[0];
+    recs.push({ id: 'marathon_sessions', title: extremeMarathons.length + ' session(s) exceed 200 queries (' + (top.totalTokens / 1e6).toFixed(0) + 'M+ tokens each)',
+      detail: 'Most expensive: "' + (top.firstPrompt || '').slice(0, 80) + '" on ' + top.date + ' \u2014 ' + top.queryCount + ' queries, ' + (top.totalTokens / 1e6).toFixed(1) + 'M tokens.',
+      action: 'Split into multiple focused sessions. Each new session starts with minimal context overhead.' });
+  }
+
+  return recs;
+}
 
 function applyDateFilter() {
   if (!DATA) return;
@@ -1318,7 +1536,7 @@ function applyDateFilter() {
     let curPrompt = null, curInput = 0, curOutput = 0;
     const flushPrompt = () => {
       if (curPrompt && (curInput + curOutput) > 0) {
-        projMap[p].allPrompts.push({ prompt: curPrompt.substring(0, 300), inputTokens: curInput, outputTokens: curOutput, totalTokens: curInput + curOutput, date: s.date, sessionId: s.sessionId, model: s.model });
+        projMap[p].allPrompts.push({ prompt: curPrompt.substring(0, 300), inputTokens: curInput, outputTokens: curOutput, totalTokens: curInput + curOutput, date: s.date, sessionId: s.sessionId, model: s.model, sessionType: s.sessionType });
       }
     };
     for (const q of (s.queries || [])) {
@@ -1347,7 +1565,7 @@ function applyDateFilter() {
     let curPrompt = null, curInput = 0, curOutput = 0;
     const flush = () => {
       if (curPrompt && (curInput + curOutput) > 0) {
-        allPrompts.push({ prompt: curPrompt.substring(0, 300), inputTokens: curInput, outputTokens: curOutput, totalTokens: curInput + curOutput, date: s.date, sessionId: s.sessionId, model: s.model });
+        allPrompts.push({ prompt: curPrompt.substring(0, 300), inputTokens: curInput, outputTokens: curOutput, totalTokens: curInput + curOutput, date: s.date, sessionId: s.sessionId, model: s.model, sessionType: s.sessionType });
       }
     };
     for (const q of (s.queries || [])) {
@@ -1357,7 +1575,10 @@ function applyDateFilter() {
     }
     flush();
   });
-  const topPrompts = allPrompts.sort((a, b) => b.totalTokens - a.totalTokens).slice(0, 20);
+  allPrompts.sort((a, b) => b.totalTokens - a.totalTokens);
+  const pipelinePrompts = allPrompts.filter(p => p.sessionType === 'pipeline_subagent').slice(0, 20);
+  const interactivePrompts = allPrompts.filter(p => p.sessionType !== 'pipeline_subagent').slice(0, 20);
+  const topPrompts = [...pipelinePrompts, ...interactivePrompts].sort((a, b) => b.totalTokens - a.totalTokens);
 
   const totals = {
     totalSessions: sessions.length,
@@ -1383,7 +1604,8 @@ function applyDateFilter() {
     filteredOrchestrator = { runs: filteredRuns, summary: recomputed };
   }
 
-  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, orchestrator: filteredOrchestrator };
+  const filteredSessionEff = recomputeSessionEfficiency(sessions);
+  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, orchestrator: filteredOrchestrator, sessionEfficiency: filteredSessionEff };
   render();
 }
 
@@ -1393,6 +1615,7 @@ function render() {
   document.getElementById('app').style.display = 'block';
   renderHeroPPMT();
   renderPPMTRecommendations();
+  renderSessionEfficiency();
   renderProjectBreakdown();
   renderTopPrompts();
   renderSessions();
@@ -1400,6 +1623,7 @@ function render() {
   requestAnimationFrame(() => {
     renderSPPerTokenChart();
     renderDriverCharts();
+    renderContextCostChart();
   });
 }
 
@@ -1799,6 +2023,183 @@ function buildDrawerContent(p) {
   return '<div class="drawer-prompt-list">' + items.join('') + '</div>';
 }
 
+// Session Efficiency — pipeline/interactive split, session recs, context cost curve
+function renderSessionEfficiency() {
+  const container = document.getElementById('sessionEfficiencySection');
+  if (!container) return;
+
+  // 1. Pipeline vs Interactive token split bar
+  const se = FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency);
+  const pipelineTokens = (se && se.pipeline && se.pipeline.tokens) || 0;
+  const interactiveTokens = (se && se.interactive && se.interactive.tokens) || 0;
+  const totalTokens = pipelineTokens + interactiveTokens || FILTERED.totals.totalTokens || 0;
+
+  const splitBar = document.getElementById('tokenSplitBar');
+  if (splitBar) {
+    if (totalTokens > 0) {
+      const pipePct = Math.round((pipelineTokens / totalTokens) * 100);
+      const intPct = 100 - pipePct;
+      splitBar.innerHTML = `
+        <div class="token-split-bar">
+          <div class="token-split-pipeline" style="width:${pipePct}%">${pipePct > 10 ? pipePct + '%' : ''}</div>
+          <div class="token-split-interactive" style="width:${intPct}%">${intPct > 10 ? intPct + '%' : ''}</div>
+        </div>
+        <div class="token-split-legend">
+          <div class="token-split-legend-item">
+            <div class="token-split-legend-dot" style="background:#6366F1"></div>
+            Pipeline ${pipePct}% (${fmt(pipelineTokens)})
+          </div>
+          <div class="token-split-legend-item">
+            <div class="token-split-legend-dot" style="background:#F59E0B"></div>
+            Interactive ${intPct}% (${fmt(interactiveTokens)})
+          </div>
+        </div>`;
+    } else {
+      // Fallback: illustrative 26%/74% split
+      splitBar.innerHTML = `
+        <div class="token-split-bar">
+          <div class="token-split-pipeline" style="width:26%">26%</div>
+          <div class="token-split-interactive" style="width:74%">74%</div>
+        </div>
+        <div class="token-split-legend">
+          <div class="token-split-legend-item"><div class="token-split-legend-dot" style="background:#6366F1"></div>Pipeline 26%</div>
+          <div class="token-split-legend-item"><div class="token-split-legend-dot" style="background:#F59E0B"></div>Interactive 74%</div>
+        </div>`;
+    }
+  }
+
+  // 2. Session recommendations (from server-computed sessionEfficiency)
+  const recsEl = document.getElementById('sessionRecs');
+  if (recsEl) {
+    const se = FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency);
+    const sessionRecs = (se && se.recommendations) || [];
+
+    if (sessionRecs.length > 0) {
+      const cards = sessionRecs.map(r => `
+        <div class="ppmt-rec-card">
+          <div class="ppmt-rec-header"><div class="ppmt-rec-title">${escapeHtml(r.title)}</div></div>
+          <div class="ppmt-rec-detail">${escapeHtml(r.detail)}</div>
+          <div class="ppmt-rec-action">${escapeHtml(r.action)}</div>
+        </div>`).join('');
+      recsEl.innerHTML = `<div class="recs-lens">
+        <div class="recs-lens-header">
+          <div class="recs-lens-icon" style="background:#FEF3C7">&#x23F0;</div>
+          <div class="recs-lens-title">Session Patterns</div>
+        </div>
+        ${cards}
+      </div>`;
+    } else {
+      recsEl.innerHTML = '';
+    }
+  }
+}
+
+function renderContextCostChart() {
+  const canvas = document.getElementById('contextCostChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const sessions = FILTERED.sessions || [];
+
+  // Bucket sessions by query count, compute avg tokens-per-query per bucket
+  const buckets = [
+    { label: '1\u20135', min: 1, max: 5, total: 0, count: 0 },
+    { label: '6\u201310', min: 6, max: 10, total: 0, count: 0 },
+    { label: '11\u201320', min: 11, max: 20, total: 0, count: 0 },
+    { label: '21\u201340', min: 21, max: 40, total: 0, count: 0 },
+    { label: '41+', min: 41, max: Infinity, total: 0, count: 0 },
+  ];
+
+  sessions.forEach(s => {
+    const qc = s.queryCount || 0;
+    if (qc === 0) return;
+    const bucket = buckets.find(b => qc >= b.min && qc <= b.max);
+    if (bucket) {
+      bucket.total += (s.totalTokens || 0) / qc;
+      bucket.count++;
+    }
+  });
+
+  const data = buckets.filter(b => b.count > 0).map(b => ({
+    label: b.label,
+    avgTpq: Math.round(b.total / b.count),
+  }));
+
+  if (!data.length) {
+    canvas.style.display = 'none';
+    return;
+  }
+
+  const dpr = window.devicePixelRatio || 1;
+  const parentW = canvas.parentElement.clientWidth;
+  if (parentW < 50) return;
+  const w = parentW - 48;
+  const h = 160;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const chartH = h - 36;
+  const startX = 60;
+  const plotW = w - startX - 16;
+  const maxVal = Math.max(...data.map(d => d.avgTpq), 1);
+  const niceCeil = Math.ceil(maxVal / 1000) * 1000 || 1000;
+
+  // Grid + Y labels
+  ctx.font = '500 10px Inter, system-ui';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = (niceCeil / 4) * i;
+    const y = chartH - (chartH * i / 4) + 8;
+    ctx.fillStyle = '#F59E0B';
+    const label = val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val.toString();
+    ctx.fillText(label, startX - 6, y + 3);
+    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w - 8, y); ctx.stroke();
+  }
+
+  function xPos(i) { return startX + (i / Math.max(1, data.length - 1)) * plotW; }
+  function yPos(val) { return chartH + 8 - (val / niceCeil) * chartH; }
+
+  // Area fill
+  ctx.fillStyle = 'rgba(245,158,11,0.08)';
+  ctx.beginPath();
+  data.forEach((d, i) => {
+    const x = xPos(i), y = yPos(d.avgTpq);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(xPos(data.length - 1), chartH + 8);
+  ctx.lineTo(xPos(0), chartH + 8);
+  ctx.closePath(); ctx.fill();
+
+  // Line
+  ctx.strokeStyle = '#F59E0B'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  data.forEach((d, i) => {
+    const x = xPos(i), y = yPos(d.avgTpq);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Dots
+  ctx.fillStyle = '#F59E0B';
+  data.forEach((d, i) => {
+    ctx.beginPath(); ctx.arc(xPos(i), yPos(d.avgTpq), 3, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // X labels (session length buckets)
+  ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
+  ctx.font = '500 10px Inter, system-ui';
+  data.forEach((d, i) => {
+    ctx.fillText(d.label, xPos(i), chartH + 22);
+  });
+
+  // X axis title
+  ctx.fillStyle = '#94A3B8';
+  ctx.fillText('Session length (queries)', startX + plotW / 2, h - 4);
+}
+
 // Project breakdown
 function renderProjectBreakdown() {
   const projects = FILTERED.projectBreakdown;
@@ -1852,13 +2253,45 @@ function renderProjectBreakdown() {
   document.getElementById('projectsBody').innerHTML = rows.join('');
 }
 
-// Top prompts
-function renderTopPrompts() {
-  const prompts = FILTERED.topPrompts;
-  if (!prompts.length) return;
-  const maxTokens = prompts[0].totalTokens;
+// Top prompts — split by pipeline/interactive
+let activePromptTab = 'interactive';
 
-  document.getElementById('topPromptsList').innerHTML = prompts.map((p, i) => {
+function switchPromptTab(type) {
+  activePromptTab = type;
+  document.querySelectorAll('.prompt-type-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.type === type);
+  });
+  renderTopPrompts();
+}
+
+function renderTopPrompts() {
+  const allPrompts = FILTERED.topPrompts;
+  if (!allPrompts.length) return;
+
+  const filtered = allPrompts.filter(p =>
+    activePromptTab === 'pipeline'
+      ? p.sessionType === 'pipeline_subagent'
+      : p.sessionType !== 'pipeline_subagent'
+  );
+
+  // Update tab counts
+  const pipelineCount = allPrompts.filter(p => p.sessionType === 'pipeline_subagent').length;
+  const interactiveCount = allPrompts.filter(p => p.sessionType !== 'pipeline_subagent').length;
+  document.querySelectorAll('.prompt-type-tab').forEach(t => {
+    const type = t.dataset.type;
+    const count = type === 'pipeline' ? pipelineCount : interactiveCount;
+    const label = type === 'pipeline' ? 'Pipeline' : 'Interactive';
+    t.textContent = label + ' (' + count + ')';
+  });
+
+  if (!filtered.length) {
+    document.getElementById('topPromptsList').innerHTML =
+      '<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">No ' + activePromptTab + ' prompts in this date range.</div>';
+    return;
+  }
+
+  const maxTokens = filtered[0].totalTokens;
+  document.getElementById('topPromptsList').innerHTML = filtered.map((p, i) => {
     const inPct = (p.inputTokens / p.totalTokens) * 100;
     return `<div class="prompt-row" onclick="openDrilldown('${p.sessionId}')">
       <div class="prompt-rank">${i + 1}</div>

@@ -228,6 +228,7 @@ async function parseAllSessions() {
 
       // Collect per-prompt data for "most expensive prompts"
       // Group consecutive queries under the same user prompt
+      const promptStartIdx = allPrompts.length;
       let currentPrompt = null;
       let promptInput = 0, promptOutput = 0, promptCost = 0;
       const flushPrompt = () => {
@@ -262,6 +263,11 @@ async function parseAllSessions() {
         queryCount: queries.length,
         firstPrompt: firstPrompt.substring(0, 200),
       });
+
+      // Tag prompts from this session with their type
+      for (let pi = promptStartIdx; pi < allPrompts.length; pi++) {
+        allPrompts[pi].sessionType = sessionType;
+      }
 
       sessions.push({
         sessionId,
@@ -407,9 +413,11 @@ async function parseAllSessions() {
   // Total pipeline tokens across all dates
   const pipelineTokens = pipelineDailyUsage.reduce((sum, d) => sum + d.totalTokens, 0);
 
-  // Top 20 most expensive individual prompts
+  // Top 20 most expensive prompts per category (pipeline + interactive)
   allPrompts.sort((a, b) => b.totalTokens - a.totalTokens);
-  const topPrompts = allPrompts.slice(0, 20);
+  const pipelinePrompts = allPrompts.filter(p => p.sessionType === 'pipeline_subagent').slice(0, 20);
+  const interactivePrompts = allPrompts.filter(p => p.sessionType !== 'pipeline_subagent').slice(0, 20);
+  const topPrompts = [...pipelinePrompts, ...interactivePrompts].sort((a, b) => b.totalTokens - a.totalTokens);
 
   const grandTotals = {
     totalSessions: sessions.length,
@@ -472,6 +480,9 @@ async function parseAllSessions() {
       : 0;
   }
 
+  const sessionEfficiency = computeSessionEfficiency(sessions);
+  sessionEfficiency.recommendations = generateSessionRecommendations(sessionEfficiency);
+
   return {
     sessions,
     dailyUsage,
@@ -481,6 +492,7 @@ async function parseAllSessions() {
     totals: grandTotals,
     insights: [...insights, ...orchestratorInsights],
     orchestrator,
+    sessionEfficiency,
   };
 }
 
@@ -1574,4 +1586,183 @@ function generatePPMTRecommendations(analysis) {
   return recs;
 }
 
-module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession };
+function computeSessionEfficiency(sessions) {
+  const pipeline = { sessions: 0, tokens: 0 };
+  const interactive = { sessions: 0, tokens: 0 };
+
+  for (const s of sessions) {
+    const type = s.sessionType || categorizeSession(s);
+    if (type === 'pipeline_subagent') {
+      pipeline.sessions++;
+      pipeline.tokens += s.totalTokens || 0;
+    } else {
+      interactive.sessions++;
+      interactive.tokens += s.totalTokens || 0;
+    }
+  }
+
+  const totalTokens = pipeline.tokens + interactive.tokens;
+  const pipelinePct = totalTokens > 0 ? Math.round((pipeline.tokens / totalTokens) * 100) : 0;
+  const interactivePct = totalTokens > 0 ? 100 - pipelinePct : 0;
+
+  // Marathon sessions: 100+ queries
+  const marathonSessions = sessions
+    .filter(s => (s.queryCount || 0) >= 100)
+    .map(s => ({
+      date: s.date,
+      firstPrompt: s.firstPrompt,
+      totalTokens: s.totalTokens || 0,
+      queryCount: s.queryCount || 0,
+    }))
+    .sort((a, b) => b.totalTokens - a.totalTokens);
+
+  // Implementation-like prompts outside pipeline
+  const implPattern = /^(fix|add|update|create|build|refactor)\b/i;
+  const implSessions = sessions.filter(s => {
+    const type = s.sessionType || categorizeSession(s);
+    return type === 'interactive' && s.firstPrompt && implPattern.test(s.firstPrompt);
+  });
+  const implementationOutsidePipeline = {
+    count: implSessions.length,
+    totalTokens: implSessions.reduce((sum, s) => sum + (s.totalTokens || 0), 0),
+  };
+
+  // Context balloon curve
+  const bucketDefs = [
+    { bucket: '1-10', min: 1, max: 10 },
+    { bucket: '11-50', min: 11, max: 50 },
+    { bucket: '51-100', min: 51, max: 100 },
+    { bucket: '100+', min: 101, max: Infinity },
+  ];
+  const bucketTotals = bucketDefs.map(() => ({ totalTokens: 0, count: 0 }));
+
+  for (const s of sessions) {
+    const queries = s.queries || [];
+    for (let i = 0; i < queries.length; i++) {
+      const position = i + 1; // 1-indexed
+      const qTokens = queries[i].totalTokens || 0;
+      for (let b = 0; b < bucketDefs.length; b++) {
+        if (position >= bucketDefs[b].min && position <= bucketDefs[b].max) {
+          bucketTotals[b].totalTokens += qTokens;
+          bucketTotals[b].count++;
+          break;
+        }
+      }
+    }
+  }
+
+  const contextBalloonCurve = bucketDefs.map((def, i) => ({
+    bucket: def.bucket,
+    avgTokensPerQuery: bucketTotals[i].count > 0
+      ? Math.round(bucketTotals[i].totalTokens / bucketTotals[i].count)
+      : 0,
+  }));
+
+  // Model efficiency analysis for interactive sessions
+  const interactiveSessions = sessions.filter(s => (s.sessionType || categorizeSession(s)) !== 'pipeline_subagent');
+  const modelStats = {};
+  for (const s of interactiveSessions) {
+    const m = (s.model || '').includes('opus') ? 'opus' : (s.model || '').includes('sonnet') ? 'sonnet' : (s.model || '').includes('haiku') ? 'haiku' : 'other';
+    if (!modelStats[m]) modelStats[m] = { sessions: 0, tokens: 0, queries: 0 };
+    modelStats[m].sessions++;
+    modelStats[m].tokens += s.totalTokens || 0;
+    modelStats[m].queries += s.queryCount || 0;
+  }
+  for (const m of Object.keys(modelStats)) {
+    modelStats[m].avgTokensPerQuery = modelStats[m].queries > 0 ? Math.round(modelStats[m].tokens / modelStats[m].queries) : 0;
+    modelStats[m].avgTokensPerSession = modelStats[m].sessions > 0 ? Math.round(modelStats[m].tokens / modelStats[m].sessions) : 0;
+    modelStats[m].avgQueriesPerSession = modelStats[m].sessions > 0 ? Math.round(modelStats[m].queries / modelStats[m].sessions) : 0;
+  }
+
+  // Session length distribution for interactive sessions
+  const lengthBuckets = { short: { label: '1-20', min: 1, max: 20, count: 0, tokens: 0 }, medium: { label: '21-50', min: 21, max: 50, count: 0, tokens: 0 }, long: { label: '50+', min: 51, max: Infinity, count: 0, tokens: 0 } };
+  for (const s of interactiveSessions) {
+    const qc = s.queryCount || 0;
+    if (qc <= 20) { lengthBuckets.short.count++; lengthBuckets.short.tokens += s.totalTokens || 0; }
+    else if (qc <= 50) { lengthBuckets.medium.count++; lengthBuckets.medium.tokens += s.totalTokens || 0; }
+    else { lengthBuckets.long.count++; lengthBuckets.long.tokens += s.totalTokens || 0; }
+  }
+
+  return {
+    pipeline,
+    interactive,
+    pipelinePct,
+    interactivePct,
+    marathonSessions,
+    implementationOutsidePipeline,
+    contextBalloonCurve,
+    modelStats,
+    lengthBuckets,
+  };
+}
+
+function generateSessionRecommendations(efficiency) {
+  const recs = [];
+  const ms = efficiency.modelStats || {};
+  const lb = efficiency.lengthBuckets || {};
+
+  // (a) Session length is the #1 cost driver — quantify it
+  if (lb.long && lb.short && lb.long.count > 0 && lb.short.count > 0) {
+    const longAvg = Math.round(lb.long.tokens / lb.long.count);
+    const shortAvg = Math.round(lb.short.tokens / lb.short.count);
+    const ratio = shortAvg > 0 ? Math.round(longAvg / shortAvg) : 0;
+    const longPct = efficiency.interactive.tokens > 0 ? Math.round((lb.long.tokens / efficiency.interactive.tokens) * 100) : 0;
+    if (ratio > 3 && longPct > 50) {
+      recs.push({
+        id: 'session_length',
+        title: `50+ query sessions consume ${longPct}% of interactive tokens`,
+        detail: `${lb.long.count} long sessions (50+ queries) average ${(longAvg / 1e6).toFixed(1)}M tokens each — ${ratio}x more than short sessions (1-20 queries) at ${(shortAvg / 1e6).toFixed(1)}M each. Use /clear mid-session to reset context when switching subtasks.`,
+        action: 'Target under 50 queries per session. Start fresh or /clear when context drifts from your current goal.',
+      });
+    }
+  }
+
+  // (b) Model cost comparison — Opus vs Sonnet tokens-per-query
+  if (ms.opus && ms.sonnet && ms.opus.sessions >= 5 && ms.sonnet.sessions >= 5) {
+    const ratio = ms.sonnet.avgTokensPerQuery > 0 ? (ms.opus.avgTokensPerQuery / ms.sonnet.avgTokensPerQuery).toFixed(1) : 0;
+    if (ratio > 1.5) {
+      const opusFmt = (ms.opus.avgTokensPerQuery / 1000).toFixed(0) + 'K';
+      const sonnetFmt = (ms.sonnet.avgTokensPerQuery / 1000).toFixed(0) + 'K';
+      recs.push({
+        id: 'model_cost',
+        title: `Opus costs ${ratio}x more per query than Sonnet`,
+        detail: `Opus averages ${opusFmt} tokens/query across ${ms.opus.sessions} sessions vs Sonnet at ${sonnetFmt} across ${ms.sonnet.sessions} sessions. Opus sessions also run ${ms.opus.avgQueriesPerSession}x longer on average (${ms.opus.avgQueriesPerSession} vs ${ms.sonnet.avgQueriesPerSession} queries).`,
+        action: 'Use Sonnet for exploration, debugging, and iterative work. Reserve Opus for complex reasoning tasks that need it.',
+      });
+    }
+  }
+
+  // (c) Context balloon — quantify the exponential growth
+  const curve = efficiency.contextBalloonCurve;
+  const avg1to10 = curve.find(c => c.bucket === '1-10');
+  const avg100plus = curve.find(c => c.bucket === '100+');
+  if (avg1to10 && avg100plus && avg1to10.avgTokensPerQuery > 0 &&
+      avg100plus.avgTokensPerQuery > avg1to10.avgTokensPerQuery * 2) {
+    const ratio = Math.round(avg100plus.avgTokensPerQuery / avg1to10.avgTokensPerQuery);
+    const earlyFmt = (avg1to10.avgTokensPerQuery / 1000).toFixed(0) + 'K';
+    const lateFmt = (avg100plus.avgTokensPerQuery / 1000).toFixed(0) + 'K';
+    recs.push({
+      id: 'context_balloon',
+      title: `Queries at position 100+ cost ${ratio}x more than early queries`,
+      detail: `First 10 queries average ${earlyFmt} tokens each. After query 100, that jumps to ${lateFmt} — Claude re-reads the entire conversation every turn. The same question at query 100 costs ${ratio}x what it would in a fresh session.`,
+      action: 'The cheapest fix: ask the same question in a new session instead of a long one.',
+    });
+  }
+
+  // (d) Marathon sessions with specific examples
+  const extremeMarathons = efficiency.marathonSessions.filter(s => s.queryCount > 200);
+  if (extremeMarathons.length > 0) {
+    const topExample = extremeMarathons[0];
+    const tokensFmt = (topExample.totalTokens / 1e6).toFixed(0);
+    recs.push({
+      id: 'marathon_sessions',
+      title: `${extremeMarathons.length} session(s) exceed 200 queries (${tokensFmt}M+ tokens each)`,
+      detail: `Your most expensive session: "${(topExample.firstPrompt || '').slice(0, 80)}" on ${topExample.date} — ${topExample.queryCount} queries, ${(topExample.totalTokens / 1e6).toFixed(1)}M tokens. After ~50 queries, most of the tokens are context re-reading, not new work.`,
+      action: 'Split into multiple focused sessions. Each new session starts with minimal context overhead.',
+    });
+  }
+
+  return recs;
+}
+
+module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession, computeSessionEfficiency, generateSessionRecommendations };
