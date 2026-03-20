@@ -527,20 +527,6 @@
   .legend-dot { width: 10px; height: 10px; border-radius: 4px; flex-shrink: 0; }
 
   /* ---- TOP PROMPTS ---- */
-  .top-prompts { margin-bottom: 32px; }
-  .prompt-type-tabs {
-    display: flex; gap: 4px; margin-bottom: 12px;
-  }
-  .prompt-type-tab {
-    font-family: var(--font); font-size: 13px; font-weight: 600;
-    padding: 6px 16px; border-radius: 20px; cursor: pointer;
-    border: 1px solid var(--border); background: var(--white);
-    color: var(--text-secondary); transition: all 0.15s;
-  }
-  .prompt-type-tab:hover { border-color: var(--indigo); color: var(--indigo); }
-  .prompt-type-tab.active {
-    background: var(--indigo); color: white; border-color: var(--indigo);
-  }
   .prompts-card {
     background: var(--white); border-radius: var(--radius);
     border: 1px solid var(--border); box-shadow: var(--shadow-sm);
@@ -1058,18 +1044,27 @@
   </div>
 
   <!-- Most Expensive Prompts -->
-  <div class="top-prompts animate delay-4">
-    <div class="section-header">
-      <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+  <div class="section-header animate delay-4" style="margin-bottom:16px">
+    <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+    </div>
+    <div class="section-title">Most Expensive Prompts</div>
+  </div>
+  <div class="comparison-layout" style="margin-bottom:32px">
+    <div class="column-section">
+      <div class="column-header">
+        <div class="column-header-dot" style="background:#6366F1"></div>
+        <div class="column-header-title">Pipeline</div>
       </div>
-      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">Most Expensive Prompts<div class="tooltip">Your top individual messages ranked by token usage, split by pipeline-tracked (producing story points) and interactive (untracked) sessions.</div></div>
+      <div class="prompts-card" id="topPromptsPipeline"></div>
     </div>
-    <div class="prompt-type-tabs" id="promptTypeTabs">
-      <button class="prompt-type-tab active" data-type="interactive" onclick="switchPromptTab('interactive')">Interactive</button>
-      <button class="prompt-type-tab" data-type="pipeline" onclick="switchPromptTab('pipeline')">Pipeline</button>
+    <div class="column-section">
+      <div class="column-header">
+        <div class="column-header-dot" style="background:#F59E0B"></div>
+        <div class="column-header-title">Interactive</div>
+      </div>
+      <div class="prompts-card" id="topPromptsInteractive"></div>
     </div>
-    <div class="prompts-card" id="topPromptsList"></div>
   </div>
 
   <!-- Drill-down -->
@@ -2533,62 +2528,44 @@ function renderProjectBreakdown() {
   document.getElementById('projectsBody').innerHTML = rows.join('');
 }
 
-// Top prompts — split by pipeline/interactive
-let activePromptTab = 'interactive';
-
-function switchPromptTab(type) {
-  activePromptTab = type;
-  document.querySelectorAll('.prompt-type-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.type === type);
-  });
-  renderTopPrompts();
-}
-
+// Top prompts — side-by-side pipeline/interactive columns
 function renderTopPrompts() {
   const allPrompts = FILTERED.topPrompts;
   if (!allPrompts.length) return;
 
-  const filtered = allPrompts.filter(p =>
-    activePromptTab === 'pipeline'
-      ? p.sessionType === 'pipeline_subagent'
-      : p.sessionType !== 'pipeline_subagent'
-  );
+  const pipelinePrompts = allPrompts.filter(p => p.sessionType === 'pipeline_subagent');
+  const interactivePrompts = allPrompts.filter(p => p.sessionType !== 'pipeline_subagent');
 
-  // Update tab counts
-  const pipelineCount = allPrompts.filter(p => p.sessionType === 'pipeline_subagent').length;
-  const interactiveCount = allPrompts.filter(p => p.sessionType !== 'pipeline_subagent').length;
-  document.querySelectorAll('.prompt-type-tab').forEach(t => {
-    const type = t.dataset.type;
-    const count = type === 'pipeline' ? pipelineCount : interactiveCount;
-    const label = type === 'pipeline' ? 'Pipeline' : 'Interactive';
-    t.textContent = label + ' (' + count + ')';
-  });
-
-  if (!filtered.length) {
-    document.getElementById('topPromptsList').innerHTML =
-      '<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">No ' + activePromptTab + ' prompts in this date range.</div>';
-    return;
+  function renderPromptList(prompts, containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!prompts.length) {
+      el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">No prompts in this date range.</div>';
+      return;
+    }
+    const maxTokens = prompts[0].totalTokens;
+    el.innerHTML = prompts.map((p, i) => {
+      const inPct = (p.inputTokens / p.totalTokens) * 100;
+      return `<div class="prompt-row" onclick="openDrilldown('${p.sessionId}')">
+        <div class="prompt-rank">${i + 1}</div>
+        <div>
+          <div class="prompt-text">${escapeHtml(p.prompt)}</div>
+          <div class="prompt-meta">${formatDate(p.date)} &middot; ${modelShort(p.model)}</div>
+          <div class="token-bar-wrap" style="width:${Math.max(10, (p.totalTokens / maxTokens) * 100)}%">
+            <div class="token-bar-in" style="width:${inPct}%"></div>
+            <div class="token-bar-out" style="width:${100 - inPct}%"></div>
+          </div>
+        </div>
+        <div class="prompt-tokens">
+          <div class="value">${fmt(p.totalTokens)}</div>
+          <div class="sub">${fmt(p.inputTokens)} read &middot; ${fmt(p.outputTokens)} written</div>
+        </div>
+      </div>`;
+    }).join('');
   }
 
-  const maxTokens = filtered[0].totalTokens;
-  document.getElementById('topPromptsList').innerHTML = filtered.map((p, i) => {
-    const inPct = (p.inputTokens / p.totalTokens) * 100;
-    return `<div class="prompt-row" onclick="openDrilldown('${p.sessionId}')">
-      <div class="prompt-rank">${i + 1}</div>
-      <div>
-        <div class="prompt-text">${escapeHtml(p.prompt)}</div>
-        <div class="prompt-meta">${formatDate(p.date)} &middot; ${modelShort(p.model)}</div>
-        <div class="token-bar-wrap" style="width:${Math.max(10, (p.totalTokens / maxTokens) * 100)}%">
-          <div class="token-bar-in" style="width:${inPct}%"></div>
-          <div class="token-bar-out" style="width:${100 - inPct}%"></div>
-        </div>
-      </div>
-      <div class="prompt-tokens">
-        <div class="value">${fmt(p.totalTokens)}</div>
-        <div class="sub">${fmt(p.inputTokens)} read &middot; ${fmt(p.outputTokens)} written</div>
-      </div>
-    </div>`;
-  }).join('');
+  renderPromptList(pipelinePrompts, 'topPromptsPipeline');
+  renderPromptList(interactivePrompts, 'topPromptsInteractive');
 }
 
 // Sessions
