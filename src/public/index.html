@@ -982,6 +982,30 @@
       <div class="driver-explainer" style="margin-bottom:12px">Average tokens per query at different session lengths — longer sessions accumulate context that inflates every subsequent query.</div>
       <canvas id="contextCostChart"></canvas>
     </div>
+    <h3 style="margin:24px 0 4px;font-size:14px;font-weight:700;color:var(--text-secondary)">Efficiency Trends</h3>
+    <p class="section-explainer">7-day rolling averages of behaviors that drive interactive session efficiency.</p>
+    <div class="drivers-grid">
+      <div class="driver-card">
+        <h3>Queries / Session</h3>
+        <div class="driver-explainer">Lower is better. Shorter sessions waste less on context re-reading.</div>
+        <canvas id="trendQueriesChart"></canvas>
+      </div>
+      <div class="driver-card">
+        <h3>Tokens / Query (K)</h3>
+        <div class="driver-explainer">Lower is better. Lean context means each query costs less.</div>
+        <canvas id="trendTpqChart"></canvas>
+      </div>
+      <div class="driver-card">
+        <h3>Pipeline Coverage %</h3>
+        <div class="driver-explainer">Higher is better. Pipeline work is tracked and optimized.</div>
+        <canvas id="trendPipelineChart"></canvas>
+      </div>
+      <div class="driver-card">
+        <h3>Short Sessions %</h3>
+        <div class="driver-explainer">Higher is better. Sessions under 20 queries are most token-efficient.</div>
+        <canvas id="trendShortChart"></canvas>
+      </div>
+    </div>
   </div>
 
   <!-- Projects -->
@@ -1413,6 +1437,34 @@ function recomputeSessionEfficiency(sessions) {
 
   marathonSessions.sort((a, b) => b.totalTokens - a.totalTokens);
 
+  // Efficiency by day — daily aggregation of interactive session metrics
+  const dayMap = {};
+  for (const s of sessions) {
+    const isPipe = s.sessionType === 'pipeline_subagent';
+    const d = s.date;
+    if (!d) continue;
+    if (!dayMap[d]) dayMap[d] = { queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0 };
+    if (isPipe) {
+      dayMap[d].pipelineTokens += s.totalTokens || 0;
+    } else {
+      dayMap[d].sessions++;
+      dayMap[d].queries += s.queryCount || 0;
+      dayMap[d].tokens += s.totalTokens || 0;
+      if ((s.queryCount || 0) <= 20) dayMap[d].shortSessions++;
+    }
+  }
+  const efficiencyByDay = Object.keys(dayMap).filter(d => dayMap[d].sessions > 0).sort().map(date => {
+    const dm = dayMap[date];
+    return {
+      date,
+      avgQueriesPerSession: dm.sessions > 0 ? Math.round(dm.queries / dm.sessions) : 0,
+      tokensPerQuery: dm.queries > 0 ? Math.round(dm.tokens / dm.queries) : 0,
+      pipelineCoveragePct: (dm.pipelineTokens + dm.tokens) > 0 ? Math.round(dm.pipelineTokens / (dm.pipelineTokens + dm.tokens) * 100) : 0,
+      shortSessionPct: dm.sessions > 0 ? Math.round(dm.shortSessions / dm.sessions * 100) : 0,
+      sessionCount: dm.sessions,
+    };
+  });
+
   const efficiency = {
     pipeline, interactive,
     pipelinePct, interactivePct: totalTokens > 0 ? 100 - pipelinePct : 0,
@@ -1421,6 +1473,7 @@ function recomputeSessionEfficiency(sessions) {
     contextBalloonCurve,
     modelStats,
     lengthBuckets,
+    efficiencyByDay,
   };
 
   // Generate recommendations client-side (same logic as server)
@@ -1624,6 +1677,7 @@ function render() {
     renderSPPerTokenChart();
     renderDriverCharts();
     renderContextCostChart();
+    renderEfficiencyTrends();
   });
 }
 
@@ -2415,8 +2469,133 @@ function closeDrilldown() {
   document.getElementById('drilldown').classList.remove('open');
 }
 
+function renderEfficiencyTrendChart(canvasId, data, options) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const parentW = canvas.parentElement.clientWidth;
+  if (parentW < 50) return;
+  const w = parentW - 32;
+  const h = 120;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  if (!data || data.length === 0) return;
+
+  const color = options.color || '#6366F1';
+  const targetValue = options.targetValue;
+  const targetLabel = options.targetLabel || ('Target: ' + targetValue);
+  const lowerIsBetter = options.lowerIsBetter !== false;
+
+  // Compute 7-day rolling average
+  const rolling = [];
+  for (let i = 0; i < data.length; i++) {
+    let sum = 0, count = 0;
+    for (let j = Math.max(0, i - 6); j <= i; j++) {
+      sum += data[j].value;
+      count++;
+    }
+    rolling.push({ date: data[i].date, value: sum / count });
+  }
+
+  const allVals = data.map(d => d.value).concat(rolling.map(r => r.value));
+  if (targetValue != null) allVals.push(targetValue);
+  const maxVal = Math.max(...allVals, 1) * 1.1;
+  const minVal = Math.min(0, ...allVals);
+
+  const chartH = h - 28;
+  const startX = 36;
+  const plotW = w - startX - 8;
+
+  function xPos(i) { return startX + (data.length > 1 ? (i / (data.length - 1)) * plotW : plotW / 2); }
+  function yPos(val) { return 4 + chartH - ((val - minVal) / (maxVal - minVal)) * chartH; }
+
+  // Y-axis labels
+  ctx.font = '500 9px Inter, system-ui';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#94A3B8';
+  for (let i = 0; i <= 3; i++) {
+    const val = minVal + ((maxVal - minVal) / 3) * i;
+    const y = yPos(val);
+    ctx.fillText(Math.round(val).toString(), startX - 4, y + 3);
+    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w - 4, y); ctx.stroke();
+  }
+
+  // X-axis date labels (show ~5)
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#94A3B8';
+  const step = Math.max(1, Math.floor(data.length / 5));
+  for (let i = 0; i < data.length; i += step) {
+    const x = xPos(i);
+    const label = data[i].date.slice(5); // MM-DD
+    ctx.fillText(label, x, h - 2);
+  }
+
+  // Raw daily dots (light gray)
+  for (let i = 0; i < data.length; i++) {
+    ctx.fillStyle = 'rgba(148,163,184,0.35)';
+    ctx.beginPath();
+    ctx.arc(xPos(i), yPos(data[i].value), 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 7-day rolling average line
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  for (let i = 0; i < rolling.length; i++) {
+    const x = xPos(i), y = yPos(rolling[i].value);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Target line (green dashed)
+  if (targetValue != null) {
+    const ty = yPos(targetValue);
+    ctx.strokeStyle = '#22C55E';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(startX, ty);
+    ctx.lineTo(w - 4, ty);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#22C55E';
+    ctx.font = '600 9px Inter, system-ui';
+    ctx.textAlign = 'left';
+    ctx.fillText(targetLabel, startX + 2, ty - 4);
+  }
+}
+
+function renderEfficiencyTrends() {
+  const se = FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency);
+  const byDay = (se && se.efficiencyByDay) || [];
+  if (!byDay.length) return;
+
+  renderEfficiencyTrendChart('trendQueriesChart',
+    byDay.map(d => ({ date: d.date, value: d.avgQueriesPerSession })),
+    { color: '#F59E0B', targetValue: 20, targetLabel: 'Target: 20', lowerIsBetter: true });
+
+  renderEfficiencyTrendChart('trendTpqChart',
+    byDay.map(d => ({ date: d.date, value: d.tokensPerQuery / 1000 })),
+    { color: '#F43F5E', targetValue: 50, targetLabel: 'Target: 50K', lowerIsBetter: true });
+
+  renderEfficiencyTrendChart('trendPipelineChart',
+    byDay.map(d => ({ date: d.date, value: d.pipelineCoveragePct })),
+    { color: '#6366F1', targetValue: 40, targetLabel: 'Target: 40%', lowerIsBetter: false });
+
+  renderEfficiencyTrendChart('trendShortChart',
+    byDay.map(d => ({ date: d.date, value: d.shortSessionPct })),
+    { color: '#14B8A6', targetValue: 50, targetLabel: 'Target: 50%', lowerIsBetter: false });
+}
+
 fetchData();
-window.addEventListener('resize', () => { if (FILTERED) { renderSPPerTokenChart(); renderDriverCharts(); } });
+window.addEventListener('resize', () => { if (FILTERED) { renderSPPerTokenChart(); renderDriverCharts(); renderEfficiencyTrends(); } });
 </script>
 </body>
 </html>
