@@ -825,6 +825,16 @@
         </div>
       </div>
     </div>
+    <div style="margin-bottom:16px">
+      <div class="chart-card">
+        <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Cache Hit Rate<div class="tooltip">Percentage of input tokens served from Anthropic's prompt cache each day. Cached tokens cost 90% less than uncached. Higher is better — it means you're paying less for re-reading the same context.</div></h3>
+        <canvas id="cacheHitChart"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div> Cache hit rate %</div>
+          <div class="legend-item"><div class="legend-dot" style="background:rgba(16,185,129,0.4)"></div> Moving average</div>
+        </div>
+      </div>
+    </div>
     <div id="pipelineCostData"></div>
     <div id="insightsList-cost"></div>
     <div id="pipelineRecs-cost"></div>
@@ -1835,6 +1845,7 @@ function render() {
   renderRatioChart();
   renderTpqChart();
   renderTierMixChart();
+  renderCacheChart();
   renderOutputRatioChart();
   renderContextOverheadChart();
   renderProjectBreakdown();
@@ -2014,7 +2025,13 @@ function renderMiniTimeSeries(canvasId, dailyData, opts) {
   ctx.clearRect(0, 0, w, h);
 
   const values = dailyData.map(d => d.value);
-  const maxVal = Math.max(...values, 1);
+  const rawMax = Math.max(...values, 1);
+  const rawMin = Math.min(...values);
+  const range = rawMax - rawMin;
+  // Use dynamic floor when data clusters in a narrow band (range < 30% of max)
+  const useDynamicFloor = range > 0 && range < rawMax * 0.3;
+  const minVal = useDynamicFloor ? Math.max(0, Math.floor(rawMin - range * 0.2)) : 0;
+  const maxVal = useDynamicFloor ? Math.ceil(rawMax + range * 0.1) : rawMax;
   const chartH = h - 28;
   const yAxisW = 36;
   const startX = yAxisW;
@@ -2024,7 +2041,7 @@ function renderMiniTimeSeries(canvasId, dailyData, opts) {
   ctx.fillStyle = '#94A3B8'; ctx.font = '500 9px Inter, system-ui'; ctx.textAlign = 'right';
   ctx.strokeStyle = 'rgba(0,0,0,0.05)'; ctx.lineWidth = 1;
   for (let i = 0; i <= 3; i++) {
-    const val = maxVal * i / 3;
+    const val = minVal + (maxVal - minVal) * i / 3;
     const y = chartH + 4 - (chartH * i / 3);
     ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w - 8, y); ctx.stroke();
     ctx.fillText(format(val), startX - 4, y + 3);
@@ -2042,7 +2059,7 @@ function renderMiniTimeSeries(canvasId, dailyData, opts) {
     }
     return startX + (i / Math.max(1, dailyData.length - 1)) * plotW;
   }
-  function yPos(v) { return chartH + 4 - (v / maxVal) * chartH; }
+  function yPos(v) { return chartH + 4 - ((v - minVal) / (maxVal - minVal || 1)) * chartH; }
 
   // Line
   ctx.strokeStyle = color; ctx.lineWidth = 2;
@@ -2591,6 +2608,19 @@ function renderTpqChart() {
 }
 
 // Model tier mix stacked bar chart
+function renderCacheChart() {
+  const du = FILTERED.dailyUsage;
+  if (!du || du.length === 0) return;
+  const dailyData = du.map(d => {
+    const cacheRead = d.cacheReadTokens || 0;
+    const cacheCreation = d.cacheCreationTokens || 0;
+    const totalInput = d.inputTokens || 0;
+    const hitRate = totalInput > 0 ? (cacheRead / totalInput) * 100 : 0;
+    return { date: d.date, value: Math.round(hitRate * 10) / 10 };
+  });
+  renderMiniTimeSeries('cacheHitChart', dailyData, { color: '#10B981', format: v => Math.round(v) + '%' });
+}
+
 function renderTierMixChart() {
   const canvas = document.getElementById('tierMixChart');
   const ctx = canvas.getContext('2d');
@@ -2770,7 +2800,7 @@ function renderOutputRatioChart() {
   });
 }
 
-// Context overhead stacked bar chart (Quality lens)
+// Context overhead dual-axis line chart (Quality lens)
 function renderContextOverheadChart() {
   const canvas = document.getElementById('contextOverheadChart');
   const ctx = canvas.getContext('2d');
@@ -2786,44 +2816,64 @@ function renderContextOverheadChart() {
   ctx.clearRect(0, 0, w, h);
 
   const chartH = h - 36;
-  const startX = 48;
-  const plotW = w - startX - 8;
+  const leftAxisW = 56;
+  const rightAxisW = 56;
+  const plotW = w - leftAxisW - rightAxisW;
 
-  // Show context re-read (inputTokens) vs new query input (outputTokens) as stacked % bars
   const days = data.map(d => ({
     date: d.date,
-    contextPct: d.totalTokens > 0 ? (d.inputTokens / d.totalTokens) * 100 : 0,
-    outputPct: d.totalTokens > 0 ? (d.outputTokens / d.totalTokens) * 100 : 0,
+    contextReread: d.inputTokens || 0,
+    newQuery: d.outputTokens || 0,
   }));
 
-  // Grid
+  const maxContext = Math.max(1, ...days.map(d => d.contextReread));
+  const maxQuery = Math.max(1, ...days.map(d => d.newQuery));
+
+  // Helper to format axis labels
+  const fmtAxis = (v) => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'k' : String(v);
+
+  // Grid lines
   ctx.font = '500 10px Inter, system-ui';
-  ctx.fillStyle = '#94A3B8';
-  ctx.textAlign = 'right';
   for (let i = 0; i <= 4; i++) {
-    const val = 25 * i;
     const y = chartH - (chartH * i / 4) + 8;
-    ctx.fillText(val + '%', startX - 10, y + 3);
     ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(leftAxisW, y); ctx.lineTo(w - rightAxisW, y); ctx.stroke();
+
+    // Left axis (context re-read, purple)
+    ctx.fillStyle = '#6366F1'; ctx.textAlign = 'right';
+    ctx.fillText(fmtAxis(Math.round(maxContext * i / 4)), leftAxisW - 8, y + 3);
+
+    // Right axis (new query input, green)
+    ctx.fillStyle = '#10B981'; ctx.textAlign = 'left';
+    ctx.fillText(fmtAxis(Math.round(maxQuery * i / 4)), w - rightAxisW + 8, y + 3);
   }
 
-  const barW = Math.max(2, Math.min(20, (plotW / Math.max(1, days.length)) - 2));
+  // Draw line helper
+  function drawLine(values, maxVal, color) {
+    if (values.length < 2) return;
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    values.forEach((v, i) => {
+      const x = leftAxisW + (i / Math.max(1, values.length - 1)) * plotW;
+      const y = chartH + 8 - (v / maxVal) * chartH;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
 
-  days.forEach((d, i) => {
-    const x = startX + (i / Math.max(1, days.length - 1)) * plotW - barW / 2;
-    const baseY = chartH + 8;
+    // Dots
+    ctx.fillStyle = color;
+    values.forEach((v, i) => {
+      const x = leftAxisW + (i / Math.max(1, values.length - 1)) * plotW;
+      const y = chartH + 8 - (v / maxVal) * chartH;
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+    });
+  }
 
-    // Output (green, bottom)
-    const outH = (d.outputPct / 100) * chartH;
-    ctx.fillStyle = '#10B981';
-    ctx.fillRect(x, baseY - outH, barW, outH);
+  // Context re-read line (purple, left axis)
+  drawLine(days.map(d => d.contextReread), maxContext, '#6366F1');
 
-    // Context re-read (purple, top)
-    const ctxH = (d.contextPct / 100) * chartH;
-    ctx.fillStyle = 'rgba(99,102,241,0.6)';
-    ctx.fillRect(x, baseY - outH - ctxH, barW, ctxH);
-  });
+  // New query input line (green, right axis)
+  drawLine(days.map(d => d.newQuery), maxQuery, '#10B981');
 
   // X labels
   ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
@@ -2831,7 +2881,7 @@ function renderContextOverheadChart() {
   const step = Math.max(1, Math.floor(days.length / 7));
   days.forEach((d, i) => {
     if (i % step === 0 || i === days.length - 1) {
-      const x = startX + (i / Math.max(1, days.length - 1)) * plotW;
+      const x = leftAxisW + (i / Math.max(1, days.length - 1)) * plotW;
       ctx.fillText(formatDate(d.date), x, chartH + 24);
     }
   });
