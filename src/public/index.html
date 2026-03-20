@@ -1899,6 +1899,17 @@ function renderInsights() {
     ],
   };
 
+  // Velocity stats pills for quality lens (pipeline story point throughput)
+  const orchForVelocity = FILTERED.orchestrator || (DATA && DATA.orchestrator);
+  const vs = orchForVelocity && orchForVelocity.summary && orchForVelocity.summary.velocityStats;
+  if (vs) {
+    lensStats.quality.push(
+      { label: 'SP/week avg', value: vs.avgSPPerWeek != null ? String(Math.round(vs.avgSPPerWeek)) : '—', sub: 'story points', tip: 'Average story points completed per week, weighted by task size (S=1, M=3, L=5)' },
+      { label: 'SP completed', value: vs.completedSP != null ? String(vs.completedSP) : '—', sub: 'story points', tip: 'Total story points completed across all pipeline runs' },
+      { label: 'SP total', value: vs.totalSP != null ? String(vs.totalSP) : '—', sub: 'story points', tip: 'Total story points across all tasks (completed + pending)' },
+    );
+  }
+
   for (const lens of ['cost', 'speed', 'quality']) {
     document.getElementById('lensStatsBar-' + lens).innerHTML = (lensStats[lens] || []).map(s => `
       <div class="lens-stat-pill">
