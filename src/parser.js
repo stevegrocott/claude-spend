@@ -430,6 +430,7 @@ async function parseAllSessions() {
 
   // Parse orchestrator logs from project directories
   const orchestrator = parseOrchestratorLogs(projectCostMap);
+  orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs, dailyUsage);
   const orchestratorInsights = generateOrchestratorInsights(orchestrator);
 
   return {
@@ -1245,4 +1246,134 @@ function fmt(n) {
   return n.toLocaleString();
 }
 
-module.exports = { parseAllSessions, parseTaskSummary };
+function computePPMTAnalysis(runs, dailyUsage) {
+  // 1. taskSizeCompletion — S/M/L completion rates with counts
+  const taskSizeCompletion = {
+    S: { completed: 0, failed: 0, total: 0, rate: 0 },
+    M: { completed: 0, failed: 0, total: 0, rate: 0 },
+    L: { completed: 0, failed: 0, total: 0, rate: 0 },
+  };
+  for (const run of runs) {
+    const ts = run.taskSummary;
+    if (!ts) continue;
+    for (const size of ['S', 'M', 'L']) {
+      taskSizeCompletion[size].completed += (ts.completed && ts.completed[size]) || 0;
+      taskSizeCompletion[size].failed += (ts.failed && ts.failed[size]) || 0;
+    }
+  }
+  for (const size of ['S', 'M', 'L']) {
+    const s = taskSizeCompletion[size];
+    s.total = s.completed + s.failed;
+    s.rate = s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0;
+  }
+
+  // 2. escalationCorrelation — completion rates by escalation count bucket
+  const buckets = { '0': { completed: 0, total: 0 }, '1-2': { completed: 0, total: 0 }, '3-5': { completed: 0, total: 0 }, '6+': { completed: 0, total: 0 } };
+  for (const run of runs) {
+    const count = (run.escalations || []).length;
+    const bucket = count === 0 ? '0' : count <= 2 ? '1-2' : count <= 5 ? '3-5' : '6+';
+    buckets[bucket].total++;
+    if (run.state === 'completed') buckets[bucket].completed++;
+  }
+  const escalationCorrelation = {};
+  for (const [key, val] of Object.entries(buckets)) {
+    escalationCorrelation[key] = {
+      total: val.total,
+      completed: val.completed,
+      completionRate: val.total > 0 ? Math.round((val.completed / val.total) * 100) : 0,
+    };
+  }
+
+  // 3. failureBreakdown — counts by failure type
+  const failureBreakdown = { parse_failure: 0, error: 0, max_iterations_pr_review: 0, stuck_running: 0 };
+  for (const run of runs) {
+    if (run.state === 'error' && run.taskCount === 0) {
+      failureBreakdown.parse_failure++;
+    } else if (run.state === 'error') {
+      failureBreakdown.error++;
+    } else if (run.state === 'max_iterations_pr_review') {
+      failureBreakdown.max_iterations_pr_review++;
+    } else if (run.state === 'stuck_running') {
+      failureBreakdown.stuck_running++;
+    }
+  }
+
+  // 4. taskCountCorrelation — avg task count for completed vs failed with optimal range
+  const completedRuns = runs.filter(r => r.state === 'completed');
+  const failedRuns = runs.filter(r => r.state !== 'completed');
+  const completedAvg = completedRuns.length > 0
+    ? Math.round(completedRuns.reduce((s, r) => s + r.taskCount, 0) / completedRuns.length)
+    : 0;
+  const failedAvg = failedRuns.length > 0
+    ? Math.round(failedRuns.reduce((s, r) => s + r.taskCount, 0) / failedRuns.length)
+    : 0;
+
+  // Find task count range with highest completion rate (bucket by count)
+  const countBuckets = {};
+  for (const run of runs) {
+    const bucket = Math.floor(run.taskCount / 2) * 2; // group by pairs: 0-1, 2-3, 4-5, ...
+    if (!countBuckets[bucket]) countBuckets[bucket] = { completed: 0, total: 0 };
+    countBuckets[bucket].total++;
+    if (run.state === 'completed') countBuckets[bucket].completed++;
+  }
+  const bestBucket = Object.entries(countBuckets)
+    .filter(([, v]) => v.total >= 2)
+    .map(([k, v]) => ({ start: Number(k), rate: v.completed / v.total }))
+    .sort((a, b) => b.rate - a.rate)[0];
+  const optimalRange = bestBucket ? [bestBucket.start, bestBucket.start + 1] : [];
+
+  const taskCountCorrelation = { completedAvg, failedAvg, optimalRange };
+
+  // 5. topEscalationStages — top 5 stages by escalation count
+  const stageCounts = {};
+  for (const run of runs) {
+    for (const esc of run.escalations || []) {
+      if (esc.stage) stageCounts[esc.stage] = (stageCounts[esc.stage] || 0) + 1;
+    }
+  }
+  const topEscalationStages = Object.entries(stageCounts)
+    .map(([stage, count]) => ({ stage, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  // 6. projectYield — per-project SP yield percentages
+  const projectMap = {};
+  for (const run of runs) {
+    if (!run.project) continue;
+    if (!projectMap[run.project]) projectMap[run.project] = { spCompleted: 0, spTotal: 0 };
+    const ts = run.taskSummary;
+    if (ts) {
+      projectMap[run.project].spCompleted += ts.storyPointsCompleted || 0;
+      projectMap[run.project].spTotal += ts.storyPointsTotal || 0;
+    }
+  }
+  const projectYield = Object.entries(projectMap).map(([project, data]) => ({
+    project,
+    spCompleted: data.spCompleted,
+    spTotal: data.spTotal,
+    yieldPct: data.spTotal > 0 ? Math.round((data.spCompleted / data.spTotal) * 100) : 0,
+  })).sort((a, b) => b.spTotal - a.spTotal);
+
+  // 7. ppmtByDay — daily PP/MT values joining run SP with session tokens by date
+  const dailySP = {};
+  for (const run of runs) {
+    if (!run.date || !run.taskSummary) continue;
+    if (!dailySP[run.date]) dailySP[run.date] = 0;
+    dailySP[run.date] += run.taskSummary.storyPointsCompleted || 0;
+  }
+  const dailyTokenMap = {};
+  for (const day of dailyUsage) {
+    dailyTokenMap[day.date] = day.totalTokens || 0;
+  }
+  const allDates = new Set([...Object.keys(dailySP), ...Object.keys(dailyTokenMap)]);
+  const ppmtByDay = [...allDates].sort().map(date => {
+    const sp = dailySP[date] || 0;
+    const tokens = dailyTokenMap[date] || 0;
+    const ppmt = tokens > 0 ? Math.round((sp / (tokens / 1_000_000)) * 100) / 100 : 0;
+    return { date, spCompleted: sp, totalTokens: tokens, ppmt };
+  });
+
+  return { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield, ppmtByDay };
+}
+
+module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis };
