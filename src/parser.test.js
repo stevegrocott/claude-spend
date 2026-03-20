@@ -498,6 +498,30 @@ describe('categorizeSession', () => {
     };
     assert.strictEqual(categorizeSession(session), 'interactive');
   });
+
+  test('classifies "Address PR review feedback" as pipeline_subagent', () => {
+    const session = {
+      queryCount: 46,
+      firstPrompt: 'Address PR review feedback on branch feature/issue-679 in the current working directory',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies "Simplify modified TypeScript" as pipeline_subagent', () => {
+    const session = {
+      queryCount: 40,
+      firstPrompt: 'Simplify modified TypeScript/React files in the current branch',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies "on branch feature/issue-" as pipeline_subagent', () => {
+    const session = {
+      queryCount: 46,
+      firstPrompt: 'Implement task 7 on branch feature/issue-938 in the current working directory',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
 });
 
 // Simple test runner

@@ -1124,7 +1124,7 @@ function renderPPMTRecommendations() {
 
   const cardsHtml = sorted.map(rec => {
     const impact = rec.ppmt_impact > 0
-      ? `<span class="ppmt-impact-badge">+${rec.ppmt_impact} PP/MT</span>`
+      ? `<span class="ppmt-impact-badge">+${rec.ppmt_impact} PP/100MT</span>`
       : '';
     return `<div class="ppmt-rec-card">
       <div class="ppmt-rec-header">
@@ -1402,9 +1402,9 @@ function renderHeroPPMT() {
   const analysis = orch.summary.ppmtAnalysis;
   const pipelineTokens = analysis.pipelineTokens || 0;
   const completedSP = (orch.summary.velocityStats && orch.summary.velocityStats.completedSP) || 0;
-  const overallPP100MT = pipelineTokens > 0
+  const overallPP100MT = analysis.pp100mt || (pipelineTokens > 0
     ? Math.round((completedSP / (pipelineTokens / 100_000_000)) * 100) / 100
-    : 0;
+    : 0);
 
   // Trend: last 3 days vs prior 3 days
   const byDay = analysis.ppmtByDay || [];

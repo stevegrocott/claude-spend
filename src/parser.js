@@ -1300,7 +1300,15 @@ function fmt(n) {
 const PIPELINE_PROMPT_PATTERNS = [
   /implement task \d+/i,
   /on branch wt-/i,
+  /on branch feature\/issue-/i,
   /\*\*\([SML]\)\*\*/,
+  /address (?:PR|code) review feedback/i,
+  /fix test failures in working directory/i,
+  /simplify modified (?:TypeScript|React)/i,
+  /write JSDoc\/TSDoc comments/i,
+  /validate test comprehensiveness/i,
+  /address test quality issues/i,
+  /ENVIRONMENT NOTE:/,
 ];
 
 function categorizeSession(session) {
@@ -1440,7 +1448,12 @@ function computePPMTAnalysis(runs, dailyUsage) {
     return { date, spCompleted: sp, totalTokens: tokens, pp100mt };
   });
 
-  return { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield, ppmtByDay };
+  // Compute overall PP/100MT from totals
+  const totalSP = ppmtByDay.reduce((s, d) => s + d.spCompleted, 0);
+  const totalTokens = ppmtByDay.reduce((s, d) => s + d.totalTokens, 0);
+  const pp100mt = totalTokens > 0 ? Math.round((totalSP / (totalTokens / 100_000_000)) * 100) / 100 : 0;
+
+  return { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield, ppmtByDay, pp100mt };
 }
 
 function generatePPMTRecommendations(analysis) {
