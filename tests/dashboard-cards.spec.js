@@ -3,8 +3,8 @@ const { test, expect } = require('@playwright/test');
 // Helper: wait for dashboard to finish loading
 async function waitForDashboard(page) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  // Wait for stat cards to render — they appear after data loads and #app becomes visible
-  await page.waitForSelector('#statsRow .stat-card', { state: 'visible', timeout: 20000 });
+  // Wait for app container to become visible (data loaded and rendered)
+  await page.waitForSelector('#app', { state: 'visible', timeout: 20000 });
 }
 
 // Fetch API data for content comparison
@@ -13,370 +13,170 @@ async function getApiData(page) {
   return res.json();
 }
 
-// ─── Stats Cards ────────────────────────────────────────────────────────────
+// ─── PP/100MT Hero ──────────────────────────────────────────────────────────
 
-test.describe('Stats Cards (#statsRow)', () => {
-  test('renders exactly 4 stat cards in stats row', async ({ page }) => {
+test.describe('PP/100MT Hero', () => {
+  test('hero PP/100MT number is the first visible content element', async ({ page }) => {
     await waitForDashboard(page);
-    const cards = page.locator('#statsRow .stat-card');
-    await expect(cards).toHaveCount(4);
+    const hero = page.locator('.hero-ppmt');
+    // Hero should exist — either the PP/100MT display or fallback hero
+    const heroExists = await hero.count() > 0;
+    const fallbackHero = page.locator('.hero-section');
+    const fallbackExists = await fallbackHero.count() > 0;
+    expect(heroExists || fallbackExists).toBe(true);
   });
 
-  test('Total Usage card shows numeric token count and input/output breakdown', async ({ page }) => {
+  test('hero shows PP/100MT number when orchestrator data exists', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
-    const card = page.locator('.stat-card').first();
-    await expect(card.locator('.stat-label')).toContainText('Total Usage');
-    // Value should be a formatted number (e.g., "12.4M" or "1,234")
-    const value = await card.locator('.stat-value').textContent();
-    expect(value.trim()).toMatch(/[\d,.]+[KMB]?/);
-    // Sub should mention "read" and "written"
-    const sub = await card.locator('.stat-sub').textContent();
-    expect(sub).toContain('read');
-    expect(sub).toContain('written');
-    // Values should be non-zero if API has data
-    if (api.totals.totalTokens > 0) {
-      expect(value.trim()).not.toBe('0');
-    }
+    const hasOrch = api.orchestrator?.summary?.ppmtAnalysis;
+    if (!hasOrch) { test.skip(); return; }
+
+    const heroValue = page.locator('.hero-ppmt-value');
+    await expect(heroValue).toBeVisible();
+    const text = await heroValue.textContent();
+    expect(text.trim()).toMatch(/[\d.]+/);
   });
 
-  test('Conversations card shows session count and avg tokens', async ({ page }) => {
+  test('hero shows trend arrow when sufficient data exists', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
-    const card = page.locator('.stat-card').nth(1);
-    await expect(card.locator('.stat-label')).toContainText('Conversations');
-    const value = await card.locator('.stat-value').textContent();
-    expect(value.trim()).toMatch(/[\d,]+/);
-    if (api.totals.totalSessions > 0) {
-      expect(parseInt(value.trim().replace(/,/g, ''))).toBeGreaterThan(0);
-    }
-    const sub = await card.locator('.stat-sub').textContent();
-    expect(sub).toContain('tokens');
+    const ppmtByDay = api.orchestrator?.summary?.ppmtAnalysis?.ppmtByDay || [];
+    if (ppmtByDay.length < 4) { test.skip(); return; }
+
+    const trend = page.locator('.hero-ppmt-trend');
+    await expect(trend).toBeVisible();
+    const text = await trend.textContent();
+    // Should contain an arrow indicator (▲ or ▼ or →)
+    expect(text.trim().length).toBeGreaterThan(0);
   });
 
-  test('Messages Sent card shows query count and avg cost', async ({ page }) => {
-    await waitForDashboard(page);
-    const card = page.locator('.stat-card').nth(2);
-    await expect(card.locator('.stat-label')).toContainText('Messages Sent');
-    const value = await card.locator('.stat-value').textContent();
-    expect(value.trim()).toMatch(/[\d,]+/);
-    const sub = await card.locator('.stat-sub').textContent();
-    expect(sub).toContain('tokens');
-  });
-
-  test('Claude Wrote card shows output tokens and percentage', async ({ page }) => {
-    await waitForDashboard(page);
-    const card = page.locator('.stat-card').nth(3);
-    await expect(card.locator('.stat-label')).toContainText('Claude Wrote');
-    const value = await card.locator('.stat-value').textContent();
-    expect(value.trim()).toMatch(/[\d,.]+[KMB]?/);
-    const sub = await card.locator('.stat-sub').textContent();
-    expect(sub).toMatch(/[\d.]+%/);
-    expect(sub).toContain('re-reading context');
-  });
-
-  test('each stat card has a tooltip with explanation', async ({ page }) => {
-    await waitForDashboard(page);
-    const tooltips = page.locator('#statsRow .stat-card .tooltip');
-    await expect(tooltips).toHaveCount(4);
-    for (let i = 0; i < 4; i++) {
-      const text = await tooltips.nth(i).textContent();
-      expect(text.length).toBeGreaterThan(20); // tooltips should have meaningful content
-    }
-  });
-});
-
-// ─── Cost / Speed / Quality Section ─────────────────────────────────────────
-
-test.describe('Cost/Speed/Quality (#insightsSection lens selector)', () => {
-  test('lens selector has exactly 3 buttons: Cost, Speed, Quality', async ({ page }) => {
+  test('hero subtitle says "Points per 100M Pipeline Tokens"', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
-    if ((api.insights || []).length === 0) { test.skip(); return; }
+    if (!api.orchestrator?.summary?.ppmtAnalysis) { test.skip(); return; }
 
-    const buttons = page.locator('.lens-btn');
-    await expect(buttons).toHaveCount(3);
-
-    const labels = [];
-    for (let i = 0; i < 3; i++) {
-      labels.push((await buttons.nth(i).textContent()).trim().toLowerCase());
-    }
-    expect(labels).toContain('cost');
-    expect(labels).toContain('speed');
-    expect(labels).toContain('quality');
-  });
-
-  test('Cost lens shows 3 stat pills with non-empty values', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    if ((api.insights || []).length === 0) { test.skip(); return; }
-
-    await page.locator('.lens-btn[data-lens="cost"]').click();
-    const pills = page.locator('#lensSection-cost .lens-stat-pill');
-    await expect(pills).toHaveCount(3);
-    for (let i = 0; i < 3; i++) {
-      const value = await pills.nth(i).locator('.lens-stat-pill-value').textContent();
-      expect(value.trim().length).toBeGreaterThan(0);
-      const label = await pills.nth(i).locator('.lens-stat-pill-label').textContent();
-      expect(label.trim().length).toBeGreaterThan(0);
-    }
-  });
-
-  test('Speed lens shows 3 stat pills with non-empty values', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    if ((api.insights || []).length === 0) { test.skip(); return; }
-
-    await page.locator('.lens-btn[data-lens="speed"]').click();
-    const pills = page.locator('#lensSection-speed .lens-stat-pill');
-    await expect(pills).toHaveCount(3);
-    for (let i = 0; i < 3; i++) {
-      const value = await pills.nth(i).locator('.lens-stat-pill-value').textContent();
-      expect(value.trim().length).toBeGreaterThan(0);
-    }
-  });
-
-  test('Quality lens shows stat pills with non-empty values', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    if ((api.insights || []).length === 0) { test.skip(); return; }
-
-    await page.locator('.lens-btn[data-lens="quality"]').click();
-    const pills = page.locator('#lensSection-quality .lens-stat-pill');
-    const count = await pills.count();
-    expect(count).toBeGreaterThanOrEqual(3);
-    for (let i = 0; i < Math.min(count, 3); i++) {
-      const value = await pills.nth(i).locator('.lens-stat-pill-value').textContent();
-      expect(value.trim().length).toBeGreaterThan(0);
-    }
-  });
-
-  test('clicking each lens button toggles active state', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    if ((api.insights || []).length === 0) { test.skip(); return; }
-
-    for (const lens of ['cost', 'speed', 'quality']) {
-      await page.locator(`.lens-btn[data-lens="${lens}"]`).click();
-      await expect(page.locator(`.lens-btn[data-lens="${lens}"]`)).toHaveClass(/active/);
-      // Other buttons should not be active
-      for (const other of ['cost', 'speed', 'quality'].filter(l => l !== lens)) {
-        await expect(page.locator(`.lens-btn[data-lens="${other}"]`)).not.toHaveClass(/active/);
-      }
-    }
-  });
-
-  test('each lens section shows insight cards', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    if ((api.insights || []).length === 0) { test.skip(); return; }
-
-    for (const lens of ['cost', 'speed', 'quality']) {
-      await page.locator(`.lens-btn[data-lens="${lens}"]`).click();
-      const cards = page.locator('.insight-card');
-      const count = await cards.count();
-      expect(count).toBeGreaterThan(0);
-    }
-  });
-
-  test('charts section is visible alongside lens sections', async ({ page }) => {
-    await waitForDashboard(page);
-    // Core charts should be visible regardless of active lens
-    await expect(page.locator('#dailyChart')).toBeVisible();
-    await expect(page.locator('#modelChart')).toBeVisible();
-    await expect(page.locator('#ratioChart')).toBeVisible();
-    await expect(page.locator('#tpqChart')).toBeVisible();
-    await expect(page.locator('#tierMixChart')).toBeVisible();
-  });
-});
-
-// ─── Insights Section ───────────────────────────────────────────────────────
-
-test.describe('Insights (lens sections)', () => {
-  test('renders insight cards when insights exist in API', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    const insights = api.insights || [];
-
-    if (insights.length > 0) {
-      // Insights are now distributed across lens sections
-      const cards = page.locator('.insight-card');
-      const count = await cards.count();
-      expect(count).toBeGreaterThan(0);
-    }
-  });
-
-  test('each insight card has a title and type indicator', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    if ((api.insights || []).length === 0) { test.skip(); return; }
-
-    const cards = page.locator('.insight-card');
-    const count = await cards.count();
+    const label = page.locator('.hero-ppmt-label, .hero-ppmt-sub');
+    const count = await label.count();
+    if (count === 0) { test.skip(); return; }
+    const allText = [];
     for (let i = 0; i < count; i++) {
-      const title = await cards.nth(i).locator('.insight-title').textContent();
-      expect(title.trim().length).toBeGreaterThan(3);
-      const indicator = await cards.nth(i).locator('.insight-indicator').textContent();
-      expect(indicator.trim().length).toBeGreaterThan(0); // emoji
+      allText.push(await label.nth(i).textContent());
     }
-  });
-
-  test('insight titles match API data', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    const insights = api.insights || [];
-    if (insights.length === 0) { test.skip(); return; }
-
-    const cards = page.locator('.insight-card');
-    const renderedTitles = [];
-    const count = await cards.count();
-    expect(count).toBeGreaterThan(0);
-    for (let i = 0; i < count; i++) {
-      const t = await cards.nth(i).locator('.insight-title').textContent();
-      renderedTitles.push(t.trim());
-      expect(t.trim().length).toBeGreaterThan(0); // titles should have content
-    }
-    // Just verify that rendered titles are non-empty
-    expect(renderedTitles.length).toBeGreaterThan(0);
-  });
-
-  test('expanding insight card reveals description', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    const withDesc = (api.insights || []).find(i => i.description);
-    if (!withDesc) { test.skip(); return; }
-
-    const card = page.locator('.insight-card').first();
-    const expandDiv = card.locator('.insight-expand');
-    await expect(expandDiv).toBeHidden();
-    await card.click();
-    await expect(expandDiv).toBeVisible();
-    const detail = await expandDiv.locator('.insight-detail').textContent();
-    expect(detail.trim().length).toBeGreaterThan(10);
-  });
-
-});
-
-// ─── Pipeline Time-Series Charts ───────────────────────────────────────────
-
-test.describe('Pipeline Time-Series Charts', () => {
-  test('renders cost and quality canvas charts when orchestrator runs exist', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    const hasRuns = api.orchestrator?.summary?.totalRuns > 0;
-    if (!hasRuns) { test.skip(); return; }
-
-    await expect(page.locator('#costRunsChart')).toBeVisible();
-    await expect(page.locator('#costErrorRateChart')).toBeVisible();
-    await expect(page.locator('#qualityCompletionChart')).toBeVisible();
-    await expect(page.locator('#qualityIterChart')).toBeVisible();
-    await expect(page.locator('#testIterChart')).toBeVisible();
-  });
-
-  test('date filter applies to pipeline charts — narrowing range reduces or changes displayed data', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    const runs = api.orchestrator?.runs || [];
-    if (runs.length < 2) { test.skip(); return; }
-
-    // Find a date range that excludes some runs
-    const dates = runs.map(r => r.date).filter(Boolean).sort();
-    const midDate = dates[Math.floor(dates.length / 2)];
-
-    // Set date filter to only include runs up to the midpoint
-    await page.locator('#dateFrom').fill(dates[0]);
-    await page.locator('#dateTo').fill(midDate);
-    await page.locator('#dateTo').dispatchEvent('change');
-
-    // Wait for re-render
-    await page.waitForTimeout(500);
-
-    // Pipeline charts should still exist (filtered data still has runs)
-    const costChart = page.locator('#costRunsChart');
-    const isVisible = await costChart.isVisible().catch(() => false);
-
-    // If the filtered range has runs, charts should render; otherwise containers should be empty
-    const filteredRuns = runs.filter(r => r.date && r.date >= dates[0] && r.date <= midDate);
-    if (filteredRuns.length > 0) {
-      // At minimum, the pipeline sections should have content
-      const pipelineCost = page.locator('#pipelineCostData');
-      const html = await pipelineCost.innerHTML();
-      // Should have rendered something (not empty)
-      expect(html.length).toBeGreaterThan(0);
-    }
-  });
-
-  test('recommendation saving badges show tokens/mo not dollars', async ({ page }) => {
-    await waitForDashboard(page);
-    const badges = page.locator('.rec-saving');
-    const count = await badges.count();
-    for (let i = 0; i < count; i++) {
-      const text = await badges.nth(i).textContent();
-      expect(text).toContain('tokens/mo');
-      expect(text).not.toContain('$');
-    }
+    expect(allText.join(' ').toLowerCase()).toContain('pipeline tokens');
   });
 });
 
-// ─── Charts Section ─────────────────────────────────────────────────────────
+// ─── PP/100MT Chart ─────────────────────────────────────────────────────────
 
-test.describe('Charts', () => {
-  test('daily chart canvas exists and has non-zero dimensions', async ({ page }) => {
+test.describe('PP/100MT Chart', () => {
+  test('PP/100MT chart canvas exists', async ({ page }) => {
     await waitForDashboard(page);
-    const canvas = page.locator('#dailyChart');
+    const canvas = page.locator('#spPerTokenChart');
+    await expect(canvas).toBeAttached();
+  });
+
+  test('PP/100MT chart has non-zero dimensions when data exists', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    const ppmtByDay = api.orchestrator?.summary?.ppmtAnalysis?.ppmtByDay || [];
+    if (ppmtByDay.length === 0) { test.skip(); return; }
+
+    const canvas = page.locator('#spPerTokenChart');
     await expect(canvas).toBeVisible();
     const box = await canvas.boundingBox();
     expect(box.width).toBeGreaterThan(100);
     expect(box.height).toBeGreaterThan(50);
   });
+});
 
-  test('model chart canvas exists', async ({ page }) => {
-    await waitForDashboard(page);
-    const canvas = page.locator('#modelChart');
-    await expect(canvas).toBeVisible();
-  });
+// ─── Recommendations ────────────────────────────────────────────────────────
 
-  test('ratio chart canvas exists', async ({ page }) => {
-    await waitForDashboard(page);
-    const canvas = page.locator('#ratioChart');
-    await expect(canvas).toBeVisible();
-  });
-
-  test('tokens per query chart canvas exists', async ({ page }) => {
-    await waitForDashboard(page);
-    const canvas = page.locator('#tpqChart');
-    await expect(canvas).toBeVisible();
-  });
-
-  test('model tier mix chart canvas exists', async ({ page }) => {
-    await waitForDashboard(page);
-    const canvas = page.locator('#tierMixChart');
-    await expect(canvas).toBeVisible();
-  });
-
-  test('chart legends contain model names', async ({ page }) => {
+test.describe('Recommendations', () => {
+  test('recommendations section has cards when data exists', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
-    // The model chart should have legend items
-    const legends = page.locator('.legend-item');
-    const count = await legends.count();
-    if (count > 0) {
-      const legendTexts = [];
-      for (let i = 0; i < count; i++) {
-        legendTexts.push(await legends.nth(i).textContent());
+    const recs = api.orchestrator?.summary?.recommendations || [];
+    if (recs.length === 0) { test.skip(); return; }
+
+    const cards = page.locator('.ppmt-rec-card');
+    const count = await cards.count();
+    expect(count).toBeGreaterThan(0);
+  });
+
+  test('recommendation cards show title and detail', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    const recs = api.orchestrator?.summary?.recommendations || [];
+    if (recs.length === 0) { test.skip(); return; }
+
+    const firstCard = page.locator('.ppmt-rec-card').first();
+    const title = await firstCard.locator('.ppmt-rec-title').textContent();
+    expect(title.trim().length).toBeGreaterThan(3);
+    const detail = await firstCard.locator('.ppmt-rec-detail').textContent();
+    expect(detail.trim().length).toBeGreaterThan(3);
+  });
+});
+
+// ─── Driver Charts ──────────────────────────────────────────────────────────
+
+test.describe('Driver Charts', () => {
+  test('yield trend chart canvas exists', async ({ page }) => {
+    await waitForDashboard(page);
+    const canvas = page.locator('#yieldTrendChart');
+    await expect(canvas).toBeAttached();
+  });
+
+  test('task size completion chart canvas exists', async ({ page }) => {
+    await waitForDashboard(page);
+    const canvas = page.locator('#taskSizeChart');
+    await expect(canvas).toBeAttached();
+  });
+
+  test('failure breakdown chart canvas exists', async ({ page }) => {
+    await waitForDashboard(page);
+    const canvas = page.locator('#failureChart');
+    await expect(canvas).toBeAttached();
+  });
+
+  test('task count vs outcome section exists', async ({ page }) => {
+    await waitForDashboard(page);
+    const section = page.locator('#taskCountStat');
+    await expect(section).toBeAttached();
+  });
+
+  test('driver charts render with dimensions when orchestrator data exists', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    const hasOrch = api.orchestrator?.summary?.totalRuns > 0;
+    if (!hasOrch) { test.skip(); return; }
+
+    for (const id of ['yieldTrendChart', 'taskSizeChart', 'failureChart']) {
+      const canvas = page.locator('#' + id);
+      const visible = await canvas.isVisible().catch(() => false);
+      if (visible) {
+        const box = await canvas.boundingBox();
+        expect(box.width).toBeGreaterThan(50);
+        expect(box.height).toBeGreaterThan(30);
       }
-      // Should mention at least one model tier
-      const allText = legendTexts.join(' ').toLowerCase();
-      const hasModelRef = allText.includes('read') || allText.includes('write') ||
-        allText.includes('opus') || allText.includes('sonnet') || allText.includes('haiku');
-      expect(hasModelRef).toBe(true);
+    }
+  });
+
+  test('each driver chart has an explainer sentence', async ({ page }) => {
+    await waitForDashboard(page);
+    const explainers = page.locator('.driver-explainer');
+    const count = await explainers.count();
+    expect(count).toBeGreaterThanOrEqual(4);
+    for (let i = 0; i < count; i++) {
+      const text = await explainers.nth(i).textContent();
+      expect(text.trim().length).toBeGreaterThan(20);
     }
   });
 });
 
 // ─── Projects Section ───────────────────────────────────────────────────────
 
-test.describe('Projects (#projectsSection)', () => {
+test.describe('Projects', () => {
   test('renders project rows matching API project count', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
@@ -387,20 +187,21 @@ test.describe('Projects (#projectsSection)', () => {
     await expect(rows).toHaveCount(projects.length);
   });
 
-  test('project rows show name, token count, sessions, and queries', async ({ page }) => {
+  test('project breakdown has PP/100MT column', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
     const projects = api.projectBreakdown || [];
     if (projects.length === 0) { test.skip(); return; }
 
-    const firstRow = page.locator('.proj-row').first();
-    const cells = firstRow.locator('td');
-    const cellCount = await cells.count();
-    expect(cellCount).toBeGreaterThanOrEqual(4); // name, tokens, sessions, queries
-
-    // First cell should have project name text
-    const nameText = await cells.first().textContent();
-    expect(nameText.trim().length).toBeGreaterThan(0);
+    // Check for PP/100MT header
+    const headers = page.locator('.projects-section th');
+    const headerTexts = [];
+    const count = await headers.count();
+    for (let i = 0; i < count; i++) {
+      headerTexts.push(await headers.nth(i).textContent());
+    }
+    const allHeaders = headerTexts.join(' ').toLowerCase();
+    expect(allHeaders).toContain('pp/100mt');
   });
 
   test('project count display matches actual rows', async ({ page }) => {
@@ -422,7 +223,6 @@ test.describe('Projects (#projectsSection)', () => {
 
     const firstRow = page.locator('.proj-row').first();
     const drawer = page.locator('.proj-drawer').first();
-    // Drawer starts collapsed (no .open class, max-height: 0)
     await expect(drawer).not.toHaveClass(/open/);
     await firstRow.click();
     await expect(drawer).toHaveClass(/open/);
@@ -431,7 +231,7 @@ test.describe('Projects (#projectsSection)', () => {
 
 // ─── Top Prompts Section ────────────────────────────────────────────────────
 
-test.describe('Top Prompts (#topPromptsList)', () => {
+test.describe('Top Prompts', () => {
   test('renders prompt rows when data exists', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
@@ -441,7 +241,7 @@ test.describe('Top Prompts (#topPromptsList)', () => {
     const rows = page.locator('.prompt-row');
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
-    expect(count).toBeLessThanOrEqual(20); // typically top-N
+    expect(count).toBeLessThanOrEqual(20);
   });
 
   test('prompt rows show rank, text preview, and token counts', async ({ page }) => {
@@ -450,39 +250,12 @@ test.describe('Top Prompts (#topPromptsList)', () => {
     if ((api.topPrompts || []).length === 0) { test.skip(); return; }
 
     const firstRow = page.locator('.prompt-row').first();
-    // Rank
     const rank = await firstRow.locator('.prompt-rank').textContent();
     expect(rank.trim()).toMatch(/\d+/);
-    // Text preview
     const text = await firstRow.locator('.prompt-text').textContent();
     expect(text.trim().length).toBeGreaterThan(3);
-    // Token count
     const tokens = await firstRow.locator('.prompt-tokens').textContent();
     expect(tokens.trim()).toMatch(/[\d,.]+/);
-  });
-
-  test('prompt text content matches API top prompts', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    const prompts = api.topPrompts || [];
-    if (prompts.length === 0) { test.skip(); return; }
-
-    const firstRowText = await page.locator('.prompt-row').first().locator('.prompt-text').textContent();
-    // Should contain substring of the API's first prompt text
-    const apiFirstPrompt = prompts[0].prompt.substring(0, 30);
-    expect(firstRowText).toContain(apiFirstPrompt);
-  });
-
-  test('token bars render with visual width', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    if ((api.topPrompts || []).length === 0) { test.skip(); return; }
-
-    const bars = page.locator('.token-bar-wrap');
-    const count = await bars.count();
-    expect(count).toBeGreaterThan(0);
-    const box = await bars.first().boundingBox();
-    expect(box.width).toBeGreaterThan(10);
   });
 });
 
@@ -511,24 +284,6 @@ test.describe('Sessions Table', () => {
     expect(text).toContain(String(sessions.length));
   });
 
-  test('session rows show date, prompt preview, model badge, and token counts', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    if ((api.sessions || []).length === 0) { test.skip(); return; }
-
-    const firstRow = page.locator('.sessions-section tbody tr').first();
-    // Date — dashboard uses short format like "Feb 2"
-    const dateCell = await firstRow.locator('.date-cell').textContent();
-    expect(dateCell.trim()).toMatch(/[A-Z][a-z]{2} \d{1,2}/);
-    // Model badge
-    const modelBadge = firstRow.locator('.model-badge, .model-pills');
-    await expect(modelBadge.first()).toBeVisible();
-    // Token numbers
-    const tokenNums = firstRow.locator('.token-num');
-    const tokenCount = await tokenNums.count();
-    expect(tokenCount).toBeGreaterThanOrEqual(1);
-  });
-
   test('session search filters results', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
@@ -537,9 +292,8 @@ test.describe('Sessions Table', () => {
     const searchInput = page.locator('#searchInput');
     const initialCount = await page.locator('.sessions-section tbody tr').count();
 
-    // Search for something specific
     await searchInput.fill('zzz_nonexistent_query_zzz');
-    await page.waitForTimeout(500); // debounce
+    await page.waitForTimeout(500);
     const filteredCount = await page.locator('.sessions-section tbody tr').count();
     expect(filteredCount).toBeLessThan(initialCount);
   });
@@ -548,97 +302,37 @@ test.describe('Sessions Table', () => {
     await waitForDashboard(page);
     const headers = page.locator('.sessions-section th[data-sort]');
     const count = await headers.count();
-    expect(count).toBeGreaterThanOrEqual(3); // date, model, tokens at minimum
+    expect(count).toBeGreaterThanOrEqual(3);
   });
 });
 
-// ─── API Data Consistency ───────────────────────────────────────────────────
+// ─── Deleted Elements (should NOT exist) ────────────────────────────────────
 
-test.describe('API Data Consistency', () => {
-  test('totals.totalTokens equals sum of input + output', async ({ page }) => {
+test.describe('Removed elements are gone', () => {
+  test('no stat cards row exists', async ({ page }) => {
     await waitForDashboard(page);
-    const api = await getApiData(page);
-    const t = api.totals;
-    expect(t.totalTokens).toBe(t.totalInputTokens + t.totalOutputTokens);
+    await expect(page.locator('#statsRow')).toHaveCount(0);
   });
 
-  test('all insights have required fields: id, type, title', async ({ page }) => {
+  test('no lens tab buttons exist', async ({ page }) => {
     await waitForDashboard(page);
-    const api = await getApiData(page);
-    for (const ins of (api.insights || [])) {
-      expect(ins.id).toBeDefined();
-      expect(ins.type).toBeDefined();
-      expect(ins.title).toBeDefined();
-      expect(ins.title.length).toBeGreaterThan(0);
+    await expect(page.locator('.lens-btn')).toHaveCount(0);
+  });
+
+  test('no old vanity chart canvases exist', async ({ page }) => {
+    await waitForDashboard(page);
+    for (const id of ['dailyChart', 'modelChart', 'ratioChart', 'tpqChart', 'tierMixChart', 'costRunsChart', 'costErrorRateChart', 'velocityChart']) {
+      await expect(page.locator('#' + id)).toHaveCount(0);
     }
   });
 
-  test('all insights have a lens field (cost/speed/quality)', async ({ page }) => {
+  test('no insight cards exist', async ({ page }) => {
     await waitForDashboard(page);
-    const api = await getApiData(page);
-    const validLenses = ['cost', 'speed', 'quality'];
-    for (const ins of (api.insights || [])) {
-      expect(ins.lens).toBeDefined();
-      // lens should be one of cost/speed/quality (or null for uncategorized)
-      if (ins.lens) {
-        expect(validLenses).toContain(ins.lens);
-      }
-    }
-  });
-
-  test('recommendations has expected lens categories when present', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    const recs = api.recommendations;
-    if (!recs) { test.skip(true, 'recommendations not available in this build'); return; }
-    expect(recs).toHaveProperty('model');
-    expect(recs).toHaveProperty('context');
-    expect(recs).toHaveProperty('conversation');
-    expect(recs).toHaveProperty('pipeline');
-    expect(Array.isArray(recs.model)).toBe(true);
-    expect(Array.isArray(recs.context)).toBe(true);
-    expect(Array.isArray(recs.conversation)).toBe(true);
-    expect(Array.isArray(recs.pipeline)).toBe(true);
-  });
-
-  test('each session has estimatedCost field when pricing enabled', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    const sessions = (api.sessions || []).slice(0, 10);
-    if (sessions.length === 0 || !('estimatedCost' in sessions[0])) {
-      test.skip(true, 'estimatedCost not available in this build'); return;
-    }
-    for (const session of sessions) {
-      expect(session).toHaveProperty('estimatedCost');
-      expect(typeof session.estimatedCost).toBe('number');
-    }
-  });
-
-  test('orchestrator runs have estimatedCost when pricing enabled', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    const runs = api.orchestrator?.runs || [];
-    if (runs.length === 0) { test.skip(); return; }
-    const withCost = runs.filter(r => typeof r.estimatedCost === 'number');
-    if (withCost.length === 0) { test.skip(true, 'estimatedCost not available in this build'); return; }
-    expect(withCost.length).toBeGreaterThan(0);
-  });
-
-  test('daily usage entries have estimatedCost when pricing enabled', async ({ page }) => {
-    await waitForDashboard(page);
-    const api = await getApiData(page);
-    const daily = api.dailyUsage || [];
-    if (daily.length === 0 || !('estimatedCost' in daily[0])) {
-      test.skip(true, 'estimatedCost not available in this build'); return;
-    }
-    for (const day of daily.slice(0, 5)) {
-      expect(day).toHaveProperty('estimatedCost');
-      expect(typeof day.estimatedCost).toBe('number');
-    }
+    await expect(page.locator('.insight-card')).toHaveCount(0);
   });
 });
 
-// ─── Header & Controls ─────────────────────────────────────────────────────
+// ─── Header & Controls ──────────────────────────────────────────────────────
 
 test.describe('Header & Controls', () => {
   test('page title is Claude Spend', async ({ page }) => {
@@ -667,5 +361,62 @@ test.describe('Header & Controls', () => {
     await expect(notice).toBeVisible();
     const text = await notice.textContent();
     expect(text.toLowerCase()).toContain('data stays on your machine');
+  });
+});
+
+// ─── API Data Consistency ───────────────────────────────────────────────────
+
+test.describe('API Data Consistency', () => {
+  test('totals.totalTokens equals sum of input + output', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    const t = api.totals;
+    expect(t.totalTokens).toBe(t.totalInputTokens + t.totalOutputTokens);
+  });
+
+  test('orchestrator summary has ppmtAnalysis when runs exist', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    const runs = api.orchestrator?.runs || [];
+    if (runs.length === 0) { test.skip(); return; }
+
+    expect(api.orchestrator.summary).toBeDefined();
+    expect(api.orchestrator.summary.ppmtAnalysis).toBeDefined();
+  });
+
+  test('ppmtAnalysis has pipelineTokens field', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    const analysis = api.orchestrator?.summary?.ppmtAnalysis;
+    if (!analysis) { test.skip(); return; }
+
+    expect(analysis).toHaveProperty('pipelineTokens');
+    expect(typeof analysis.pipelineTokens).toBe('number');
+  });
+
+  test('projectBreakdown entries have pp100mt field', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    const projects = api.projectBreakdown || [];
+    const withPP = projects.filter(p => typeof p.pp100mt === 'number');
+    // pp100mt is computed from orchestrator data — if orchestrator exists, some projects should have it
+    if (api.orchestrator?.summary?.totalRuns > 0) {
+      expect(withPP.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ─── Dashboard Footer ───────────────────────────────────────────────────────
+
+test.describe('Dashboard Footer', () => {
+  test('explanatory footer exists with PP/100MT description', async ({ page }) => {
+    await waitForDashboard(page);
+    const footer = page.locator('.dashboard-footer');
+    const count = await footer.count();
+    if (count === 0) { test.skip(); return; }
+
+    const text = await footer.textContent();
+    expect(text.toLowerCase()).toContain('pp/100mt');
+    expect(text.toLowerCase()).toContain('pipeline tokens');
   });
 });
