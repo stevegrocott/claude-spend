@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations } = require('./parser');
+const { parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession } = require('./parser');
 
 // Test parseTaskSummary function
 describe('parseTaskSummary', () => {
@@ -184,7 +184,7 @@ describe('computePPMTAnalysis', () => {
     assert.strictEqual(projB.yieldPct, 100);
   });
 
-  test('ppmtByDay: daily PP/MT joining run SP with session tokens', () => {
+  test('ppmtByDay: daily PP/100MT joining run SP with pipeline session tokens', () => {
     const runs = [
       makeRun({ date: '2026-03-01', taskSummary: { completed: { S: 0, M: 0, L: 1 }, failed: { S: 0, M: 0, L: 0 }, storyPointsCompleted: 5, storyPointsTotal: 5 } }),
       makeRun({ date: '2026-03-02', taskSummary: { completed: { S: 0, M: 1, L: 0 }, failed: { S: 0, M: 0, L: 0 }, storyPointsCompleted: 3, storyPointsTotal: 3 } }),
@@ -194,10 +194,13 @@ describe('computePPMTAnalysis', () => {
       { date: '2026-03-02', totalTokens: 500_000 },
     ];
     const { ppmtByDay } = computePPMTAnalysis(runs, dailyUsage);
+    // PP/100MT: SP / (tokens / 100_000_000)
+    // day1: 5 / (1_000_000 / 100_000_000) = 5 / 0.01 = 500
     const day1 = ppmtByDay.find(d => d.date === '2026-03-01');
-    assert.strictEqual(day1.ppmt, 5);
+    assert.strictEqual(day1.pp100mt, 500);
+    // day2: 3 / (500_000 / 100_000_000) = 3 / 0.005 = 600
     const day2 = ppmtByDay.find(d => d.date === '2026-03-02');
-    assert.strictEqual(day2.ppmt, 6);
+    assert.strictEqual(day2.pp100mt, 600);
   });
 
   test('handles empty runs array', () => {
@@ -444,6 +447,56 @@ describe('generatePPMTRecommendations', () => {
     });
     const recs = generatePPMTRecommendations(analysis);
     assert.ok(!recs.find(r => r.id === 'zero_escalation_failures'), 'should not trigger when <=30%');
+  });
+});
+
+describe('categorizeSession', () => {
+  test('classifies session with queryCount <= 50 and pipeline prompt as pipeline_subagent', () => {
+    const session = {
+      queryCount: 10,
+      firstPrompt: 'Implement task 1 on branch wt-task-1 in the current working directory',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies session with queryCount > 50 as interactive regardless of prompt', () => {
+    const session = {
+      queryCount: 51,
+      firstPrompt: 'Implement task 1 on branch wt-task-1',
+    };
+    assert.strictEqual(categorizeSession(session), 'interactive');
+  });
+
+  test('classifies session without structured prompt as interactive', () => {
+    const session = {
+      queryCount: 10,
+      firstPrompt: 'What is the weather today?',
+    };
+    assert.strictEqual(categorizeSession(session), 'interactive');
+  });
+
+  test('classifies session with task size marker as pipeline_subagent', () => {
+    const session = {
+      queryCount: 30,
+      firstPrompt: '**(S)** Implement the user login feature',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies session with exactly 50 queries and pipeline prompt as pipeline_subagent', () => {
+    const session = {
+      queryCount: 50,
+      firstPrompt: 'Implement task 3 on branch wt-task-3',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies session with null firstPrompt as interactive', () => {
+    const session = {
+      queryCount: 5,
+      firstPrompt: null,
+    };
+    assert.strictEqual(categorizeSession(session), 'interactive');
   });
 });
 

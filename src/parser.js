@@ -177,6 +177,7 @@ async function parseAllSessions() {
 
   const sessions = [];
   const dailyMap = {};
+  const pipelineDailyMap = {}; // pipeline-subagent tokens only, keyed by date
   const modelMap = {};
   const allPrompts = []; // for "most expensive prompts" across all sessions
 
@@ -257,6 +258,11 @@ async function parseAllSessions() {
       }
       flushPrompt();
 
+      const sessionType = categorizeSession({
+        queryCount: queries.length,
+        firstPrompt: firstPrompt.substring(0, 200),
+      });
+
       sessions.push({
         sessionId,
         project: normalizeProjectPath(projectDir),
@@ -270,6 +276,7 @@ async function parseAllSessions() {
         outputTokens,
         totalTokens,
         estimatedCost,
+        sessionType,
       });
 
       // Daily
@@ -283,6 +290,12 @@ async function parseAllSessions() {
         dailyMap[date].sessions += 1;
         dailyMap[date].queries += queries.length;
         dailyMap[date].estimatedCost += estimatedCost;
+
+        // Pipeline-only daily token tracking
+        if (sessionType === 'pipeline_subagent') {
+          if (!pipelineDailyMap[date]) pipelineDailyMap[date] = 0;
+          pipelineDailyMap[date] += totalTokens;
+        }
       }
 
       // Model
@@ -386,6 +399,14 @@ async function parseAllSessions() {
 
   const dailyUsage = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
 
+  // Build pipeline-only daily usage for PP/100MT computation
+  const pipelineDailyUsage = Object.entries(pipelineDailyMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, totalTokens]) => ({ date, totalTokens }));
+
+  // Total pipeline tokens across all dates
+  const pipelineTokens = pipelineDailyUsage.reduce((sum, d) => sum + d.totalTokens, 0);
+
   // Top 20 most expensive individual prompts
   allPrompts.sort((a, b) => b.totalTokens - a.totalTokens);
   const topPrompts = allPrompts.slice(0, 20);
@@ -421,9 +442,35 @@ async function parseAllSessions() {
 
   // Parse orchestrator logs from project directories
   const orchestrator = parseOrchestratorLogs(projectCostMap);
-  orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs.filter(r => r.state !== 'initializing'), dailyUsage);
+  orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs.filter(r => r.state !== 'initializing'), pipelineDailyUsage);
+  orchestrator.summary.ppmtAnalysis.pipelineTokens = pipelineTokens;
   orchestrator.summary.recommendations = generatePPMTRecommendations(orchestrator.summary.ppmtAnalysis);
   const orchestratorInsights = generateOrchestratorInsights(orchestrator);
+
+  // Add pp100mt to each projectBreakdown entry using orchestrator projectYield data
+  const projectYieldByName = {};
+  for (const py of orchestrator.summary.ppmtAnalysis.projectYield || []) {
+    projectYieldByName[py.project] = py;
+  }
+  // Build pipeline token map by project (from sessions)
+  const pipelineTokensByProject = {};
+  for (const s of sessions) {
+    if (s.sessionType === 'pipeline_subagent') {
+      pipelineTokensByProject[s.project] = (pipelineTokensByProject[s.project] || 0) + s.totalTokens;
+    }
+  }
+  for (const entry of projectBreakdown) {
+    const projPipelineTokens = pipelineTokensByProject[entry.project] || 0;
+    // Match session project path to orchestrator project name (e.g., '-Users-x-projects-claude-spend' → 'claude-spend')
+    const orchProject = Object.values(projectYieldByName).find(py => {
+      const encoded = `-${py.project.replace(/\//g, '-')}`;
+      return entry.project.endsWith(encoded);
+    });
+    const sp = orchProject ? orchProject.spCompleted : 0;
+    entry.pp100mt = projPipelineTokens > 0
+      ? Math.round((sp / (projPipelineTokens / 100_000_000)) * 100) / 100
+      : 0;
+  }
 
   return {
     sessions,
@@ -438,7 +485,7 @@ async function parseAllSessions() {
 }
 
 function emptySummary() {
-  return { totalRuns: 0, completedRuns: 0, errorRuns: 0, maxIterationsRuns: 0, completionRate: 0, avgQualityIterations: 0, avgTestIterations: 0, stageAvgs: [], topChurners: [], totalModelUsage: {}, escalationCount: 0, runsWithEscalations: 0, allEscalations: [], stageModelTotals: {} };
+  return { totalRuns: 0, completedRuns: 0, errorRuns: 0, maxIterationsRuns: 0, completionRate: 0, avgQualityIterations: 0, avgTestIterations: 0, stageAvgs: [], topChurners: [], totalModelUsage: {}, escalationCount: 0, runsWithEscalations: 0, allEscalations: [], stageModelTotals: {}, yieldByDay: [] };
 }
 
 function parseOrchestratorLogs(projectCostMap = {}) {
@@ -681,6 +728,16 @@ function parseOrchestratorLogs(projectCostMap = {}) {
     avgSPPerWeek,
   };
 
+  // yieldByDay: daily yield percentage (SP completed / SP total)
+  const yieldByDay = Object.entries(dailyVelocity)
+    .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+    .map(([date, data]) => ({
+      date,
+      yieldPct: data.spTotal > 0 ? Math.round((data.spCompleted / data.spTotal) * 100) : 0,
+      spCompleted: data.spCompleted,
+      spTotal: data.spTotal,
+    }));
+
   // Top churners (highest iteration counts)
   const topChurners = [...validRuns]
     .sort((a, b) => (b.qualityIterations + b.testIterations) - (a.qualityIterations + a.testIterations))
@@ -737,6 +794,7 @@ function parseOrchestratorLogs(projectCostMap = {}) {
       stageModelTotals,
       velocityByDay,
       velocityStats,
+      yieldByDay,
     },
   };
 }
@@ -1238,6 +1296,20 @@ function fmt(n) {
   return n.toLocaleString();
 }
 
+// Structured prompt patterns that identify pipeline-dispatched subagent sessions
+const PIPELINE_PROMPT_PATTERNS = [
+  /implement task \d+/i,
+  /on branch wt-/i,
+  /\*\*\([SML]\)\*\*/,
+];
+
+function categorizeSession(session) {
+  if ((session.queryCount || 0) > 50) return 'interactive';
+  const prompt = session.firstPrompt || '';
+  const isStructured = PIPELINE_PROMPT_PATTERNS.some(re => re.test(prompt));
+  return isStructured ? 'pipeline_subagent' : 'interactive';
+}
+
 function computePPMTAnalysis(runs, dailyUsage) {
   // 1. taskSizeCompletion — S/M/L completion rates with counts
   const taskSizeCompletion = {
@@ -1363,8 +1435,9 @@ function computePPMTAnalysis(runs, dailyUsage) {
   const ppmtByDay = [...allDates].sort().map(date => {
     const sp = dailySP[date] || 0;
     const tokens = dailyTokenMap[date] || 0;
-    const ppmt = tokens > 0 ? Math.round((sp / (tokens / 1_000_000)) * 100) / 100 : 0;
-    return { date, spCompleted: sp, totalTokens: tokens, ppmt };
+    // PP/100MT: story points per 100 million pipeline tokens
+    const pp100mt = tokens > 0 ? Math.round((sp / (tokens / 100_000_000)) * 100) / 100 : 0;
+    return { date, spCompleted: sp, totalTokens: tokens, pp100mt };
   });
 
   return { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield, ppmtByDay };
@@ -1488,4 +1561,4 @@ function generatePPMTRecommendations(analysis) {
   return recs;
 }
 
-module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations };
+module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession };
