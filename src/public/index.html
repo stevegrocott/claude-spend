@@ -864,6 +864,21 @@
     padding: 24px; margin-bottom: 24px;
     border: 1px solid var(--border); box-shadow: var(--shadow-sm);
   }
+  .split-insights {
+    display: flex; flex-wrap: wrap; gap: 10px;
+  }
+  .split-insight {
+    flex: 1 1 280px; padding: 10px 14px;
+    background: var(--bg); border-radius: var(--radius-xs);
+    border-left: 3px solid var(--indigo);
+    font-size: 13px; line-height: 1.5;
+  }
+  .split-insight-value {
+    font-weight: 700; color: var(--text);
+  }
+  .split-insight-text {
+    color: var(--text-secondary);
+  }
   .comparison-layout {
     display: grid; grid-template-columns: 1fr 1fr;
     gap: 24px; margin-bottom: 32px;
@@ -930,10 +945,11 @@
     </div>
   </div>
 
-  <!-- Overview: Token Split + Stacked Area -->
+  <!-- Overview: Token Split + Insights + Stacked Area -->
   <div class="overview-section animate delay-2">
     <h3 style="font-size:13px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Pipeline vs Interactive Token Split</h3>
     <div id="tokenSplitBar"></div>
+    <div id="splitInsights" style="margin-top:14px"></div>
     <div style="margin-top:16px">
       <canvas id="trendPipelineChart"></canvas>
     </div>
@@ -2302,6 +2318,79 @@ function buildDrawerContent(p) {
 }
 
 // Session Efficiency — pipeline/interactive split, session recs, context cost curve
+function renderSplitInsights() {
+  const el = document.getElementById('splitInsights');
+  if (!el) return;
+
+  const se = FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency);
+  const orch = FILTERED.orchestrator || (DATA && DATA.orchestrator);
+  if (!se || !se.pipeline) { el.innerHTML = ''; return; }
+
+  const insights = [];
+  const pipe = se.pipeline;
+  const inter = se.interactive;
+  const ebd = se.efficiencyByDay || [];
+
+  // 1. Pipeline coverage trend
+  if (ebd.length >= 10) {
+    const firstHalf = ebd.slice(0, Math.floor(ebd.length / 2));
+    const secondHalf = ebd.slice(Math.floor(ebd.length / 2));
+    const earlyPct = Math.round(firstHalf.reduce((s, d) => s + d.pipelineCoveragePct, 0) / firstHalf.length);
+    const recentPct = Math.round(secondHalf.reduce((s, d) => s + d.pipelineCoveragePct, 0) / secondHalf.length);
+    const diff = recentPct - earlyPct;
+    if (Math.abs(diff) >= 3) {
+      const direction = diff > 0 ? 'grew' : 'dropped';
+      const color = diff > 0 ? '#059669' : '#DC2626';
+      insights.push({ value: earlyPct + '% \u2192 ' + recentPct + '%', text: 'Pipeline coverage ' + direction + ' over this period. ' + (diff > 0 ? 'More work is being tracked and optimized.' : 'More tokens are going to untracked interactive sessions.'), color });
+    }
+  }
+
+  // 2. Tokens/query comparison
+  if (pipe.queries > 0 && inter.queries > 0) {
+    const pipeTpq = Math.round(pipe.tokens / pipe.queries / 1000);
+    const interTpq = Math.round(inter.tokens / inter.queries / 1000);
+    if (interTpq > pipeTpq * 1.3) {
+      const ratio = (interTpq / pipeTpq).toFixed(1);
+      insights.push({ value: pipeTpq + 'K vs ' + interTpq + 'K', text: 'Pipeline queries cost ' + ratio + 'x less per query than interactive. Pipeline sessions are shorter and more focused, so context stays lean.', color: '#6366F1' });
+    }
+  }
+
+  // 3. Marathon session waste
+  const marathons = se.marathonSessions || [];
+  if (marathons.length > 0 && inter.tokens > 0) {
+    const marathonTokens = marathons.reduce((s, m) => s + m.totalTokens, 0);
+    const marathonPct = Math.round(marathonTokens / inter.tokens * 100);
+    if (marathonPct > 30) {
+      insights.push({ value: marathonPct + '% of interactive', text: marathons.length + ' marathon sessions (100+ queries) consume ' + fmt(marathonTokens) + ' tokens. Most of this is context re-reading, not new work.', color: '#F59E0B' });
+    }
+  }
+
+  // 4. SP productivity
+  if (orch && orch.summary && orch.summary.ppmtAnalysis) {
+    const pa = orch.summary.ppmtAnalysis;
+    const totalSP = pa.ppmtByDay ? pa.ppmtByDay.reduce((s, d) => s + d.spCompleted, 0) : 0;
+    if (totalSP > 0 && pipe.tokens > 0) {
+      const tokensPerSP = Math.round(pipe.tokens / totalSP / 1e6);
+      insights.push({ value: totalSP + ' SP from ' + fmt(pipe.tokens), text: totalSP + ' story points completed at ' + tokensPerSP + 'M tokens per SP. The ' + fmt(inter.tokens) + ' interactive tokens produced no tracked output.', color: '#8B5CF6' });
+    }
+  }
+
+  // 5. Implementation work outside pipeline
+  const impl = se.implementationOutsidePipeline;
+  if (impl && impl.count > 20) {
+    insights.push({ value: impl.count + ' sessions', text: impl.count + ' interactive sessions start with implementation verbs (fix/add/update/create). Running these through the pipeline would track their output and optimize token use.', color: '#14B8A6' });
+  }
+
+  if (!insights.length) { el.innerHTML = ''; return; }
+
+  el.innerHTML = '<div class="split-insights">' + insights.map(i =>
+    '<div class="split-insight" style="border-left-color:' + i.color + '">' +
+    '<span class="split-insight-value">' + i.value + '</span> ' +
+    '<span class="split-insight-text">' + i.text + '</span>' +
+    '</div>'
+  ).join('') + '</div>';
+}
+
 function renderSessionEfficiency() {
   // 1. Pipeline vs Interactive token split bar
   const se = FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency);
@@ -2342,6 +2431,9 @@ function renderSessionEfficiency() {
         </div>`;
     }
   }
+
+  // 1b. Split insights
+  renderSplitInsights();
 
   // 2. Session recommendations (from server-computed sessionEfficiency)
   const recsEl = document.getElementById('sessionRecs');
