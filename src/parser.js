@@ -14,6 +14,9 @@ const PRICING = {
   opus:   { input: 15.0,  output: 75.0 },
 };
 
+// Task size story point values
+const SIZE_POINTS = { S: 1, M: 3, L: 5 };
+
 function getModelPricing(model) {
   const m = (model || '').toLowerCase();
   if (m.includes('haiku'))  return PRICING.haiku;
@@ -26,6 +29,45 @@ function calculateCost(inputTokens, outputTokens, model) {
   const pricing = getModelPricing(model);
   if (!pricing) return 0;
   return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+}
+
+function parseTaskSummary(raw) {
+  // If upstream provides task_summary, use it directly
+  if (raw.task_summary) {
+    return raw.task_summary;
+  }
+
+  // Otherwise, parse task descriptions for size markers
+  const tasks = raw.tasks || [];
+  const completed = { S: 0, M: 0, L: 0 };
+  const failed = { S: 0, M: 0, L: 0 };
+
+  let storyPointsCompleted = 0;
+  let storyPointsTotal = 0;
+
+  for (const task of tasks) {
+    const desc = task.description || '';
+    const sizeMatch = desc.match(/\*\*\((S|M|L)\)\*\*/);
+    const size = sizeMatch ? sizeMatch[1] : 'S';
+    const points = SIZE_POINTS[size];
+
+    storyPointsTotal += points;
+
+    if (task.status === 'completed') {
+      completed[size]++;
+      storyPointsCompleted += points;
+    } else if (task.status === 'failed') {
+      failed[size]++;
+    }
+  }
+
+  return {
+    completed,
+    failed,
+    total: tasks.length,
+    storyPointsCompleted,
+    storyPointsTotal,
+  };
 }
 
 async function parseJSONLFile(filePath) {
@@ -558,6 +600,7 @@ function parseOrchestratorLogs(projectCostMap = {}) {
             date,
             dirName: entry,
             estimatedCost,
+            taskSummary: parseTaskSummary(raw),
           });
         } catch {
           // Skip malformed status.json
@@ -598,6 +641,45 @@ function parseOrchestratorLogs(projectCostMap = {}) {
     avgSeconds: Math.round(total / stageCounts[name]),
     count: stageCounts[name],
   })).sort((a, b) => b.avgSeconds - a.avgSeconds);
+
+  // Calculate velocity metrics (story points completed per day)
+  const dailyVelocity = {};
+  for (const run of validRuns) {
+    if (run.date && run.taskSummary) {
+      if (!dailyVelocity[run.date]) {
+        dailyVelocity[run.date] = { spCompleted: 0, spTotal: 0 };
+      }
+      dailyVelocity[run.date].spCompleted += run.taskSummary.storyPointsCompleted || 0;
+      dailyVelocity[run.date].spTotal += run.taskSummary.storyPointsTotal || 0;
+    }
+  }
+
+  // Build velocityByDay with cumulative tracking and calculate stats in one pass
+  let totalSP = 0, completedSP = 0;
+  const velocityByDay = Object.entries(dailyVelocity)
+    .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+    .reduce((acc, [date, data]) => {
+      const cumulative = acc.length > 0 ? acc[acc.length - 1].cumulative + data.spCompleted : data.spCompleted;
+      totalSP += data.spTotal;
+      completedSP += data.spCompleted;
+      acc.push({
+        date,
+        spCompleted: data.spCompleted,
+        spTotal: data.spTotal,
+        cumulative,
+      });
+      return acc;
+    }, []);
+
+  const avgSPPerDay = velocityByDay.length > 0 ? Math.round((completedSP / velocityByDay.length) * 10) / 10 : 0;
+  const avgSPPerWeek = velocityByDay.length > 0 ? Math.round((completedSP / (velocityByDay.length / 7)) * 10) / 10 : 0;
+
+  const velocityStats = {
+    totalSP,
+    completedSP,
+    avgSPPerDay,
+    avgSPPerWeek,
+  };
 
   // Top churners (highest iteration counts)
   const topChurners = [...validRuns]
@@ -653,6 +735,8 @@ function parseOrchestratorLogs(projectCostMap = {}) {
       runsWithEscalations,
       allEscalations,
       stageModelTotals,
+      velocityByDay,
+      velocityStats,
     },
   };
 }
@@ -1154,4 +1238,4 @@ function fmt(n) {
   return n.toLocaleString();
 }
 
-module.exports = { parseAllSessions };
+module.exports = { parseAllSessions, parseTaskSummary };
