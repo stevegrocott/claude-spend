@@ -1327,6 +1327,153 @@ function recomputeOrchestratorSummary(runs) {
   };
 }
 
+// Client-side recompute of sessionEfficiency for date-filtered sessions
+function recomputeSessionEfficiency(sessions) {
+  const pipeline = { sessions: 0, tokens: 0 };
+  const interactive = { sessions: 0, tokens: 0 };
+  const marathonSessions = [];
+  const implPattern = /^(fix|add|update|create|build|refactor)\b/i;
+  let implCount = 0, implTokens = 0;
+
+  const modelStats = {};
+  const lengthBuckets = {
+    short: { count: 0, tokens: 0 },
+    medium: { count: 0, tokens: 0 },
+    long: { count: 0, tokens: 0 },
+  };
+
+  // Context balloon buckets
+  const balloonBuckets = [
+    { bucket: '1-10', min: 1, max: 10, total: 0, count: 0 },
+    { bucket: '11-50', min: 11, max: 50, total: 0, count: 0 },
+    { bucket: '51-100', min: 51, max: 100, total: 0, count: 0 },
+    { bucket: '100+', min: 101, max: Infinity, total: 0, count: 0 },
+  ];
+
+  for (const s of sessions) {
+    const isPipeline = s.sessionType === 'pipeline_subagent';
+    if (isPipeline) {
+      pipeline.sessions++;
+      pipeline.tokens += s.totalTokens || 0;
+    } else {
+      interactive.sessions++;
+      interactive.tokens += s.totalTokens || 0;
+
+      // Marathon detection
+      if ((s.queryCount || 0) >= 100) {
+        marathonSessions.push({ date: s.date, firstPrompt: s.firstPrompt, totalTokens: s.totalTokens || 0, queryCount: s.queryCount || 0 });
+      }
+
+      // Implementation-like prompts
+      if (s.firstPrompt && implPattern.test(s.firstPrompt)) {
+        implCount++;
+        implTokens += s.totalTokens || 0;
+      }
+
+      // Model stats
+      const m = (s.model || '').includes('opus') ? 'opus' : (s.model || '').includes('sonnet') ? 'sonnet' : (s.model || '').includes('haiku') ? 'haiku' : 'other';
+      if (!modelStats[m]) modelStats[m] = { sessions: 0, tokens: 0, queries: 0 };
+      modelStats[m].sessions++;
+      modelStats[m].tokens += s.totalTokens || 0;
+      modelStats[m].queries += s.queryCount || 0;
+
+      // Session length buckets
+      const qc = s.queryCount || 0;
+      if (qc <= 20) { lengthBuckets.short.count++; lengthBuckets.short.tokens += s.totalTokens || 0; }
+      else if (qc <= 50) { lengthBuckets.medium.count++; lengthBuckets.medium.tokens += s.totalTokens || 0; }
+      else { lengthBuckets.long.count++; lengthBuckets.long.tokens += s.totalTokens || 0; }
+    }
+
+    // Context balloon — per-query position analysis
+    const queries = s.queries || [];
+    for (let i = 0; i < queries.length; i++) {
+      const pos = i + 1;
+      const qTokens = queries[i].totalTokens || 0;
+      for (const b of balloonBuckets) {
+        if (pos >= b.min && pos <= b.max) { b.total += qTokens; b.count++; break; }
+      }
+    }
+  }
+
+  // Finalize model stats
+  for (const m of Object.keys(modelStats)) {
+    const ms = modelStats[m];
+    ms.avgTokensPerQuery = ms.queries > 0 ? Math.round(ms.tokens / ms.queries) : 0;
+    ms.avgTokensPerSession = ms.sessions > 0 ? Math.round(ms.tokens / ms.sessions) : 0;
+    ms.avgQueriesPerSession = ms.sessions > 0 ? Math.round(ms.queries / ms.sessions) : 0;
+  }
+
+  const totalTokens = pipeline.tokens + interactive.tokens;
+  const pipelinePct = totalTokens > 0 ? Math.round((pipeline.tokens / totalTokens) * 100) : 0;
+
+  const contextBalloonCurve = balloonBuckets.map(b => ({
+    bucket: b.bucket,
+    avgTokensPerQuery: b.count > 0 ? Math.round(b.total / b.count) : 0,
+  }));
+
+  marathonSessions.sort((a, b) => b.totalTokens - a.totalTokens);
+
+  const efficiency = {
+    pipeline, interactive,
+    pipelinePct, interactivePct: totalTokens > 0 ? 100 - pipelinePct : 0,
+    marathonSessions,
+    implementationOutsidePipeline: { count: implCount, totalTokens: implTokens },
+    contextBalloonCurve,
+    modelStats,
+    lengthBuckets,
+  };
+
+  // Generate recommendations client-side (same logic as server)
+  efficiency.recommendations = generateClientSessionRecs(efficiency);
+  return efficiency;
+}
+
+function generateClientSessionRecs(eff) {
+  const recs = [];
+  const ms = eff.modelStats || {};
+  const lb = eff.lengthBuckets || {};
+
+  if (lb.long && lb.short && lb.long.count > 0 && lb.short.count > 0) {
+    const longAvg = Math.round(lb.long.tokens / lb.long.count);
+    const shortAvg = Math.round(lb.short.tokens / lb.short.count);
+    const ratio = shortAvg > 0 ? Math.round(longAvg / shortAvg) : 0;
+    const longPct = eff.interactive.tokens > 0 ? Math.round((lb.long.tokens / eff.interactive.tokens) * 100) : 0;
+    if (ratio > 3 && longPct > 50) {
+      recs.push({ id: 'session_length', title: '50+ query sessions consume ' + longPct + '% of interactive tokens',
+        detail: lb.long.count + ' long sessions average ' + (longAvg / 1e6).toFixed(1) + 'M tokens each \u2014 ' + ratio + 'x more than short sessions at ' + (shortAvg / 1e6).toFixed(1) + 'M each. Use /clear mid-session to reset context.',
+        action: 'Target under 50 queries per session. Start fresh or /clear when context drifts.' });
+    }
+  }
+
+  if (ms.opus && ms.sonnet && ms.opus.sessions >= 5 && ms.sonnet.sessions >= 5) {
+    const ratio = ms.sonnet.avgTokensPerQuery > 0 ? (ms.opus.avgTokensPerQuery / ms.sonnet.avgTokensPerQuery).toFixed(1) : 0;
+    if (ratio > 1.5) {
+      recs.push({ id: 'model_cost', title: 'Opus costs ' + ratio + 'x more per query than Sonnet',
+        detail: 'Opus averages ' + (ms.opus.avgTokensPerQuery / 1000).toFixed(0) + 'K tokens/query across ' + ms.opus.sessions + ' sessions vs Sonnet at ' + (ms.sonnet.avgTokensPerQuery / 1000).toFixed(0) + 'K across ' + ms.sonnet.sessions + ' sessions.',
+        action: 'Use Sonnet for exploration and iterative work. Reserve Opus for complex reasoning.' });
+    }
+  }
+
+  const curve = eff.contextBalloonCurve;
+  const avg1 = curve.find(c => c.bucket === '1-10');
+  const avg100 = curve.find(c => c.bucket === '100+');
+  if (avg1 && avg100 && avg1.avgTokensPerQuery > 0 && avg100.avgTokensPerQuery > avg1.avgTokensPerQuery * 2) {
+    const ratio = Math.round(avg100.avgTokensPerQuery / avg1.avgTokensPerQuery);
+    recs.push({ id: 'context_balloon', title: 'Queries at position 100+ cost ' + ratio + 'x more than early queries',
+      detail: 'First 10 queries average ' + (avg1.avgTokensPerQuery / 1000).toFixed(0) + 'K tokens each. After query 100: ' + (avg100.avgTokensPerQuery / 1000).toFixed(0) + 'K.',
+      action: 'The cheapest fix: ask the same question in a new session instead of a long one.' });
+  }
+
+  const extremeMarathons = eff.marathonSessions.filter(s => s.queryCount > 200);
+  if (extremeMarathons.length > 0) {
+    const top = extremeMarathons[0];
+    recs.push({ id: 'marathon_sessions', title: extremeMarathons.length + ' session(s) exceed 200 queries (' + (top.totalTokens / 1e6).toFixed(0) + 'M+ tokens each)',
+      detail: 'Most expensive: "' + (top.firstPrompt || '').slice(0, 80) + '" on ' + top.date + ' \u2014 ' + top.queryCount + ' queries, ' + (top.totalTokens / 1e6).toFixed(1) + 'M tokens.',
+      action: 'Split into multiple focused sessions. Each new session starts with minimal context overhead.' });
+  }
+
+  return recs;
+}
 
 function applyDateFilter() {
   if (!DATA) return;
@@ -1457,7 +1604,8 @@ function applyDateFilter() {
     filteredOrchestrator = { runs: filteredRuns, summary: recomputed };
   }
 
-  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, orchestrator: filteredOrchestrator, sessionEfficiency: DATA.sessionEfficiency };
+  const filteredSessionEff = recomputeSessionEfficiency(sessions);
+  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, orchestrator: filteredOrchestrator, sessionEfficiency: filteredSessionEff };
   render();
 }
 
