@@ -228,6 +228,7 @@ async function parseAllSessions() {
 
       // Collect per-prompt data for "most expensive prompts"
       // Group consecutive queries under the same user prompt
+      const promptStartIdx = allPrompts.length;
       let currentPrompt = null;
       let promptInput = 0, promptOutput = 0, promptCost = 0;
       const flushPrompt = () => {
@@ -262,6 +263,11 @@ async function parseAllSessions() {
         queryCount: queries.length,
         firstPrompt: firstPrompt.substring(0, 200),
       });
+
+      // Tag prompts from this session with their type
+      for (let pi = promptStartIdx; pi < allPrompts.length; pi++) {
+        allPrompts[pi].sessionType = sessionType;
+      }
 
       sessions.push({
         sessionId,
@@ -407,9 +413,11 @@ async function parseAllSessions() {
   // Total pipeline tokens across all dates
   const pipelineTokens = pipelineDailyUsage.reduce((sum, d) => sum + d.totalTokens, 0);
 
-  // Top 20 most expensive individual prompts
+  // Top 20 most expensive prompts per category (pipeline + interactive)
   allPrompts.sort((a, b) => b.totalTokens - a.totalTokens);
-  const topPrompts = allPrompts.slice(0, 20);
+  const pipelinePrompts = allPrompts.filter(p => p.sessionType === 'pipeline_subagent').slice(0, 20);
+  const interactivePrompts = allPrompts.filter(p => p.sessionType !== 'pipeline_subagent').slice(0, 20);
+  const topPrompts = [...pipelinePrompts, ...interactivePrompts].sort((a, b) => b.totalTokens - a.totalTokens);
 
   const grandTotals = {
     totalSessions: sessions.length,
