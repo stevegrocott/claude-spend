@@ -213,6 +213,9 @@ describe('computePPMTAnalysis', () => {
 });
 
 // Simple test runner
+// NOTE: sets process.exitCode on failure but has no protection against async tests
+// executing after process would naturally exit — safe for this sync-only suite,
+// but async tests added later may produce silent failures.
 function test(name, fn) {
   try {
     fn();

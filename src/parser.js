@@ -38,7 +38,7 @@ function parseTaskSummary(raw) {
     return {
       completed: ts.completed || { S: 0, M: 0, L: 0 },
       failed: ts.failed || { S: 0, M: 0, L: 0 },
-      total: (raw.tasks || []).length,
+      total: ts.total ?? (raw.tasks || []).length,
       storyPointsCompleted: ts.storyPointsCompleted ?? ts.sp_completed ?? 0,
       storyPointsTotal: ts.storyPointsTotal ?? ts.sp_total ?? 0,
     };
@@ -1285,7 +1285,7 @@ function computePPMTAnalysis(runs, dailyUsage) {
   }
 
   // 3. failureBreakdown — counts by failure type
-  const failureBreakdown = { parse_failure: 0, error: 0, max_iterations_pr_review: 0, stuck_running: 0 };
+  const failureBreakdown = { parse_failure: 0, error: 0, max_iterations_pr_review: 0, stuck_running: 0, other: 0 };
   for (const run of runs) {
     if (run.state === 'error' && run.taskCount === 0) {
       failureBreakdown.parse_failure++;
@@ -1295,6 +1295,8 @@ function computePPMTAnalysis(runs, dailyUsage) {
       failureBreakdown.max_iterations_pr_review++;
     } else if (run.state === 'stuck_running') {
       failureBreakdown.stuck_running++;
+    } else if (run.state !== 'completed') {
+      failureBreakdown.other++;
     }
   }
 
