@@ -1775,7 +1775,7 @@ function renderInsights() {
 
     // Top waste category: largest failure type from failureBreakdown
     const fb = ppmtA.failureBreakdown || {};
-    const wasteLabels = { parse_failure: 'parse fail', error: 'error', max_iterations_pr_review: 'max iterations', stuck_running: 'stuck', other: 'other' };
+    const wasteLabels = { parse_failure: 'parse fail', error: 'error', max_iterations_pr_review: 'max iterations', running: 'stuck', other: 'other' };
     const wasteEntries = Object.entries(fb).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a);
     const topWaste = wasteEntries.length > 0 ? wasteEntries[0] : null;
 

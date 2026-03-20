@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, extractLensStatsFromPPMT } = require('./parser');
+const { parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations } = require('./parser');
 
 // Test parseTaskSummary function
 describe('parseTaskSummary', () => {
