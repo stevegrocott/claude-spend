@@ -2237,10 +2237,20 @@ function renderSpeedSection() {
     </div>
   </div>`;
 
+  const spPerTokenHtml = `<div style="margin-bottom:16px">
+    <div class="chart-card" style="padding:16px">
+      <h3 class="has-tooltip has-tooltip-below" style="font-size:14px;margin:0 0 12px;display:inline-block">Points per Token<div class="tooltip">Story points completed per million tokens consumed each day. Higher means more efficient use of tokens to deliver completed work.</div></h3>
+      <canvas id="spPerTokenChart"></canvas>
+      <div class="legend" style="margin-top:8px">
+        <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div> SP / million tokens</div>
+      </div>
+    </div>
+  </div>`;
+
   el.innerHTML = stageTimeSeriesHtml + (bottleneckHtml ? `<div class="chart-card" style="padding:16px;margin-bottom:16px">
     <h3 style="font-size:14px;margin:0 0 4px">Pipeline Stage Performance</h3>
     ${bottleneckHtml}
-  </div>` : '') + velocityHtml;
+  </div>` : '') + velocityHtml + spPerTokenHtml;
   requestAnimationFrame(() => {
     if (topStages.length > 0) {
       topStages.forEach((st, i) => {
@@ -2248,6 +2258,7 @@ function renderSpeedSection() {
       });
     }
     renderVelocityChart();
+    renderSPPerTokenChart();
   });
 }
 
@@ -3018,6 +3029,88 @@ function renderVelocityChart() {
   data.forEach((d, i) => {
     ctx.fillStyle = '#A855F7';
     ctx.beginPath(); ctx.arc(xPos(i), yRight(d.cumulative), 3, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // X labels
+  ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
+  ctx.font = '500 10px Inter, system-ui';
+  const step = Math.max(1, Math.floor(data.length / 7));
+  data.forEach((d, i) => {
+    if (i % step === 0 || i === data.length - 1) {
+      ctx.fillText(formatDate(d.date), xPos(i), chartH + 24);
+    }
+  });
+}
+
+// Points per Token chart — SP completed per million tokens by day
+function renderSPPerTokenChart() {
+  const canvas = document.getElementById('spPerTokenChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const orch = FILTERED.orchestrator || (DATA && DATA.orchestrator);
+  if (!orch || !orch.summary) return;
+  const velocityByDay = orch.summary.velocityByDay || [];
+  const dailyUsage = FILTERED.dailyUsage || [];
+
+  // Build token lookup by date
+  const tokensByDate = {};
+  dailyUsage.forEach(d => { tokensByDate[d.date] = d.totalTokens || 0; });
+
+  // Join: only days that have both SP and token data, with tokens > 0
+  const data = velocityByDay
+    .filter(d => tokensByDate[d.date] && tokensByDate[d.date] > 0)
+    .map(d => ({
+      date: d.date,
+      spPerMToken: (d.spCompleted / tokensByDate[d.date]) * 1e6,
+      sp: d.spCompleted,
+      tokens: tokensByDate[d.date],
+    }));
+
+  if (!data.length) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 48;
+  const h = 200;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const chartH = h - 36;
+  const startX = 48;
+  const plotW = w - startX - 8;
+
+  const maxVal = Math.max(...data.map(d => d.spPerMToken), 0.01);
+
+  // Grid + left axis labels
+  ctx.font = '500 10px Inter, system-ui';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = (maxVal / 4) * i;
+    const y = chartH - (chartH * i / 4) + 8;
+    ctx.fillStyle = '#F59E0B';
+    ctx.fillText(val < 1 ? val.toFixed(2) : val.toFixed(1), startX - 10, y + 3);
+    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+
+  function xPos(i) { return startX + (i / Math.max(1, data.length - 1)) * plotW; }
+  function yPos(val) { return chartH + 8 - (val / maxVal) * chartH; }
+
+  // Line
+  ctx.strokeStyle = '#F59E0B'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  data.forEach((d, i) => {
+    const x = xPos(i), y = yPos(d.spPerMToken);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Dots
+  ctx.fillStyle = '#F59E0B';
+  data.forEach((d, i) => {
+    ctx.beginPath(); ctx.arc(xPos(i), yPos(d.spPerMToken), 3, 0, Math.PI * 2); ctx.fill();
   });
 
   // X labels
