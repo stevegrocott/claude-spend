@@ -226,7 +226,7 @@ describe('generatePPMTRecommendations', () => {
         '3-5': { total: 2, completed: 1, completionRate: 50 },
         '6+':  { total: 1, completed: 0, completionRate: 0  },
       },
-      failureBreakdown: { parse_failure: 1, error: 1, max_iterations_pr_review: 1, stuck_running: 0, other: 0 },
+      failureBreakdown: { parse_failure: 1, error: 1, max_iterations_pr_review: 1, running: 0, other: 0 },
       taskCountCorrelation: { completedAvg: 4, failedAvg: 5, optimalRange: [4, 5] },
       topEscalationStages: [{ stage: 'implement', count: 8 }, { stage: 'review', count: 3 }],
       projectYield: [{ project: 'proj-a', spCompleted: 10, spTotal: 15, yieldPct: 67 }],
@@ -256,7 +256,7 @@ describe('generatePPMTRecommendations', () => {
 
   test('each recommendation has required fields', () => {
     const analysis = makeAnalysis({
-      failureBreakdown: { parse_failure: 3, error: 0, max_iterations_pr_review: 0, stuck_running: 0, other: 0 },
+      failureBreakdown: { parse_failure: 3, error: 0, max_iterations_pr_review: 0, running: 0, other: 0 },
     });
     const recs = generatePPMTRecommendations(analysis);
     assert.ok(recs.length > 0, 'expected at least one recommendation');
@@ -278,7 +278,7 @@ describe('generatePPMTRecommendations', () => {
         M: { completed: 3, failed: 7, total: 10, rate: 30 },
         L: { completed: 2, failed: 1, total: 3, rate: 67 },
       },
-      failureBreakdown: { parse_failure: 4, error: 0, max_iterations_pr_review: 3, stuck_running: 0, other: 0 },
+      failureBreakdown: { parse_failure: 4, error: 0, max_iterations_pr_review: 3, running: 0, other: 0 },
       topEscalationStages: [{ stage: 'deploy', count: 12 }],
     });
     const recs = generatePPMTRecommendations(analysis);
@@ -316,7 +316,7 @@ describe('generatePPMTRecommendations', () => {
 
   test('(b) generates parse failure rec when >2 parse failures exist', () => {
     const analysis = makeAnalysis({
-      failureBreakdown: { parse_failure: 3, error: 0, max_iterations_pr_review: 0, stuck_running: 0, other: 0 },
+      failureBreakdown: { parse_failure: 3, error: 0, max_iterations_pr_review: 0, running: 0, other: 0 },
     });
     const recs = generatePPMTRecommendations(analysis);
     const rec = recs.find(r => r.id === 'parse_failures');
@@ -327,7 +327,7 @@ describe('generatePPMTRecommendations', () => {
 
   test('(b) does NOT generate parse failure rec when <=2 parse failures', () => {
     const analysis = makeAnalysis({
-      failureBreakdown: { parse_failure: 2, error: 0, max_iterations_pr_review: 0, stuck_running: 0, other: 0 },
+      failureBreakdown: { parse_failure: 2, error: 0, max_iterations_pr_review: 0, running: 0, other: 0 },
     });
     const recs = generatePPMTRecommendations(analysis);
     assert.ok(!recs.find(r => r.id === 'parse_failures'), 'should not trigger for <=2 parse failures');
@@ -353,7 +353,7 @@ describe('generatePPMTRecommendations', () => {
 
   test('(d) generates PR review loop rec when >2 max_iterations_pr_review runs', () => {
     const analysis = makeAnalysis({
-      failureBreakdown: { parse_failure: 0, error: 0, max_iterations_pr_review: 3, stuck_running: 0, other: 0 },
+      failureBreakdown: { parse_failure: 0, error: 0, max_iterations_pr_review: 3, running: 0, other: 0 },
     });
     const recs = generatePPMTRecommendations(analysis);
     const rec = recs.find(r => r.id === 'pr_review_loop');
@@ -363,7 +363,7 @@ describe('generatePPMTRecommendations', () => {
 
   test('(d) does NOT generate PR review loop rec when <=2 occurrences', () => {
     const analysis = makeAnalysis({
-      failureBreakdown: { parse_failure: 0, error: 0, max_iterations_pr_review: 2, stuck_running: 0, other: 0 },
+      failureBreakdown: { parse_failure: 0, error: 0, max_iterations_pr_review: 2, running: 0, other: 0 },
     });
     const recs = generatePPMTRecommendations(analysis);
     assert.ok(!recs.find(r => r.id === 'pr_review_loop'), 'should not trigger for <=2');
