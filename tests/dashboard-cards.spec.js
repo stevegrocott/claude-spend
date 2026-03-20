@@ -406,29 +406,57 @@ test.describe('API Data Consistency', () => {
   });
 });
 
-// ─── Session Efficiency ─────────────────────────────────────────────────────
+// ─── Two-Column Layout ──────────────────────────────────────────────────────
 
-test.describe('Session Efficiency', () => {
-  test('session efficiency section renders', async ({ page }) => {
+test.describe('Two-Column Layout', () => {
+  test('comparison layout grid exists with two columns', async ({ page }) => {
     await waitForDashboard(page);
-    const section = page.locator('#sessionEfficiencySection');
-    await expect(section).toBeAttached();
+    const layout = page.locator('.comparison-layout');
+    await expect(layout).toBeAttached();
+    const columns = page.locator('.column-section');
+    await expect(columns).toHaveCount(2);
   });
 
-  test('pipeline/interactive split bar renders with percentages', async ({ page }) => {
+  test('pipeline column has hero and PP/100MT chart', async ({ page }) => {
+    await waitForDashboard(page);
+    await expect(page.locator('#heroPPMT')).toBeAttached();
+    await expect(page.locator('#spPerTokenChart')).toBeAttached();
+  });
+
+  test('interactive column has hero and tokens/query chart', async ({ page }) => {
+    await waitForDashboard(page);
+    await expect(page.locator('#heroInteractive')).toBeAttached();
+    await expect(page.locator('#trendTpqChart')).toBeAttached();
+  });
+
+  test('interactive hero shows tokens/query number', async ({ page }) => {
+    await waitForDashboard(page);
+    const api = await getApiData(page);
+    if (!api.sessionEfficiency?.interactive?.queries) { test.skip(); return; }
+
+    const hero = page.locator('#heroInteractive');
+    const text = await hero.textContent();
+    expect(text).toMatch(/\d+K/);
+  });
+
+  test('overview section has token split bar and stacked chart', async ({ page }) => {
+    await waitForDashboard(page);
+    await expect(page.locator('#tokenSplitBar')).toBeAttached();
+    await expect(page.locator('#trendPipelineChart')).toBeAttached();
+  });
+
+  test('pipeline/interactive split bar shows percentages', async ({ page }) => {
     await waitForDashboard(page);
     const splitBar = page.locator('#tokenSplitBar');
-    const count = await splitBar.count();
-    if (count === 0) { test.skip(); return; }
-
     const text = await splitBar.textContent();
     expect(text).toMatch(/\d+%/);
   });
 
-  test('context cost chart canvas exists', async ({ page }) => {
+  test('all chart canvases are attached', async ({ page }) => {
     await waitForDashboard(page);
-    const canvas = page.locator('#contextCostChart');
-    await expect(canvas).toBeAttached();
+    for (const id of ['spPerTokenChart', 'trendTpqChart', 'trendQueriesChart', 'trendShortChart', 'trendPipelineChart', 'contextCostChart', 'yieldTrendChart', 'taskSizeChart', 'failureChart']) {
+      await expect(page.locator('#' + id)).toBeAttached();
+    }
   });
 
   test('session recommendations render when data exists', async ({ page }) => {
@@ -442,7 +470,7 @@ test.describe('Session Efficiency', () => {
     expect(count).toBeGreaterThan(0);
   });
 
-  test('API sessionEfficiency has pipeline and interactive token counts', async ({ page }) => {
+  test('API sessionEfficiency has pipeline and interactive with query counts', async ({ page }) => {
     await waitForDashboard(page);
     const api = await getApiData(page);
     const se = api.sessionEfficiency;
@@ -451,14 +479,8 @@ test.describe('Session Efficiency', () => {
     expect(se).toHaveProperty('pipeline');
     expect(se).toHaveProperty('interactive');
     expect(typeof se.pipeline.tokens).toBe('number');
-    expect(typeof se.interactive.tokens).toBe('number');
-  });
-
-  test('efficiency trend chart canvases exist', async ({ page }) => {
-    await waitForDashboard(page);
-    for (const id of ['trendQueriesChart', 'trendTpqChart', 'trendPipelineChart', 'trendShortChart']) {
-      await expect(page.locator('#' + id)).toBeAttached();
-    }
+    expect(typeof se.pipeline.queries).toBe('number');
+    expect(typeof se.interactive.queries).toBe('number');
   });
 });
 
