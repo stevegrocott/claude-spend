@@ -1224,6 +1224,17 @@ function recomputeOrchestratorSummary(runs) {
     avgSPPerWeek: Math.round(completedSP / days * 7 * 10) / 10,
   };
 
+  // yieldByDay: daily yield percentage (SP completed / SP total)
+  const yieldByDay = sortedDates.map(date => {
+    const d = dailyVelocity[date];
+    return {
+      date,
+      yieldPct: d.spTotal > 0 ? Math.round((d.spCompleted / d.spTotal) * 100) : 0,
+      spCompleted: d.spCompleted,
+      spTotal: d.spTotal,
+    };
+  });
+
   return {
     totalRuns: validRuns.length,
     completedRuns: completedRuns.length,
@@ -1241,6 +1252,7 @@ function recomputeOrchestratorSummary(runs) {
     stageModelTotals,
     velocityByDay,
     velocityStats,
+    yieldByDay,
   };
 }
 
@@ -1606,57 +1618,67 @@ function renderTaskSizeChart(taskSize) {
   const parentW = canvas.parentElement.clientWidth;
   if (parentW < 50) return;
   const w = parentW - 48;
-  const h = 140;
+  const h = 170;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
 
-  const chartH = h - 36;
-  const barGroupW = (w - 40) / sizes.length;
-  const barW = 24;
+  const legendH = 24;
+  const chartH = h - 36 - legendH;
+  const barW = Math.min(28, (w - 80) / (sizes.length * 3));
   const gap = 4;
   const maxVal = Math.max(...sizes.map(s => (taskSize[s] || {}).total || 0), 1);
 
+  // Draw bars - use only left 2/3 of width to leave room
+  const chartW = w * 0.85;
+  const barGroupW = chartW / sizes.length;
+
   sizes.forEach((size, i) => {
     const data = taskSize[size] || { completed: 0, total: 0 };
-    const groupX = 20 + i * barGroupW + barGroupW / 2;
+    const groupX = i * barGroupW + barGroupW / 2;
 
     // Total bar (background)
     const totalH = (data.total / maxVal) * chartH;
     ctx.fillStyle = 'rgba(0,0,0,0.06)';
-    ctx.beginPath();
     ctx.fillRect(groupX - barW - gap / 2, chartH - totalH + 4, barW, totalH);
 
     // Completed bar
     const compH = (data.completed / maxVal) * chartH;
     ctx.fillStyle = '#6366F1';
-    ctx.beginPath();
     ctx.fillRect(groupX + gap / 2, chartH - compH + 4, barW, compH);
 
-    // Labels
+    // Size label
     ctx.fillStyle = '#475569'; ctx.textAlign = 'center';
     ctx.font = '700 12px Inter, system-ui';
-    ctx.fillText(size, groupX, chartH + 20);
+    ctx.fillText(size, groupX, chartH + 18);
+
+    // Rate label below size
+    ctx.font = '500 10px Inter, system-ui';
+    ctx.fillStyle = '#94A3B8';
+    ctx.fillText(data.rate + '%', groupX, chartH + 30);
 
     // Counts on top of bars
     ctx.font = '600 10px Inter, system-ui';
     ctx.fillStyle = '#94A3B8';
-    ctx.fillText(data.total, groupX - barW / 2 - gap / 2, chartH - totalH - 2);
+    if (data.total > 0) ctx.fillText(data.total, groupX - barW / 2 - gap / 2, Math.max(12, chartH - totalH - 2));
     ctx.fillStyle = '#6366F1';
-    ctx.fillText(data.completed, groupX + barW / 2 + gap / 2, chartH - compH - 2);
+    if (data.completed > 0) ctx.fillText(data.completed, groupX + barW / 2 + gap / 2, Math.max(12, chartH - compH - 2));
   });
 
-  // Legend
+  // Legend at bottom
+  const legendY = h - 8;
   ctx.font = '500 10px Inter, system-ui';
-  ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(0,0,0,0.06)';
-  ctx.fillRect(w - 130, chartH + 14, 8, 8);
+  ctx.textAlign = 'center';
+  const legendX = w / 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  ctx.fillRect(legendX - 70, legendY - 7, 8, 8);
   ctx.fillStyle = '#94A3B8';
-  ctx.fillText('Total', w - 118, chartH + 22);
+  ctx.textAlign = 'left';
+  ctx.fillText('Total', legendX - 58, legendY);
   ctx.fillStyle = '#6366F1';
-  ctx.fillRect(w - 70, chartH + 14, 8, 8);
-  ctx.fillText('Done', w - 58, chartH + 22);
+  ctx.fillRect(legendX + 10, legendY - 7, 8, 8);
+  ctx.fillText('Done', legendX + 22, legendY);
 }
 
 function renderFailureChart(breakdown) {
