@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations } = require('./parser');
+const { parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, extractLensStatsFromPPMT } = require('./parser');
 
 // Test parseTaskSummary function
 describe('parseTaskSummary', () => {
@@ -136,13 +136,13 @@ describe('computePPMTAnalysis', () => {
       makeRun({ state: 'error', taskCount: 0 }),
       makeRun({ state: 'error', taskCount: 2 }),
       makeRun({ state: 'max_iterations_pr_review' }),
-      makeRun({ state: 'stuck_running' }),
+      makeRun({ state: 'running' }),
     ];
     const { failureBreakdown } = computePPMTAnalysis(runs, []);
     assert.strictEqual(failureBreakdown.parse_failure, 1);
     assert.strictEqual(failureBreakdown.error, 1);
     assert.strictEqual(failureBreakdown.max_iterations_pr_review, 1);
-    assert.strictEqual(failureBreakdown.stuck_running, 1);
+    assert.strictEqual(failureBreakdown.running, 1);
   });
 
   test('taskCountCorrelation: avg task count for completed vs failed', () => {

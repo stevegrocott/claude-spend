@@ -421,7 +421,7 @@ async function parseAllSessions() {
 
   // Parse orchestrator logs from project directories
   const orchestrator = parseOrchestratorLogs(projectCostMap);
-  orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs, dailyUsage);
+  orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs.filter(r => r.state !== 'initializing' && r.state !== 'running'), dailyUsage);
   orchestrator.summary.recommendations = generatePPMTRecommendations(orchestrator.summary.ppmtAnalysis);
   const orchestratorInsights = generateOrchestratorInsights(orchestrator);
 
@@ -1277,7 +1277,7 @@ function computePPMTAnalysis(runs, dailyUsage) {
   }
 
   // 3. failureBreakdown — counts by failure type
-  const failureBreakdown = { parse_failure: 0, error: 0, max_iterations_pr_review: 0, stuck_running: 0, other: 0 };
+  const failureBreakdown = { parse_failure: 0, error: 0, max_iterations_pr_review: 0, running: 0, other: 0 };
   for (const run of runs) {
     if (run.state === 'error' && run.taskCount === 0) {
       failureBreakdown.parse_failure++;
@@ -1285,8 +1285,8 @@ function computePPMTAnalysis(runs, dailyUsage) {
       failureBreakdown.error++;
     } else if (run.state === 'max_iterations_pr_review') {
       failureBreakdown.max_iterations_pr_review++;
-    } else if (run.state === 'stuck_running') {
-      failureBreakdown.stuck_running++;
+    } else if (run.state === 'running') {
+      failureBreakdown.running++;
     } else if (run.state !== 'completed') {
       failureBreakdown.other++;
     }
@@ -1311,7 +1311,7 @@ function computePPMTAnalysis(runs, dailyUsage) {
     if (run.state === 'completed') countBuckets[bucket].completed++;
   }
   const bestBucket = Object.entries(countBuckets)
-    .filter(([, v]) => v.total >= 2)
+    .filter(([, v]) => v.total >= 5)
     .map(([k, v]) => ({ start: Number(k), rate: v.completed / v.total }))
     .sort((a, b) => b.rate - a.rate)[0];
   const optimalRange = bestBucket ? [bestBucket.start, bestBucket.start + 1] : [];
@@ -1386,7 +1386,7 @@ function generatePPMTRecommendations(analysis) {
       recs.push({
         id: 'm_task_splitting',
         priority: gap > 30 ? 1 : 2,
-        ppmt_impact: Math.round(gap * 0.5),
+        ppmt_impact: Math.min(Math.round(gap * 0.5), 100),
         title: 'Split M-tasks into smaller S-tasks',
         detail: `M tasks complete at ${taskSizeCompletion.M.rate}% vs S tasks at ${taskSizeCompletion.S.rate}% (${gap} point gap across ${taskSizeCompletion.M.total} M-tasks)`,
         evidence: { M: taskSizeCompletion.M, S: taskSizeCompletion.S },
@@ -1401,7 +1401,7 @@ function generatePPMTRecommendations(analysis) {
     recs.push({
       id: 'parse_failures',
       priority: count > 5 ? 1 : 2,
-      ppmt_impact: count * 3,
+      ppmt_impact: Math.min(count * 3, 100),
       title: `Fix parse failures affecting ${count} runs`,
       detail: `${count} parse failures detected (runs with 0 tasks parsed) — each represents a total loss of output`,
       evidence: { parse_failure: count },
@@ -1415,7 +1415,7 @@ function generatePPMTRecommendations(analysis) {
     recs.push({
       id: 'task_count_reduction',
       priority: diff > 3 ? 1 : 2,
-      ppmt_impact: Math.round(diff * 5),
+      ppmt_impact: Math.min(Math.round(diff * 5), 100),
       title: 'Reduce task count per run',
       detail: `Failed runs average ${taskCountCorrelation.failedAvg} tasks vs ${taskCountCorrelation.completedAvg} for completed runs (${diff} task difference)`,
       evidence: { taskCountCorrelation },
@@ -1429,7 +1429,7 @@ function generatePPMTRecommendations(analysis) {
     recs.push({
       id: 'pr_review_loop',
       priority: count > 5 ? 1 : 3,
-      ppmt_impact: count * 4,
+      ppmt_impact: Math.min(count * 4, 100),
       title: `Address PR review loops (${count} runs hit max iterations)`,
       detail: `${count} runs terminated by hitting max PR review iterations — work was completed but PRs stalled`,
       evidence: { max_iterations_pr_review: count },
@@ -1443,7 +1443,7 @@ function generatePPMTRecommendations(analysis) {
     recs.push({
       id: 'max_turns_exhausted',
       priority: top.count > 20 ? 1 : 2,
-      ppmt_impact: Math.round(top.count * 2),
+      ppmt_impact: Math.min(Math.round(top.count * 2), 100),
       title: `Reorder or split stage '${top.stage}'`,
       detail: `Stage '${top.stage}' has ${top.count} escalations — the highest of any stage, indicating repeated turn exhaustion`,
       evidence: { topStage: top },
@@ -1457,7 +1457,7 @@ function generatePPMTRecommendations(analysis) {
       recs.push({
         id: `project_yield_${proj.project}`,
         priority: proj.yieldPct < 10 ? 1 : 3,
-        ppmt_impact: Math.round((20 - proj.yieldPct) * 0.5 * proj.spTotal),
+        ppmt_impact: Math.min(Math.round((20 - proj.yieldPct) * 0.5 * proj.spTotal), 100),
         title: `Low yield for project '${proj.project}'`,
         detail: `Project '${proj.project}' yields only ${proj.yieldPct}% (${proj.spCompleted}/${proj.spTotal} SP completed)`,
         evidence: proj,
@@ -1474,7 +1474,7 @@ function generatePPMTRecommendations(analysis) {
     recs.push({
       id: 'zero_escalation_failures',
       priority: pct > 60 ? 1 : 3,
-      ppmt_impact: zeroEscFail * 2,
+      ppmt_impact: Math.min(zeroEscFail * 2, 100),
       title: `${pct}% of failures occur with 0 escalations`,
       detail: `${zeroEscFail} of ${totalFailures} failed runs (${pct}%) had 0 escalations — tasks failing silently without requesting help`,
       evidence: { zeroEscalationFailures: zeroEscFail, totalFailures, zeroEscalationCorrelation: escalationCorrelation['0'] },
