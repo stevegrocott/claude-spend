@@ -1369,7 +1369,7 @@ function computePPMTAnalysis(runs, dailyUsage) {
   }
 
   // 3. failureBreakdown — counts by failure type
-  const failureBreakdown = { parse_failure: 0, error: 0, max_iterations_pr_review: 0, running: 0, other: 0 };
+  const failureBreakdown = { parse_failure: 0, error: 0, max_iterations_pr_review: 0, running: 0, no_changes: 0, other: 0 };
   for (const run of runs) {
     if (run.state === 'error' && run.taskCount === 0) {
       failureBreakdown.parse_failure++;
@@ -1379,6 +1379,8 @@ function computePPMTAnalysis(runs, dailyUsage) {
       failureBreakdown.max_iterations_pr_review++;
     } else if (run.state === 'running') {
       failureBreakdown.running++;
+    } else if (run.state === 'no_changes') {
+      failureBreakdown.no_changes++;
     } else if (run.state !== 'completed') {
       failureBreakdown.other++;
     }
