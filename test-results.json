@@ -1,0 +1,2458 @@
+{
+  "config": {
+    "configFile": "/Users/shinytrap/projects/claude-spend/playwright.config.js",
+    "rootDir": "/Users/shinytrap/projects/claude-spend/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/shinytrap/projects/claude-spend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "/Users/shinytrap/projects/claude-spend/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 4,
+    "webServer": {
+      "command": "node src/index.js",
+      "port": 3456,
+      "reuseExistingServer": true
+    }
+  },
+  "suites": [
+    {
+      "title": "dashboard-cards.spec.js",
+      "file": "dashboard-cards.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Stats Cards (#statsRow)",
+          "file": "dashboard-cards.spec.js",
+          "line": 19,
+          "column": 6,
+          "specs": [
+            {
+              "title": "renders exactly 4 stat cards",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1065,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:16:53.521Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-8eb686679a8e2e5a6e00",
+              "file": "dashboard-cards.spec.js",
+              "line": 20,
+              "column": 3
+            },
+            {
+              "title": "Total Usage card shows numeric token count and input/output breakdown",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1387,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:16:55.186Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-3d68433359766658e43f",
+              "file": "dashboard-cards.spec.js",
+              "line": 26,
+              "column": 3
+            },
+            {
+              "title": "Conversations card shows session count and avg tokens",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1312,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:16:56.584Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-35a568a3b15a8ba340ff",
+              "file": "dashboard-cards.spec.js",
+              "line": 44,
+              "column": 3
+            },
+            {
+              "title": "Messages Sent card shows query count and avg cost",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 861,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:16:57.904Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-7082636eeee513d2e7b5",
+              "file": "dashboard-cards.spec.js",
+              "line": 58,
+              "column": 3
+            },
+            {
+              "title": "Claude Wrote card shows output tokens and percentage",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 857,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:16:58.776Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-cc38ecae6ff13eac8683",
+              "file": "dashboard-cards.spec.js",
+              "line": 68,
+              "column": 3
+            },
+            {
+              "title": "each stat card has a tooltip with explanation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 910,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:16:59.639Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-a3d10c577b5a36bd7b2d",
+              "file": "dashboard-cards.spec.js",
+              "line": 79,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Recommendations (#recsSection)",
+          "file": "dashboard-cards.spec.js",
+          "line": 92,
+          "column": 6,
+          "specs": [
+            {
+              "title": "renders recommendation lenses when data exists",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 6331,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#recsSection')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#recsSection')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#recsSection')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#recsSection')\u001b[22m\n\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:101:29",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 29,
+                          "line": 101
+                        },
+                        "snippet": "   99 |     const section = page.locator('#recsSection');\n  100 |     if (hasRecs) {\n> 101 |       await expect(section).toBeVisible();\n      |                             ^\n  102 |       const lenses = page.locator('.recs-lens');\n  103 |       const count = await lenses.count();\n  104 |       expect(count).toBeGreaterThan(0);"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 29,
+                            "line": 101
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#recsSection')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#recsSection')\u001b[22m\n\n\n   99 |     const section = page.locator('#recsSection');\n  100 |     if (hasRecs) {\n> 101 |       await expect(section).toBeVisible();\n      |                             ^\n  102 |       const lenses = page.locator('.recs-lens');\n  103 |       const count = await lenses.count();\n  104 |       expect(count).toBeGreaterThan(0);\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:101:29"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:17:00.555Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Recommenda-81dfb-ion-lenses-when-data-exists/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 29,
+                        "line": 101
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-3f5e1d001532c6e81175",
+              "file": "dashboard-cards.spec.js",
+              "line": 93,
+              "column": 3
+            },
+            {
+              "title": "each recommendation has text content and optional saving badge",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1416,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:123:19",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 19,
+                          "line": 123
+                        },
+                        "snippet": "  121 |     const items = page.locator('.rec-item');\n  122 |     const count = await items.count();\n> 123 |     expect(count).toBeGreaterThan(0);\n      |                   ^\n  124 |     // Check first rec has actual text\n  125 |     const firstText = await items.first().locator('.rec-text').textContent();\n  126 |     expect(firstText.trim().length).toBeGreaterThan(10);"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 19,
+                            "line": 123
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\n  121 |     const items = page.locator('.rec-item');\n  122 |     const count = await items.count();\n> 123 |     expect(count).toBeGreaterThan(0);\n      |                   ^\n  124 |     // Check first rec has actual text\n  125 |     const firstText = await items.first().locator('.rec-text').textContent();\n  126 |     expect(firstText.trim().length).toBeGreaterThan(10);\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:123:19"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:17:07.644Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Recommenda-28236-t-and-optional-saving-badge/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 19,
+                        "line": 123
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-4d937a14de20df104276",
+              "file": "dashboard-cards.spec.js",
+              "line": 111,
+              "column": 3
+            },
+            {
+              "title": "recommendation lenses have titles matching API categories",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1448,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:17:10.423Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-f99df3be75da5bb46b43",
+              "file": "dashboard-cards.spec.js",
+              "line": 129,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Insights (#insightsSection)",
+          "file": "dashboard-cards.spec.js",
+          "line": 150,
+          "column": 6,
+          "specs": [
+            {
+              "title": "renders insight cards when insights exist in API",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 6445,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('.insight-card')\nExpected: \u001b[32m20\u001b[39m\nReceived: \u001b[31m10\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.insight-card')\u001b[22m\n\u001b[2m    9 × locator resolved to 10 elements\u001b[22m\n\u001b[2m      - unexpected value \"10\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('.insight-card')\nExpected: \u001b[32m20\u001b[39m\nReceived: \u001b[31m10\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.insight-card')\u001b[22m\n\u001b[2m    9 × locator resolved to 10 elements\u001b[22m\n\u001b[2m      - unexpected value \"10\"\u001b[22m\n\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:160:27",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 27,
+                          "line": 160
+                        },
+                        "snippet": "  158 |       await expect(section).toBeVisible();\n  159 |       const cards = page.locator('.insight-card');\n> 160 |       await expect(cards).toHaveCount(insights.length);\n      |                           ^\n  161 |     } else {\n  162 |       await expect(section).toBeHidden();\n  163 |     }"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 27,
+                            "line": 160
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('.insight-card')\nExpected: \u001b[32m20\u001b[39m\nReceived: \u001b[31m10\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.insight-card')\u001b[22m\n\u001b[2m    9 × locator resolved to 10 elements\u001b[22m\n\u001b[2m      - unexpected value \"10\"\u001b[22m\n\n\n  158 |       await expect(section).toBeVisible();\n  159 |       const cards = page.locator('.insight-card');\n> 160 |       await expect(cards).toHaveCount(insights.length);\n      |                           ^\n  161 |     } else {\n  162 |       await expect(section).toBeHidden();\n  163 |     }\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:160:27"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:17:12.281Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Insights-i-a72fa--when-insights-exist-in-API/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 27,
+                        "line": 160
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-41a1587124f0a2acc673",
+              "file": "dashboard-cards.spec.js",
+              "line": 151,
+              "column": 3
+            },
+            {
+              "title": "each insight card has a title and type indicator",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1338,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:17:19.393Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-91482de3196979b9151b",
+              "file": "dashboard-cards.spec.js",
+              "line": 166,
+              "column": 3
+            },
+            {
+              "title": "insight titles match API data",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1318,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:196:63",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 63,
+                          "line": 196
+                        },
+                        "snippet": "  194 |     // Every API insight title should appear somewhere in the rendered cards\n  195 |     for (const ins of insights) {\n> 196 |       expect(renderedTitles.some(t => t.includes(ins.title))).toBe(true);\n      |                                                               ^\n  197 |     }\n  198 |   });\n  199 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 63,
+                            "line": 196
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n\n  194 |     // Every API insight title should appear somewhere in the rendered cards\n  195 |     for (const ins of insights) {\n> 196 |       expect(renderedTitles.some(t => t.includes(ins.title))).toBe(true);\n      |                                                               ^\n  197 |     }\n  198 |   });\n  199 |\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:196:63"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:17:21.153Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Insights-i-b390b-sight-titles-match-API-data/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 63,
+                        "line": 196
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-3576a48cfae7b36a6cdc",
+              "file": "dashboard-cards.spec.js",
+              "line": 181,
+              "column": 3
+            },
+            {
+              "title": "expanding insight card reveals description",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1539,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:17:23.128Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-48b53af94f69a40f9efc",
+              "file": "dashboard-cards.spec.js",
+              "line": 200,
+              "column": 3
+            },
+            {
+              "title": "lens selector buttons exist and toggle active state",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 6361,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('.lens-btn')\nExpected: \u001b[32m3\u001b[39m\nReceived: \u001b[31m0\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.lens-btn')\u001b[22m\n\u001b[2m    9 × locator resolved to 0 elements\u001b[22m\n\u001b[2m      - unexpected value \"0\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('.lens-btn')\nExpected: \u001b[32m3\u001b[39m\nReceived: \u001b[31m0\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.lens-btn')\u001b[22m\n\u001b[2m    9 × locator resolved to 0 elements\u001b[22m\n\u001b[2m      - unexpected value \"0\"\u001b[22m\n\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:221:27",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 27,
+                          "line": 221
+                        },
+                        "snippet": "  219 |\n  220 |     const buttons = page.locator('.lens-btn');\n> 221 |     await expect(buttons).toHaveCount(3);\n      |                           ^\n  222 |\n  223 |     // Check button labels\n  224 |     const labels = [];"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 27,
+                            "line": 221
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('.lens-btn')\nExpected: \u001b[32m3\u001b[39m\nReceived: \u001b[31m0\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.lens-btn')\u001b[22m\n\u001b[2m    9 × locator resolved to 0 elements\u001b[22m\n\u001b[2m      - unexpected value \"0\"\u001b[22m\n\n\n  219 |\n  220 |     const buttons = page.locator('.lens-btn');\n> 221 |     await expect(buttons).toHaveCount(3);\n      |                           ^\n  222 |\n  223 |     // Check button labels\n  224 |     const labels = [];\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:221:27"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:17:25.103Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Insights-i-841a7-ist-and-toggle-active-state/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 27,
+                        "line": 221
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-c51bc5fc9ef3d91e020f",
+              "file": "dashboard-cards.spec.js",
+              "line": 215,
+              "column": 3
+            },
+            {
+              "title": "lens stats bar shows content for each lens",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30035,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 58,
+                            "line": 243
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.lens-btn').filter({ hasText: 'Cost' })\u001b[22m\n\n\n  241 |\n  242 |     for (const lens of ['Cost', 'Speed', 'Quality']) {\n> 243 |       await page.locator('.lens-btn', { hasText: lens }).click();\n      |                                                          ^\n  244 |       const pills = page.locator('.lens-stat-pill');\n  245 |       const count = await pills.count();\n  246 |       expect(count).toBe(3); // each lens has 3 stat pills\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:243:58"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:17:32.122Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Insights-i-ae0b5-shows-content-for-each-lens/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-aa377f82b4f256108a1c",
+              "file": "dashboard-cards.spec.js",
+              "line": 237,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Pipeline Efficiency (#pipelineSection)",
+          "file": "dashboard-cards.spec.js",
+          "line": 257,
+          "column": 6,
+          "specs": [
+            {
+              "title": "renders pipeline stats when orchestrator runs exist",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 6374,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#pipelineSection')\nExpected: visible\nReceived: hidden\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#pipelineSection')\u001b[22m\n\u001b[2m    9 × locator resolved to <div id=\"pipelineSection\" class=\"insights-section\">…</div>\u001b[22m\n\u001b[2m      - unexpected value \"hidden\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#pipelineSection')\nExpected: visible\nReceived: hidden\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#pipelineSection')\u001b[22m\n\u001b[2m    9 × locator resolved to <div id=\"pipelineSection\" class=\"insights-section\">…</div>\u001b[22m\n\u001b[2m      - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:265:29",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 29,
+                          "line": 265
+                        },
+                        "snippet": "  263 |     const section = page.locator('#pipelineSection');\n  264 |     if (hasRuns) {\n> 265 |       await expect(section).toBeVisible();\n      |                             ^\n  266 |       const stats = page.locator('#pipelineStats .stat-card');\n  267 |       await expect(stats).toHaveCount(4);\n  268 |     } else {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 29,
+                            "line": 265
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#pipelineSection')\nExpected: visible\nReceived: hidden\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#pipelineSection')\u001b[22m\n\u001b[2m    9 × locator resolved to <div id=\"pipelineSection\" class=\"insights-section\">…</div>\u001b[22m\n\u001b[2m      - unexpected value \"hidden\"\u001b[22m\n\n\n  263 |     const section = page.locator('#pipelineSection');\n  264 |     if (hasRuns) {\n> 265 |       await expect(section).toBeVisible();\n      |                             ^\n  266 |       const stats = page.locator('#pipelineStats .stat-card');\n  267 |       await expect(stats).toHaveCount(4);\n  268 |     } else {\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:265:29"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:18:03.270Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Pipeline-E-e5f54-hen-orchestrator-runs-exist/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 29,
+                        "line": 265
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-a94ee89a2eb7b460d099",
+              "file": "dashboard-cards.spec.js",
+              "line": 258,
+              "column": 3
+            },
+            {
+              "title": "pipeline stat cards show correct labels and numeric values",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30024,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 63,
+                            "line": 281
+                          },
+                          "message": "Error: locator.textContent: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#pipelineStats .stat-card').first().locator('.stat-label')\u001b[22m\n\n\n  279 |     const stats = page.locator('#pipelineStats .stat-card');\n  280 |     for (let i = 0; i < 4; i++) {\n> 281 |       const label = await stats.nth(i).locator('.stat-label').textContent();\n      |                                                               ^\n  282 |       expect(label.trim()).toBe(expectedLabels[i]);\n  283 |       const value = await stats.nth(i).locator('.stat-value').textContent();\n  284 |       expect(value.trim()).toMatch(/[\\d.]+%?/);\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:281:63"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:18:10.806Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Pipeline-E-1cca3-t-labels-and-numeric-values/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-6903d87278ef4318d01d",
+              "file": "dashboard-cards.spec.js",
+              "line": 273,
+              "column": 3
+            },
+            {
+              "title": "pipeline stat values match API data",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30020,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 65,
+                            "line": 297
+                          },
+                          "message": "Error: locator.textContent: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#pipelineStats .stat-card').first().locator('.stat-value')\u001b[22m\n\n\n  295 |\n  296 |     const stats = page.locator('#pipelineStats .stat-card');\n> 297 |     const runsValue = await stats.nth(0).locator('.stat-value').textContent();\n      |                                                                 ^\n  298 |     expect(runsValue.trim()).toBe(String(s.totalRuns));\n  299 |\n  300 |     const completionValue = await stats.nth(1).locator('.stat-value').textContent();\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:297:65"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:18:41.996Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Pipeline-E-785e2--stat-values-match-API-data/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-f34599e1ee6725bb703b",
+              "file": "dashboard-cards.spec.js",
+              "line": 290,
+              "column": 3
+            },
+            {
+              "title": "pipeline breakdown shows run outcomes and performance",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 9,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 6326,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#pipelineBreakdown')\nExpected: visible\nReceived: hidden\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#pipelineBreakdown')\u001b[22m\n\u001b[2m    9 × locator resolved to <div id=\"pipelineBreakdown\"></div>\u001b[22m\n\u001b[2m      - unexpected value \"hidden\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#pipelineBreakdown')\nExpected: visible\nReceived: hidden\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#pipelineBreakdown')\u001b[22m\n\u001b[2m    9 × locator resolved to <div id=\"pipelineBreakdown\"></div>\u001b[22m\n\u001b[2m      - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:310:29",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 29,
+                          "line": 310
+                        },
+                        "snippet": "  308 |\n  309 |     const breakdown = page.locator('#pipelineBreakdown');\n> 310 |     await expect(breakdown).toBeVisible();\n      |                             ^\n  311 |     // Should have \"Run Outcomes\" and \"Performance\" sections\n  312 |     await expect(breakdown.locator('h3').first()).toContainText('Run Outcomes');\n  313 |     await expect(breakdown.locator('h3').nth(1)).toContainText('Performance');"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 29,
+                            "line": 310
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#pipelineBreakdown')\nExpected: visible\nReceived: hidden\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#pipelineBreakdown')\u001b[22m\n\u001b[2m    9 × locator resolved to <div id=\"pipelineBreakdown\"></div>\u001b[22m\n\u001b[2m      - unexpected value \"hidden\"\u001b[22m\n\n\n  308 |\n  309 |     const breakdown = page.locator('#pipelineBreakdown');\n> 310 |     await expect(breakdown).toBeVisible();\n      |                             ^\n  311 |     // Should have \"Run Outcomes\" and \"Performance\" sections\n  312 |     await expect(breakdown.locator('h3').first()).toContainText('Run Outcomes');\n  313 |     await expect(breakdown.locator('h3').nth(1)).toContainText('Performance');\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:310:29"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:19:13.200Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Pipeline-E-24216-un-outcomes-and-performance/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 29,
+                        "line": 310
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-8836e5995e5c65eaa8c1",
+              "file": "dashboard-cards.spec.js",
+              "line": 304,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Charts",
+          "file": "dashboard-cards.spec.js",
+          "line": 319,
+          "column": 6,
+          "specs": [
+            {
+              "title": "daily chart canvas exists and has non-zero dimensions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 891,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:19:20.691Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-2b89bfd592d0706dee67",
+              "file": "dashboard-cards.spec.js",
+              "line": 320,
+              "column": 3
+            },
+            {
+              "title": "model chart canvas exists",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 842,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:19:22.066Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-456ff6b33fc82a7eabaf",
+              "file": "dashboard-cards.spec.js",
+              "line": 329,
+              "column": 3
+            },
+            {
+              "title": "ratio chart canvas exists",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 838,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:19:22.922Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-7130bfd8f3e301f8b322",
+              "file": "dashboard-cards.spec.js",
+              "line": 335,
+              "column": 3
+            },
+            {
+              "title": "tokens per query chart canvas exists",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 833,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:19:23.767Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-5ebdcacdd3f35cc59490",
+              "file": "dashboard-cards.spec.js",
+              "line": 341,
+              "column": 3
+            },
+            {
+              "title": "model tier mix chart canvas exists",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 832,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:19:24.610Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-b2b03965007fe8bb27e2",
+              "file": "dashboard-cards.spec.js",
+              "line": 347,
+              "column": 3
+            },
+            {
+              "title": "chart legends contain model names",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1315,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:19:25.447Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-67cfbe05a9cd6dfd76e1",
+              "file": "dashboard-cards.spec.js",
+              "line": 353,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Projects (#projectsSection)",
+          "file": "dashboard-cards.spec.js",
+          "line": 375,
+          "column": 6,
+          "specs": [
+            {
+              "title": "renders project rows matching API project count",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 6295,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('.proj-row')\nExpected: \u001b[32m20\u001b[39m\nReceived: \u001b[31m0\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.proj-row')\u001b[22m\n\u001b[2m    9 × locator resolved to 0 elements\u001b[22m\n\u001b[2m      - unexpected value \"0\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('.proj-row')\nExpected: \u001b[32m20\u001b[39m\nReceived: \u001b[31m0\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.proj-row')\u001b[22m\n\u001b[2m    9 × locator resolved to 0 elements\u001b[22m\n\u001b[2m      - unexpected value \"0\"\u001b[22m\n\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:383:24",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 24,
+                          "line": 383
+                        },
+                        "snippet": "  381 |\n  382 |     const rows = page.locator('.proj-row');\n> 383 |     await expect(rows).toHaveCount(projects.length);\n      |                        ^\n  384 |   });\n  385 |\n  386 |   test('project rows show name, token count, sessions, and queries', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 24,
+                            "line": 383
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('.proj-row')\nExpected: \u001b[32m20\u001b[39m\nReceived: \u001b[31m0\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('.proj-row')\u001b[22m\n\u001b[2m    9 × locator resolved to 0 elements\u001b[22m\n\u001b[2m      - unexpected value \"0\"\u001b[22m\n\n\n  381 |\n  382 |     const rows = page.locator('.proj-row');\n> 383 |     await expect(rows).toHaveCount(projects.length);\n      |                        ^\n  384 |   });\n  385 |\n  386 |   test('project rows show name, token count, sessions, and queries', async ({ page }) => {\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:383:24"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:19:26.768Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Projects-p-7bb25--matching-API-project-count/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 24,
+                        "line": 383
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-07d79e289eff94baa1dc",
+              "file": "dashboard-cards.spec.js",
+              "line": 376,
+              "column": 3
+            },
+            {
+              "title": "project rows show name, token count, sessions, and queries",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 11,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1345,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: >= \u001b[32m4\u001b[39m\nReceived:    \u001b[31m0\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: >= \u001b[32m4\u001b[39m\nReceived:    \u001b[31m0\u001b[39m\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:395:23",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 23,
+                          "line": 395
+                        },
+                        "snippet": "  393 |     const cells = firstRow.locator('td');\n  394 |     const cellCount = await cells.count();\n> 395 |     expect(cellCount).toBeGreaterThanOrEqual(4); // name, tokens, sessions, queries\n      |                       ^\n  396 |\n  397 |     // First cell should have project name text\n  398 |     const nameText = await cells.first().textContent();"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 23,
+                            "line": 395
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThanOrEqual\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: >= \u001b[32m4\u001b[39m\nReceived:    \u001b[31m0\u001b[39m\n\n  393 |     const cells = firstRow.locator('td');\n  394 |     const cellCount = await cells.count();\n> 395 |     expect(cellCount).toBeGreaterThanOrEqual(4); // name, tokens, sessions, queries\n      |                       ^\n  396 |\n  397 |     // First cell should have project name text\n  398 |     const nameText = await cells.first().textContent();\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:395:23"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:19:33.750Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Projects-p-d3c6b--count-sessions-and-queries/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 23,
+                        "line": 395
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-36f37f27cb5b141bb5e9",
+              "file": "dashboard-cards.spec.js",
+              "line": 386,
+              "column": 3
+            },
+            {
+              "title": "project count display matches actual rows",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 12,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1320,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"20\"\u001b[39m\nReceived string:    \u001b[31m\"\"\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"20\"\u001b[39m\nReceived string:    \u001b[31m\"\"\u001b[39m\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:410:30",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 30,
+                          "line": 410
+                        },
+                        "snippet": "  408 |     const countEl = page.locator('#projectsCount');\n  409 |     const countText = await countEl.textContent();\n> 410 |     expect(countText.trim()).toContain(String(projects.length));\n      |                              ^\n  411 |   });\n  412 |\n  413 |   test('expanding a project row shows prompt drawer', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 30,
+                            "line": 410
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"20\"\u001b[39m\nReceived string:    \u001b[31m\"\"\u001b[39m\n\n  408 |     const countEl = page.locator('#projectsCount');\n  409 |     const countText = await countEl.textContent();\n> 410 |     expect(countText.trim()).toContain(String(projects.length));\n      |                              ^\n  411 |   });\n  412 |\n  413 |   test('expanding a project row shows prompt drawer', async ({ page }) => {\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:410:30"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:19:36.189Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Projects-p-6a5c6-display-matches-actual-rows/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 30,
+                        "line": 410
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-5ac51b0124541a886627",
+              "file": "dashboard-cards.spec.js",
+              "line": 402,
+              "column": 3
+            },
+            {
+              "title": "expanding a project row shows prompt drawer",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 13,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30034,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 20,
+                            "line": 422
+                          },
+                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.proj-row').first()\u001b[22m\n\n\n  420 |     const drawer = page.locator('.proj-drawer').first();\n  421 |     await expect(drawer).toBeHidden();\n> 422 |     await firstRow.click();\n      |                    ^\n  423 |     await expect(drawer).toBeVisible();\n  424 |   });\n  425 | });\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:422:20"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:19:38.512Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Projects-p-849dc-ect-row-shows-prompt-drawer/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-b4e039f8d71443299c9f",
+              "file": "dashboard-cards.spec.js",
+              "line": 413,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Top Prompts (#topPromptsList)",
+          "file": "dashboard-cards.spec.js",
+          "line": 429,
+          "column": 6,
+          "specs": [
+            {
+              "title": "renders prompt rows when data exists",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 14,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1343,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:438:19",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 19,
+                          "line": 438
+                        },
+                        "snippet": "  436 |     const rows = page.locator('.prompt-row');\n  437 |     const count = await rows.count();\n> 438 |     expect(count).toBeGreaterThan(0);\n      |                   ^\n  439 |     expect(count).toBeLessThanOrEqual(20); // typically top-N\n  440 |   });\n  441 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 19,
+                            "line": 438
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\n  436 |     const rows = page.locator('.prompt-row');\n  437 |     const count = await rows.count();\n> 438 |     expect(count).toBeGreaterThan(0);\n      |                   ^\n  439 |     expect(count).toBeLessThanOrEqual(20); // typically top-N\n  440 |   });\n  441 |\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:438:19"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:20:09.698Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Top-Prompt-06212-rompt-rows-when-data-exists/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 19,
+                        "line": 438
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-2e1b8a03593ae0041a29",
+              "file": "dashboard-cards.spec.js",
+              "line": 430,
+              "column": 3
+            },
+            {
+              "title": "prompt rows show rank, text preview, and token counts",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 15,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30021,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 57,
+                            "line": 449
+                          },
+                          "message": "Error: locator.textContent: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.prompt-row').first().locator('.prompt-rank')\u001b[22m\n\n\n  447 |     const firstRow = page.locator('.prompt-row').first();\n  448 |     // Rank\n> 449 |     const rank = await firstRow.locator('.prompt-rank').textContent();\n      |                                                         ^\n  450 |     expect(rank.trim()).toMatch(/\\d+/);\n  451 |     // Text preview\n  452 |     const text = await firstRow.locator('.prompt-text').textContent();\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:449:57"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:20:12.149Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Top-Prompt-0a6af-xt-preview-and-token-counts/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-547f7e3dc1e2b136b947",
+              "file": "dashboard-cards.spec.js",
+              "line": 442,
+              "column": 3
+            },
+            {
+              "title": "prompt text content matches API top prompts",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 16,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30021,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 92,
+                            "line": 465
+                          },
+                          "message": "Error: locator.textContent: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.prompt-row').first().locator('.prompt-text')\u001b[22m\n\n\n  463 |     if (prompts.length === 0) { test.skip(); return; }\n  464 |\n> 465 |     const firstRowText = await page.locator('.prompt-row').first().locator('.prompt-text').textContent();\n      |                                                                                            ^\n  466 |     // Should contain substring of the API's first prompt text\n  467 |     const apiFirstPrompt = prompts[0].prompt.substring(0, 30);\n  468 |     expect(firstRowText).toContain(apiFirstPrompt);\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:465:92"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:20:43.268Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Top-Prompt-f818c-ent-matches-API-top-prompts/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-29070567b7e228861faa",
+              "file": "dashboard-cards.spec.js",
+              "line": 459,
+              "column": 3
+            },
+            {
+              "title": "token bars render with visual width",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 17,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1321,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:478:19",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 19,
+                          "line": 478
+                        },
+                        "snippet": "  476 |     const bars = page.locator('.token-bar-wrap');\n  477 |     const count = await bars.count();\n> 478 |     expect(count).toBeGreaterThan(0);\n      |                   ^\n  479 |     const box = await bars.first().boundingBox();\n  480 |     expect(box.width).toBeGreaterThan(10);\n  481 |   });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 19,
+                            "line": 478
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\n  476 |     const bars = page.locator('.token-bar-wrap');\n  477 |     const count = await bars.count();\n> 478 |     expect(count).toBeGreaterThan(0);\n      |                   ^\n  479 |     const box = await bars.first().boundingBox();\n  480 |     expect(box.width).toBeGreaterThan(10);\n  481 |   });\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:478:19"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:21:14.477Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Top-Prompt-5bc36-rs-render-with-visual-width/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 19,
+                        "line": 478
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-aee0efac2ebb1f7af544",
+              "file": "dashboard-cards.spec.js",
+              "line": 471,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Sessions Table",
+          "file": "dashboard-cards.spec.js",
+          "line": 486,
+          "column": 6,
+          "specs": [
+            {
+              "title": "renders session rows matching API session count",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 18,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1323,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m1547\u001b[39m\nReceived: \u001b[31m0\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m1547\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:495:19",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 19,
+                          "line": 495
+                        },
+                        "snippet": "  493 |     const rows = page.locator('.sessions-section tbody tr');\n  494 |     const count = await rows.count();\n> 495 |     expect(count).toBe(sessions.length);\n      |                   ^\n  496 |   });\n  497 |\n  498 |   test('session count display is accurate', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 19,
+                            "line": 495
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m1547\u001b[39m\nReceived: \u001b[31m0\u001b[39m\n\n  493 |     const rows = page.locator('.sessions-section tbody tr');\n  494 |     const count = await rows.count();\n> 495 |     expect(count).toBe(sessions.length);\n      |                   ^\n  496 |   });\n  497 |\n  498 |   test('session count display is accurate', async ({ page }) => {\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:495:19"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:21:16.918Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Sessions-T-97892--matching-API-session-count/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 19,
+                        "line": 495
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-21302bc44a6ede458ebf",
+              "file": "dashboard-cards.spec.js",
+              "line": 487,
+              "column": 3
+            },
+            {
+              "title": "session count display is accurate",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 19,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1326,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"1547\"\u001b[39m\nReceived string:    \u001b[31m\"\"\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"1547\"\u001b[39m\nReceived string:    \u001b[31m\"\"\u001b[39m\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:506:18",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 18,
+                          "line": 506
+                        },
+                        "snippet": "  504 |     const countEl = page.locator('#sessionCount');\n  505 |     const text = await countEl.textContent();\n> 506 |     expect(text).toContain(String(sessions.length));\n      |                  ^\n  507 |   });\n  508 |\n  509 |   test('session rows show date, prompt preview, model badge, and token counts', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 18,
+                            "line": 506
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected substring: \u001b[32m\"1547\"\u001b[39m\nReceived string:    \u001b[31m\"\"\u001b[39m\n\n  504 |     const countEl = page.locator('#sessionCount');\n  505 |     const text = await countEl.textContent();\n> 506 |     expect(text).toContain(String(sessions.length));\n      |                  ^\n  507 |   });\n  508 |\n  509 |   test('session rows show date, prompt preview, model badge, and token counts', async ({ page }) => {\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:506:18"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:21:19.325Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Sessions-T-cb57a-n-count-display-is-accurate/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 18,
+                        "line": 506
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-26f46d7f7d4f80d4c939",
+              "file": "dashboard-cards.spec.js",
+              "line": 498,
+              "column": 3
+            },
+            {
+              "title": "session rows show date, prompt preview, model badge, and token counts",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 20,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 30028,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 59,
+                            "line": 516
+                          },
+                          "message": "Error: locator.textContent: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.sessions-section tbody tr').first().locator('.date-cell')\u001b[22m\n\n\n  514 |     const firstRow = page.locator('.sessions-section tbody tr').first();\n  515 |     // Date\n> 516 |     const dateCell = await firstRow.locator('.date-cell').textContent();\n      |                                                           ^\n  517 |     expect(dateCell.trim()).toMatch(/\\d{4}-\\d{2}-\\d{2}/);\n  518 |     // Model badge\n  519 |     const modelBadge = firstRow.locator('.model-badge, .model-pills');\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:516:59"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:21:21.658Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Sessions-T-7fe18-odel-badge-and-token-counts/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-c84fed5cb5b6ebf42614",
+              "file": "dashboard-cards.spec.js",
+              "line": 509,
+              "column": 3
+            },
+            {
+              "title": "session search filters results",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 21,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1906,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeLessThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: < \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeLessThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: < \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:539:27",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 27,
+                          "line": 539
+                        },
+                        "snippet": "  537 |     await page.waitForTimeout(500); // debounce\n  538 |     const filteredCount = await page.locator('.sessions-section tbody tr').count();\n> 539 |     expect(filteredCount).toBeLessThan(initialCount);\n      |                           ^\n  540 |   });\n  541 |\n  542 |   test('sortable headers exist with data-sort attributes', async ({ page }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 27,
+                            "line": 539
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeLessThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: < \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\n  537 |     await page.waitForTimeout(500); // debounce\n  538 |     const filteredCount = await page.locator('.sessions-section tbody tr').count();\n> 539 |     expect(filteredCount).toBeLessThan(initialCount);\n      |                           ^\n  540 |   });\n  541 |\n  542 |   test('sortable headers exist with data-sort attributes', async ({ page }) => {\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:539:27"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:21:52.847Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-Sessions-T-8d93d-sion-search-filters-results/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 27,
+                        "line": 539
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-c371c57db5d0a7de336f",
+              "file": "dashboard-cards.spec.js",
+              "line": 527,
+              "column": 3
+            },
+            {
+              "title": "sortable headers exist with data-sort attributes",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 22,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 890,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:21:55.818Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-9b934e9d5995669a93d7",
+              "file": "dashboard-cards.spec.js",
+              "line": 542,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "API Data Consistency",
+          "file": "dashboard-cards.spec.js",
+          "line": 552,
+          "column": 6,
+          "specs": [
+            {
+              "title": "totals.totalTokens equals sum of input + output",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 22,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1311,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:21:57.138Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-f2cc49b6a87fe7e7e3ae",
+              "file": "dashboard-cards.spec.js",
+              "line": 553,
+              "column": 3
+            },
+            {
+              "title": "all insights have required fields: id, type, title",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 22,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1321,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:21:58.455Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-ea8f7ce6cce6f962edbd",
+              "file": "dashboard-cards.spec.js",
+              "line": 560,
+              "column": 3
+            },
+            {
+              "title": "all insights have a lens field (cost/speed/quality)",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 22,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1342,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected value: \u001b[32m\"Cost\"\u001b[39m\nReceived array: \u001b[31m[\"cost\", \"speed\", \"quality\"]\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected value: \u001b[32m\"Cost\"\u001b[39m\nReceived array: \u001b[31m[\"cost\", \"speed\", \"quality\"]\u001b[39m\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:579:29",
+                        "location": {
+                          "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                          "column": 29,
+                          "line": 579
+                        },
+                        "snippet": "  577 |       // lens should be one of cost/speed/quality (or null for uncategorized)\n  578 |       if (ins.lens) {\n> 579 |         expect(validLenses).toContain(ins.lens);\n      |                             ^\n  580 |       }\n  581 |     }\n  582 |   });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                            "column": 29,
+                            "line": 579
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected value: \u001b[32m\"Cost\"\u001b[39m\nReceived array: \u001b[31m[\"cost\", \"speed\", \"quality\"]\u001b[39m\n\n  577 |       // lens should be one of cost/speed/quality (or null for uncategorized)\n  578 |       if (ins.lens) {\n> 579 |         expect(validLenses).toContain(ins.lens);\n      |                             ^\n  580 |       }\n  581 |     }\n  582 |   });\n    at /Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js:579:29"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:21:59.783Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/shinytrap/projects/claude-spend/test-results/dashboard-cards-API-Data-C-66067-s-field-cost-speed-quality-/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/shinytrap/projects/claude-spend/tests/dashboard-cards.spec.js",
+                        "column": 29,
+                        "line": 579
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-ac7a204badbdb194e500",
+              "file": "dashboard-cards.spec.js",
+              "line": 571,
+              "column": 3
+            },
+            {
+              "title": "recommendations has expected lens categories",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 23,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1317,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:22:01.787Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-1defa1ca315070823ece",
+              "file": "dashboard-cards.spec.js",
+              "line": 584,
+              "column": 3
+            },
+            {
+              "title": "each session has estimatedCost field",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 23,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1292,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:22:03.485Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-a97f77fddbf82284e33b",
+              "file": "dashboard-cards.spec.js",
+              "line": 600,
+              "column": 3
+            },
+            {
+              "title": "orchestrator runs have estimatedCost when available",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 23,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1294,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:22:04.783Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-5546a2396f67f1a3f9bb",
+              "file": "dashboard-cards.spec.js",
+              "line": 609,
+              "column": 3
+            },
+            {
+              "title": "daily usage entries have estimatedCost",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 23,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1308,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:22:06.083Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-5801813b278928a570f7",
+              "file": "dashboard-cards.spec.js",
+              "line": 619,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Header & Controls",
+          "file": "dashboard-cards.spec.js",
+          "line": 633,
+          "column": 6,
+          "specs": [
+            {
+              "title": "page title is Claude Spend",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 23,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 851,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:22:07.398Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-f932c5607db2f43be582",
+              "file": "dashboard-cards.spec.js",
+              "line": 634,
+              "column": 3
+            },
+            {
+              "title": "date range inputs exist and have values",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 23,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 845,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:22:08.258Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-dfc8985e9ac59353d52d",
+              "file": "dashboard-cards.spec.js",
+              "line": 639,
+              "column": 3
+            },
+            {
+              "title": "refresh button exists and is clickable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 23,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 843,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:22:09.108Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-85330b06a897ce386bec",
+              "file": "dashboard-cards.spec.js",
+              "line": 647,
+              "column": 3
+            },
+            {
+              "title": "privacy notice is displayed",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 23,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 879,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-08T09:22:09.957Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab6d68d3c3de0009a174-df4129890fdbf4141fe0",
+              "file": "dashboard-cards.spec.js",
+              "line": 654,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-03-08T09:16:52.775Z",
+    "duration": 318101.594,
+    "expected": 26,
+    "skipped": 0,
+    "unexpected": 23,
+    "flaky": 0
+  }
+}

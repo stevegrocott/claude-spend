@@ -1,0 +1,32 @@
+[
+  {
+    "iteration": 1,
+    "issues": [
+      {
+        "file": "src/public/index.html",
+        "line": 1096,
+        "severity": "major",
+        "description": "recFmtTokenSaving reads FILTERED.totals.dateRange (global) but is called inside clientGenerateRecommendations() at line 1639, which executes BEFORE FILTERED is updated to the new state at line 1640. During a date-filter change, FILTERED still holds the previous computation's dateRange, so the months divisor is stale. For example, if the user filters to 'last month' (1 month) but FILTERED still reflects a 6-month window from the prior render, all per-month token estimates will be ~6× too low. The fix is to pass totals (or dateRange) as a parameter into recFmtTokenSaving rather than reading the global: `function recFmtTokenSaving(totalTokensSaved, totals)` and call it with the `totals` argument already available inside clientGenerateRecommendations."
+      },
+      {
+        "file": "src/public/index.html",
+        "line": 1116,
+        "severity": "minor",
+        "description": "recFmtTokenSaving(tokenSavings) is called twice per recommendation — once in the `text` template string and once in `saving.label` (lines 1116 and 1118, 1127 and 1129, 1145 and 1147, 1163 and 1164). Besides the redundant global read, if the stale-state bug above is fixed, the label should be computed once and stored in a local variable to keep code DRY and consistent: `const label = recFmtTokenSaving(tokenSavings, totals);` then reuse `label` in both places."
+      }
+    ],
+    "result": "changes_requested"
+  },
+  {
+    "iteration": 2,
+    "issues": [
+      {
+        "file": "src/public/index.html",
+        "line": 1095,
+        "severity": "major",
+        "description": "Working tree has uncommitted improvements: (1) recFmtTokenSaving gained an optional 3rd 'months' parameter, (2) a new recCalcPriceRatioSavings helper was extracted, (3) the Opus >50% block was refactored to reuse the opusSessions const and call the helper, (4) avgStartInput was derived from the already-computed totalStartTokens. All changes are correct and improve quality, but they are unstaged and not yet part of the branch. Run: git add src/public/index.html && git commit -m 'refactor: extract recCalcPriceRatioSavings helper and add optional months param to recFmtTokenSaving'"
+      }
+    ],
+    "result": "changes_requested"
+  }
+]

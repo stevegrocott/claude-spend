@@ -1,0 +1,87 @@
+{
+  "state": "running",
+  "issue": "34",
+  "base_branch": "main",
+  "branch": "feature/issue-34",
+  "current_stage": "implement",
+  "current_task": 2,
+  "stages": {
+    "parse_issue": {
+      "status": "completed",
+      "started_at": "2026-03-20T07:20:22Z",
+      "completed_at": "2026-03-20T07:20:23Z"
+    },
+    "validate_plan": {
+      "status": "completed",
+      "started_at": "2026-03-20T07:20:23Z",
+      "completed_at": "2026-03-20T07:20:24Z"
+    },
+    "implement": {
+      "status": "in_progress",
+      "task_progress": "0/3",
+      "started_at": "2026-03-20T07:20:24Z"
+    },
+    "quality_loop": {
+      "status": "pending",
+      "iteration": 0
+    },
+    "test_loop": {
+      "status": "pending",
+      "iteration": 0
+    },
+    "e2e_verify": {
+      "status": "pending"
+    },
+    "acceptance_test": {
+      "status": "pending"
+    },
+    "deploy_verify": {
+      "status": "pending"
+    },
+    "docs": {
+      "status": "pending"
+    },
+    "pr": {
+      "status": "pending"
+    },
+    "pr_review": {
+      "status": "pending",
+      "iteration": 0
+    },
+    "complete": {
+      "status": "pending"
+    }
+  },
+  "tasks": [
+    {
+      "id": 1,
+      "description": "**(S)** In `src/parser.js`, add `efficiencyByDay` computation to `computeSessionEfficiency()`: for each date with interactive sessions, compute `{date, avgQueriesPerSession, tokensPerQuery, pipelineCoveragePct, shortSessionPct, sessionCount}`. Include in the return object. Also update client-side `recomputeSessionEfficiency()` in `src/public/index.html` with the same daily aggregation so date filtering recomputes the trends.",
+      "agent": "default",
+      "status": "in_progress",
+      "review_attempts": 0,
+      "batch": 1
+    },
+    {
+      "id": 2,
+      "description": "**(M)** In `src/public/index.html`, add an \"Efficiency Trends\" subsection inside `#sessionEfficiencySection` after the context cost chart. Use a 2x2 `.drivers-grid` layout with 4 `.driver-card` elements, each containing a `<canvas>` and a title. Render with a shared `renderEfficiencyTrendChart(canvasId, data, options)` function that draws: (1) raw daily values as small dots, (2) 7-day rolling average as a smooth line, (3) a dashed horizontal target line with label. Each chart uses `efficiencyByDay` from `FILTERED.sessionEfficiency`. Chart configs: (a) \"Queries/Session\" — field `avgQueriesPerSession`, color amber, target 20 (green dashed), lower=better. (b) \"Tokens/Query (K)\" — field `tokensPerQuery` divided by 1000, color rose, target 50 (green dashed), lower=better. (c) \"Pipeline Coverage %\" — field `pipelineCoveragePct`, color indigo, target 40 (green dashed), higher=better. (d) \"Short Sessions %\" — field `shortSessionPct`, color teal, target 50 (green dashed), higher=better. Call from `renderSessionEfficiency()`. Add to resize handler.",
+      "agent": "default",
+      "status": "in_progress",
+      "review_attempts": 0,
+      "batch": 2
+    },
+    {
+      "id": 3,
+      "description": "**(S)** Update Playwright tests in `tests/dashboard-cards.spec.js`: add tests that the 4 trend chart canvases exist (`#trendQueriesChart`, `#trendTpqChart`, `#trendPipelineChart`, `#trendShortChart`), and that they render with non-zero dimensions when session data exists.",
+      "agent": "default",
+      "status": "in_progress",
+      "review_attempts": 0,
+      "batch": 1
+    }
+  ],
+  "quality_iterations": 0,
+  "test_iterations": 0,
+  "pr_review_iterations": 0,
+  "last_update": "2026-03-20T07:20:24Z",
+  "log_dir": "/Users/shinytrap/projects/claude-spend/logs/implement-issue/issue-34-20260320-182019",
+  "escalations": []
+}

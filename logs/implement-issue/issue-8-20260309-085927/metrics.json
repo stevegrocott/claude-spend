@@ -1,0 +1,96 @@
+{
+  "schema_version": "1",
+  "issue": "8",
+  "base_branch": "main",
+  "branch": "feature/issue-8",
+  "state": "error",
+  "started_at": "2026-03-08T21:59:29Z",
+  "completed_at": "2026-03-08T22:35:37Z",
+  "total_duration_seconds": 2168,
+  "stages": {
+    "parse_issue": {
+      "status": "completed",
+      "started_at": "2026-03-08T21:59:29Z",
+      "completed_at": "2026-03-08T21:59:30Z",
+      "duration_seconds": 1
+    },
+    "validate_plan": {
+      "status": "completed",
+      "started_at": "2026-03-08T21:59:30Z",
+      "completed_at": "2026-03-08T21:59:31Z",
+      "duration_seconds": 1
+    },
+    "implement": {
+      "status": "completed",
+      "task_progress": "0/6",
+      "started_at": "2026-03-08T21:59:31Z",
+      "completed_at": "2026-03-08T22:35:34Z",
+      "duration_seconds": 2163
+    },
+    "quality_loop": {
+      "status": "completed",
+      "iteration": 0,
+      "completed_at": "2026-03-08T22:35:34Z",
+      "duration_seconds": null
+    },
+    "test_loop": {
+      "status": "completed",
+      "iteration": 0,
+      "started_at": "2026-03-08T22:35:34Z",
+      "completed_at": "2026-03-08T22:35:35Z",
+      "duration_seconds": 1
+    },
+    "e2e_verify": {
+      "status": "completed",
+      "started_at": "2026-03-08T22:35:35Z",
+      "completed_at": "2026-03-08T22:35:35Z",
+      "duration_seconds": 0
+    },
+    "acceptance_test": {
+      "status": "completed",
+      "started_at": "2026-03-08T22:35:35Z",
+      "completed_at": "2026-03-08T22:35:36Z",
+      "duration_seconds": 1
+    },
+    "deploy_verify": {
+      "status": "completed",
+      "started_at": "2026-03-08T22:35:36Z",
+      "completed_at": "2026-03-08T22:35:36Z",
+      "duration_seconds": 0
+    },
+    "docs": {
+      "status": "completed",
+      "started_at": "2026-03-08T22:35:36Z",
+      "completed_at": "2026-03-08T22:35:37Z",
+      "duration_seconds": 1
+    },
+    "pr": {
+      "status": "in_progress",
+      "started_at": "2026-03-08T22:35:37Z",
+      "model": "haiku",
+      "duration_seconds": null
+    },
+    "pr_review": {
+      "status": "pending",
+      "iteration": 0,
+      "duration_seconds": null
+    },
+    "complete": {
+      "status": "pending",
+      "duration_seconds": null
+    }
+  },
+  "iteration_summary": {
+    "quality_iterations": 0,
+    "test_iterations": 0,
+    "pr_review_iterations": 0
+  },
+  "escalations": [
+    {
+      "stage": "pr",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    }
+  ]
+}

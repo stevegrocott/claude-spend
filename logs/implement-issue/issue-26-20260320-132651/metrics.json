@@ -1,0 +1,186 @@
+{
+  "schema_version": "1",
+  "issue": "26",
+  "base_branch": "main",
+  "branch": "feature/issue-26",
+  "state": "completed",
+  "started_at": "2026-03-20T02:26:53Z",
+  "completed_at": "2026-03-20T03:02:35Z",
+  "total_duration_seconds": 2142,
+  "stages": {
+    "parse_issue": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:26:53Z",
+      "completed_at": "2026-03-20T02:26:53Z",
+      "duration_seconds": 0
+    },
+    "validate_plan": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:26:54Z",
+      "completed_at": "2026-03-20T02:26:55Z",
+      "duration_seconds": 1
+    },
+    "implement": {
+      "status": "completed",
+      "task_progress": "4/4",
+      "started_at": "2026-03-20T02:26:55Z",
+      "completed_at": "2026-03-20T02:53:02Z",
+      "duration_seconds": 1567
+    },
+    "quality_loop": {
+      "status": "completed",
+      "iteration": 3,
+      "completed_at": "2026-03-20T02:53:02Z",
+      "duration_seconds": null
+    },
+    "test_loop": {
+      "status": "completed",
+      "iteration": 1,
+      "started_at": "2026-03-20T02:53:02Z",
+      "completed_at": "2026-03-20T02:54:10Z",
+      "duration_seconds": 68
+    },
+    "e2e_verify": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:54:10Z",
+      "completed_at": "2026-03-20T02:54:10Z",
+      "duration_seconds": 0
+    },
+    "acceptance_test": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:54:10Z",
+      "completed_at": "2026-03-20T02:54:11Z",
+      "duration_seconds": 1
+    },
+    "deploy_verify": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:54:11Z",
+      "completed_at": "2026-03-20T02:54:11Z",
+      "duration_seconds": 0
+    },
+    "docs": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:54:11Z",
+      "model": "haiku",
+      "completed_at": "2026-03-20T02:54:26Z",
+      "duration_seconds": 15
+    },
+    "pr": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:54:26Z",
+      "model": "sonnet",
+      "pr_number": 27,
+      "completed_at": "2026-03-20T02:54:50Z",
+      "duration_seconds": 24
+    },
+    "pr_review": {
+      "status": "completed",
+      "iteration": 2,
+      "started_at": "2026-03-20T02:54:50Z",
+      "completed_at": "2026-03-20T03:02:01Z",
+      "duration_seconds": 431
+    },
+    "complete": {
+      "status": "completed",
+      "started_at": "2026-03-20T03:02:01Z",
+      "model": "haiku",
+      "completed_at": "2026-03-20T03:02:35Z",
+      "duration_seconds": 34
+    },
+    "implement_task_1": {
+      "model": "haiku",
+      "duration_seconds": null
+    },
+    "implement_task_4": {
+      "model": "haiku",
+      "duration_seconds": null
+    },
+    "implement_task_2": {
+      "model": "haiku",
+      "duration_seconds": null
+    },
+    "implement_task_3": {
+      "model": "sonnet",
+      "duration_seconds": null
+    },
+    "simplify_task_3_iter_1": {
+      "model": "haiku",
+      "duration_seconds": null
+    },
+    "review_task_3_iter_1": {
+      "model": "sonnet",
+      "duration_seconds": null
+    },
+    "fix_review_task_3_iter_1": {
+      "model": "sonnet",
+      "duration_seconds": null
+    },
+    "simplify_task_3_iter_2": {
+      "model": "haiku",
+      "duration_seconds": null
+    },
+    "review_task_3_iter_2": {
+      "model": "sonnet",
+      "duration_seconds": null
+    },
+    "test_iter_1": {
+      "model": "haiku",
+      "duration_seconds": null
+    },
+    "pr_review_iter_1": {
+      "model": "sonnet",
+      "duration_seconds": null
+    },
+    "fix_pr_review_iter_1": {
+      "model": "sonnet",
+      "duration_seconds": null
+    },
+    "pr_review_iter_2": {
+      "model": "sonnet",
+      "duration_seconds": null
+    }
+  },
+  "iteration_summary": {
+    "quality_iterations": 3,
+    "test_iterations": 1,
+    "pr_review_iterations": 2
+  },
+  "escalations": [
+    {
+      "stage": "implement-task-4",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "implement-task-1",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "implement-task-1",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "implement-task-2",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "simplify-task-3-iter-1",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "simplify-task-3-iter-1",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    }
+  ]
+}

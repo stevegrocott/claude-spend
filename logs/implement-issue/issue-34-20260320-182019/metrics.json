@@ -1,0 +1,75 @@
+{
+  "schema_version": "1",
+  "issue": "34",
+  "base_branch": "main",
+  "branch": "feature/issue-34",
+  "state": "running",
+  "started_at": "2026-03-20T07:20:22Z",
+  "completed_at": "2026-03-20T07:20:24Z",
+  "total_duration_seconds": 2,
+  "stages": {
+    "parse_issue": {
+      "status": "completed",
+      "started_at": "2026-03-20T07:20:22Z",
+      "completed_at": "2026-03-20T07:20:23Z",
+      "duration_seconds": 1
+    },
+    "validate_plan": {
+      "status": "completed",
+      "started_at": "2026-03-20T07:20:23Z",
+      "completed_at": "2026-03-20T07:20:24Z",
+      "duration_seconds": 1
+    },
+    "implement": {
+      "status": "in_progress",
+      "task_progress": "0/3",
+      "started_at": "2026-03-20T07:20:24Z",
+      "duration_seconds": null
+    },
+    "quality_loop": {
+      "status": "pending",
+      "iteration": 0,
+      "duration_seconds": null
+    },
+    "test_loop": {
+      "status": "pending",
+      "iteration": 0,
+      "duration_seconds": null
+    },
+    "e2e_verify": {
+      "status": "pending",
+      "duration_seconds": null
+    },
+    "acceptance_test": {
+      "status": "pending",
+      "duration_seconds": null
+    },
+    "deploy_verify": {
+      "status": "pending",
+      "duration_seconds": null
+    },
+    "docs": {
+      "status": "pending",
+      "duration_seconds": null
+    },
+    "pr": {
+      "status": "pending",
+      "duration_seconds": null
+    },
+    "pr_review": {
+      "status": "pending",
+      "iteration": 0,
+      "duration_seconds": null
+    },
+    "complete": {
+      "status": "pending",
+      "duration_seconds": null
+    }
+  },
+  "iteration_summary": {
+    "quality_iterations": 0,
+    "test_iterations": 0,
+    "pr_review_iterations": 0
+  },
+  "escalations": []
+}

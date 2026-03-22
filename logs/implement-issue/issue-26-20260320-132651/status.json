@@ -1,0 +1,207 @@
+{
+  "state": "completed",
+  "issue": "26",
+  "base_branch": "main",
+  "branch": "feature/issue-26",
+  "current_stage": "complete",
+  "current_task": 3,
+  "stages": {
+    "parse_issue": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:26:53Z",
+      "completed_at": "2026-03-20T02:26:53Z"
+    },
+    "validate_plan": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:26:54Z",
+      "completed_at": "2026-03-20T02:26:55Z"
+    },
+    "implement": {
+      "status": "completed",
+      "task_progress": "4/4",
+      "started_at": "2026-03-20T02:26:55Z",
+      "completed_at": "2026-03-20T02:53:02Z"
+    },
+    "quality_loop": {
+      "status": "completed",
+      "iteration": 3,
+      "completed_at": "2026-03-20T02:53:02Z"
+    },
+    "test_loop": {
+      "status": "completed",
+      "iteration": 1,
+      "started_at": "2026-03-20T02:53:02Z",
+      "completed_at": "2026-03-20T02:54:10Z"
+    },
+    "e2e_verify": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:54:10Z",
+      "completed_at": "2026-03-20T02:54:10Z"
+    },
+    "acceptance_test": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:54:10Z",
+      "completed_at": "2026-03-20T02:54:11Z"
+    },
+    "deploy_verify": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:54:11Z",
+      "completed_at": "2026-03-20T02:54:11Z"
+    },
+    "docs": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:54:11Z",
+      "model": "haiku",
+      "completed_at": "2026-03-20T02:54:26Z"
+    },
+    "pr": {
+      "status": "completed",
+      "started_at": "2026-03-20T02:54:26Z",
+      "model": "sonnet",
+      "pr_number": 27,
+      "completed_at": "2026-03-20T02:54:50Z"
+    },
+    "pr_review": {
+      "status": "completed",
+      "iteration": 2,
+      "started_at": "2026-03-20T02:54:50Z",
+      "completed_at": "2026-03-20T03:02:01Z"
+    },
+    "complete": {
+      "status": "completed",
+      "started_at": "2026-03-20T03:02:01Z",
+      "model": "haiku",
+      "completed_at": "2026-03-20T03:02:35Z"
+    },
+    "implement_task_1": {
+      "model": "haiku"
+    },
+    "implement_task_4": {
+      "model": "haiku"
+    },
+    "implement_task_2": {
+      "model": "haiku"
+    },
+    "implement_task_3": {
+      "model": "sonnet"
+    },
+    "simplify_task_3_iter_1": {
+      "model": "haiku"
+    },
+    "review_task_3_iter_1": {
+      "model": "sonnet"
+    },
+    "fix_review_task_3_iter_1": {
+      "model": "sonnet"
+    },
+    "simplify_task_3_iter_2": {
+      "model": "haiku"
+    },
+    "review_task_3_iter_2": {
+      "model": "sonnet"
+    },
+    "test_iter_1": {
+      "model": "haiku"
+    },
+    "pr_review_iter_1": {
+      "model": "sonnet"
+    },
+    "fix_pr_review_iter_1": {
+      "model": "sonnet"
+    },
+    "pr_review_iter_2": {
+      "model": "sonnet"
+    }
+  },
+  "tasks": [
+    {
+      "id": 1,
+      "description": "**(S)** In `src/parser.js` (~line 549-567), extend the `runs.push({...})` object to include `taskSummary: { completed: {S: n, M: n, L: n}, failed: {S: n, M: n, L: n}, total: n, storyPointsCompleted: n, storyPointsTotal: n }`. Use `raw.task_summary` if present (upstream), otherwise parse each task description for `**(S)**`/`**(M)**`/`**(L)**` regex. Map to Fibonacci points (S=1, M=3, L=5), default unknown to S=1.",
+      "agent": "default",
+      "status": "completed",
+      "review_attempts": 1,
+      "batch": 1
+    },
+    {
+      "id": 2,
+      "description": "**(S)** In `src/parser.js`, extend the orchestrator `summary` object (~line 647) to include `velocityByDay: [{date, spCompleted, spTotal, cumulative}]` and `velocityStats: {totalSP, completedSP, avgSPPerDay, avgSPPerWeek}`.",
+      "agent": "default",
+      "status": "completed",
+      "review_attempts": 1,
+      "batch": 2
+    },
+    {
+      "id": 3,
+      "description": "**(M)** In `src/public/index.html`, add a \"Story Point Velocity\" chart card in the pipeline quality section. Render a dual-axis line chart: left axis = daily SP completed (green), right axis = cumulative SP (purple). Use the existing canvas rendering pattern from `renderContextOverheadChart()` as template.",
+      "agent": "default",
+      "status": "completed",
+      "review_attempts": 1,
+      "batch": 2
+    },
+    {
+      "id": 4,
+      "description": "**(S)** Add a velocity stats pill near the pipeline section: \"X SP/week avg\", \"Y SP completed\", \"Z SP total\". Use existing `lensStats` rendering pattern.",
+      "agent": "default",
+      "status": "completed",
+      "review_attempts": 1,
+      "batch": 1
+    }
+  ],
+  "quality_iterations": 3,
+  "test_iterations": 1,
+  "pr_review_iterations": 2,
+  "last_update": "2026-03-20T03:02:35Z",
+  "log_dir": "/Users/shinytrap/projects/claude-spend/logs/implement-issue/issue-26-20260320-132651",
+  "escalations": [
+    {
+      "stage": "implement-task-4",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "implement-task-1",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "implement-task-1",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "implement-task-2",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "simplify-task-3-iter-1",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "simplify-task-3-iter-1",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    }
+  ],
+  "task_summary": {
+    "completed": {
+      "S": 2,
+      "M": 1,
+      "L": 1
+    },
+    "failed": {
+      "S": 0,
+      "M": 0,
+      "L": 0
+    },
+    "sp_completed": 10,
+    "sp_total": 10
+  }
+}

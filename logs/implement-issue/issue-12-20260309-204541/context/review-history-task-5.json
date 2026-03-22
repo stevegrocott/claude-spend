@@ -1,0 +1,32 @@
+[
+  {
+    "iteration": 1,
+    "issues": [
+      {
+        "severity": "major",
+        "file": "src/public/index.html",
+        "line": 810,
+        "description": "Dead markup: `pipelineChartsGrid` contains 5 canvas elements (`pipelineRunsChart`, `pipelineErrorChart`, `pipelineCompletionChart`, `pipelineQualityChart`, `pipelineTestChart`) that have no corresponding JavaScript to render or display them. The container has `display:none` and `renderPipeline()` never references any of these canvas IDs. These will silently never render. Either add the chart-rendering logic to `renderPipeline()` (and call `pipelineChartsGrid.style.display = 'grid'` when data exists), or remove these placeholder elements until the implementation is complete."
+      }
+    ],
+    "result": "changes_requested"
+  },
+  {
+    "iteration": 2,
+    "issues": [
+      {
+        "file": "src/public/index.html",
+        "line": 1092,
+        "severity": "minor",
+        "description": "dateRangeMonths: Math.max(1, NaN) returns NaN, not 1. If dateRange.from or dateRange.to contains an invalid (non-null) date string, months becomes NaN and saving badges display '~NaN tokens/mo'. Add: if (isNaN(from.getTime()) || isNaN(to.getTime())) return 1; after constructing the Date objects."
+      },
+      {
+        "file": "src/public/index.html",
+        "line": 1123,
+        "severity": "minor",
+        "description": "saving.tokens is set in all 4 recommendation push sites but never read — renderRecommendations only uses rec.saving.label. Either remove the tokens field or add a comment explaining it is reserved for future sort-by-impact use."
+      }
+    ],
+    "result": "changes_requested"
+  }
+]

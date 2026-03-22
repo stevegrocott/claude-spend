@@ -1,0 +1,205 @@
+{
+  "state": "completed",
+  "issue": "28",
+  "base_branch": "main",
+  "branch": "feature/issue-28",
+  "current_stage": "complete",
+  "current_task": 4,
+  "stages": {
+    "parse_issue": {
+      "status": "completed",
+      "started_at": "2026-03-20T04:16:56Z",
+      "completed_at": "2026-03-20T04:16:57Z"
+    },
+    "validate_plan": {
+      "status": "completed",
+      "started_at": "2026-03-20T04:16:57Z",
+      "completed_at": "2026-03-20T04:16:58Z"
+    },
+    "implement": {
+      "status": "completed",
+      "task_progress": "3/4",
+      "started_at": "2026-03-20T04:16:58Z",
+      "completed_at": "2026-03-20T04:52:14Z"
+    },
+    "quality_loop": {
+      "status": "completed",
+      "iteration": 4,
+      "completed_at": "2026-03-20T04:52:14Z"
+    },
+    "test_loop": {
+      "status": "completed",
+      "iteration": 1,
+      "started_at": "2026-03-20T04:52:14Z",
+      "completed_at": "2026-03-20T04:52:50Z"
+    },
+    "e2e_verify": {
+      "status": "completed",
+      "started_at": "2026-03-20T04:52:50Z",
+      "completed_at": "2026-03-20T04:52:50Z"
+    },
+    "acceptance_test": {
+      "status": "completed",
+      "started_at": "2026-03-20T04:52:50Z",
+      "completed_at": "2026-03-20T04:52:51Z"
+    },
+    "deploy_verify": {
+      "status": "completed",
+      "started_at": "2026-03-20T04:52:51Z",
+      "completed_at": "2026-03-20T04:52:51Z"
+    },
+    "docs": {
+      "status": "completed",
+      "started_at": "2026-03-20T04:52:52Z",
+      "model": "haiku",
+      "completed_at": "2026-03-20T04:53:06Z"
+    },
+    "pr": {
+      "status": "completed",
+      "started_at": "2026-03-20T04:53:06Z",
+      "model": "sonnet",
+      "pr_number": 29,
+      "completed_at": "2026-03-20T04:53:35Z"
+    },
+    "pr_review": {
+      "status": "completed",
+      "iteration": 3,
+      "started_at": "2026-03-20T04:53:35Z",
+      "completed_at": "2026-03-20T05:14:42Z"
+    },
+    "complete": {
+      "status": "completed",
+      "started_at": "2026-03-20T05:14:42Z",
+      "model": "haiku",
+      "completed_at": "2026-03-20T05:15:18Z"
+    },
+    "implement_task_1": {
+      "model": "sonnet"
+    },
+    "simplify_task_1_iter_1": {
+      "model": "haiku"
+    },
+    "review_task_1_iter_1": {
+      "model": "sonnet"
+    },
+    "fix_review_task_1_iter_1": {
+      "model": "sonnet"
+    },
+    "simplify_task_1_iter_2": {
+      "model": "haiku"
+    },
+    "review_task_1_iter_2": {
+      "model": "sonnet"
+    },
+    "implement_task_2": {
+      "model": "sonnet"
+    },
+    "implement_task_3": {
+      "model": "haiku"
+    },
+    "simplify_task_2_iter_1": {
+      "model": "haiku"
+    },
+    "review_task_2_iter_1": {
+      "model": "sonnet"
+    },
+    "implement_task_4": {
+      "model": "haiku"
+    },
+    "test_iter_1": {
+      "model": "haiku"
+    },
+    "pr_review_iter_1": {
+      "model": "sonnet"
+    },
+    "fix_pr_review_iter_1": {
+      "model": "sonnet"
+    },
+    "pr_review_iter_2": {
+      "model": "sonnet"
+    },
+    "fix_pr_review_iter_2": {
+      "model": "sonnet"
+    }
+  },
+  "tasks": [
+    {
+      "id": 1,
+      "description": "**(M)** In `src/parser.js`, add a `computePPMTAnalysis(runs, dailyUsage)` function that computes: (1) `taskSizeCompletion` — S/M/L completion rates with counts, (2) `escalationCorrelation` — completion rates by escalation count bucket (0, 1-2, 3-5, 6+), (3) `failureBreakdown` — counts by failure type (parse_failure where taskCount=0, error, max_iterations_pr_review, stuck_running), (4) `taskCountCorrelation` — avg task count for completed vs failed runs with optimal range, (5) `topEscalationStages` — top 5 stages by escalation count, (6) `projectYield` — per-project SP yield percentages, (7) `ppmtByDay` — daily PP/MT values joining run SP with session tokens by date. Wire this into the orchestrator summary returned by the API.",
+      "agent": "default",
+      "status": "in_progress",
+      "review_attempts": 0,
+      "batch": 1
+    },
+    {
+      "id": 2,
+      "description": "**(M)** In `src/parser.js`, add a `generatePPMTRecommendations(analysis)` function that takes the output of `computePPMTAnalysis` and produces a ranked `recommendations[]` array. Each recommendation has: `id`, `priority` (1=highest), `ppmt_impact` (estimated improvement), `title`, `detail` (with specific numbers from the data), `evidence` (raw data backing the claim), `action` (specific step to take). Generate recommendations for: (a) M-task splitting if M completion% < S completion% by >15 points, (b) parse failures if >2 exist (cite specific issue numbers), (c) task count reduction if avg failed task count > avg completed by >1.5, (d) PR review loop if >2 max_iterations_pr_review runs exist, (e) max_turns_exhausted if top stage has >10 escalations (cite stage name and suggest reorder/split), (f) project-specific yield if any project's yield is <20%, (g) 0-escalation failure pattern if >30% of failures have 0 escalations. Only generate a rec if minimum sample size (5 runs) is met.",
+      "agent": "default",
+      "status": "completed",
+      "review_attempts": 1,
+      "batch": 2
+    },
+    {
+      "id": 3,
+      "description": "**(S)** In `src/public/index.html`, replace `clientGenerateRecommendations()` (~line 1157-1340) with a `renderPPMTRecommendations()` function that reads `FILTERED.orchestrator.summary.recommendations` from the API response and renders them. Remove the 4 lens categories (model/context/conversation/pipeline). Render a single \"Efficiency\" section with recommendations sorted by priority. Each card shows: title, detail text, evidence stats, action text, and PP/MT impact badge.",
+      "agent": "default",
+      "status": "completed",
+      "review_attempts": 1,
+      "batch": 2
+    },
+    {
+      "id": 4,
+      "description": "**(S)** Update `lensStats` in `src/public/index.html` (~line 1900-1910): replace cost/speed/quality stat pills with PP/MT-focused pills reading from `FILTERED.orchestrator.summary.ppmtAnalysis`: current PP/MT (from ppmtByDay latest), trend arrow (comparing recent 3 days vs prior 3 days), yield % (total SP completed / total SP attempted), and top waste category (largest failure type from failureBreakdown).",
+      "agent": "default",
+      "status": "completed",
+      "review_attempts": 1,
+      "batch": 3
+    }
+  ],
+  "quality_iterations": 4,
+  "test_iterations": 1,
+  "pr_review_iterations": 3,
+  "last_update": "2026-03-20T05:15:18Z",
+  "log_dir": "/Users/shinytrap/projects/claude-spend/logs/implement-issue/issue-28-20260320-151655",
+  "escalations": [
+    {
+      "stage": "simplify-task-1-iter-2",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "implement-task-3",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "implement-task-3",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "implement-task-4",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "fix-pr-review-iter-1",
+      "from_model": "sonnet",
+      "to_model": "opus",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "fix-pr-review-iter-2",
+      "from_model": "sonnet",
+      "to_model": "opus",
+      "reason": "max_turns_exhausted"
+    }
+  ],
+  "degraded_stages": [
+    "pr_review:max_iterations:iter=3"
+  ]
+}

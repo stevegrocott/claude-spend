@@ -1,0 +1,125 @@
+{
+  "schema_version": "1",
+  "issue": "10",
+  "base_branch": "main",
+  "branch": "feature/issue-10",
+  "state": "max_iterations_pr_review",
+  "started_at": "2026-03-09T08:53:23Z",
+  "completed_at": "2026-03-09T09:08:31Z",
+  "total_duration_seconds": 908,
+  "stages": {
+    "parse_issue": {
+      "status": "completed",
+      "started_at": "2026-03-09T08:53:23Z",
+      "completed_at": "2026-03-09T08:53:24Z",
+      "duration_seconds": 1
+    },
+    "validate_plan": {
+      "status": "completed",
+      "started_at": "2026-03-09T08:53:24Z",
+      "completed_at": "2026-03-09T08:53:26Z",
+      "duration_seconds": 2
+    },
+    "implement": {
+      "status": "completed",
+      "task_progress": "2/4",
+      "started_at": "2026-03-09T08:53:26Z",
+      "completed_at": "2026-03-09T09:07:29Z",
+      "duration_seconds": 843
+    },
+    "quality_loop": {
+      "status": "completed",
+      "iteration": 0,
+      "completed_at": "2026-03-09T09:07:29Z",
+      "duration_seconds": null
+    },
+    "test_loop": {
+      "status": "completed",
+      "iteration": 1,
+      "started_at": "2026-03-09T09:07:29Z",
+      "completed_at": "2026-03-09T09:07:57Z",
+      "duration_seconds": 28
+    },
+    "e2e_verify": {
+      "status": "completed",
+      "started_at": "2026-03-09T09:07:57Z",
+      "completed_at": "2026-03-09T09:07:57Z",
+      "duration_seconds": 0
+    },
+    "acceptance_test": {
+      "status": "completed",
+      "started_at": "2026-03-09T09:07:57Z",
+      "completed_at": "2026-03-09T09:07:58Z",
+      "duration_seconds": 1
+    },
+    "deploy_verify": {
+      "status": "completed",
+      "started_at": "2026-03-09T09:07:58Z",
+      "completed_at": "2026-03-09T09:07:58Z",
+      "duration_seconds": 0
+    },
+    "docs": {
+      "status": "completed",
+      "started_at": "2026-03-09T09:07:58Z",
+      "completed_at": "2026-03-09T09:07:59Z",
+      "duration_seconds": 1
+    },
+    "pr": {
+      "status": "completed",
+      "started_at": "2026-03-09T09:07:59Z",
+      "model": "haiku",
+      "pr_number": 11,
+      "completed_at": "2026-03-09T09:08:31Z",
+      "duration_seconds": 32
+    },
+    "pr_review": {
+      "status": "in_progress",
+      "iteration": 2,
+      "started_at": "2026-03-09T09:08:31Z",
+      "duration_seconds": null
+    },
+    "complete": {
+      "status": "pending",
+      "duration_seconds": null
+    },
+    "implement_task_2": {
+      "model": "haiku",
+      "duration_seconds": null
+    },
+    "implement_task_3": {
+      "model": "haiku",
+      "duration_seconds": null
+    },
+    "test_iter_1": {
+      "model": "haiku",
+      "duration_seconds": null
+    },
+    "pr_review_iter_1": {
+      "model": "sonnet",
+      "duration_seconds": null
+    },
+    "fix_pr_review_iter_1": {
+      "model": "sonnet",
+      "duration_seconds": null
+    }
+  },
+  "iteration_summary": {
+    "quality_iterations": 0,
+    "test_iterations": 1,
+    "pr_review_iterations": 2
+  },
+  "escalations": [
+    {
+      "stage": "implement-task-2",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    },
+    {
+      "stage": "implement-task-3",
+      "from_model": "haiku",
+      "to_model": "sonnet",
+      "reason": "max_turns_exhausted"
+    }
+  ]
+}

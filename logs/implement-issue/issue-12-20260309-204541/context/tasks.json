@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "description": "**(S)** Update `REC_PRICING` in `src/public/index.html` (line 1080) to current Claude 4.6 API rates: opus `{input: 5, output: 25}`, sonnet `{input: 3, output: 15}`, haiku `{input: 1, output: 5}`. These are used only for relative cost weighting between tiers, not for dollar display. Scope: 1 file, 1 line. Done when: pricing constants match current rates.",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 1
+  },
+  {
+    "id": 2,
+    "description": "**(S)** Add a `dateRangeMonths()` helper near `recFmtDollars` in `src/public/index.html` (~line 1096) that computes the number of months spanned by the current `FILTERED.totals.dateRange` (min 1 month). Replace `recFmtDollars()` with `recFmtTokenSaving(totalTokensSaved)` that normalizes to per-month using `dateRangeMonths()` and formats as e.g., \"~1.2M tokens/mo\". Scope: 1 file, ~15 lines. Done when: new formatter produces readable per-month token strings.",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 2
+  },
+  {
+    "id": 3,
+    "description": "**(M)** Rewrite all saving calculations in `clientGenerateRecommendations()` (lines 1098-1275) in `src/public/index.html` to use token savings instead of dollar savings. For each recommendation that currently computes dollar savings: (1) calculate the token difference instead (e.g., Opus tokens that would become Sonnet tokens = same tokens, just cheaper per unit — reframe as \"tokens saved by using a lighter model that consumes less of your budget\"), (2) store as `saving: { tokens: N, label: '~1.2M tokens/mo' }` instead of a dollar number. Update recommendation text strings to remove dollar references and use token/headroom language. For the \"74% Opus\" rec (line 1134): replace `recEstimateCost(opusInp, opusOut, 'opus') * 0.4` with actual token savings calculation — Opus costs ~1.67x more budget per token than Sonnet (ratio of API rates as proxy for budget consumption), so shifting 40% of Opus to Sonnet saves `opusTokens * 0.4 * (1 - sonnetRate/opusRate)` effective tokens. Scope: 1 file, ~40 lines. Done when: all `saving` fields use token-based values, no dollar strings remain in recommendation text.",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 3
+  },
+  {
+    "id": 4,
+    "description": "**(S)** Update the saving badge rendering in `renderRecommendations()` (line 1301) in `src/public/index.html` to display `rec.saving.label` (e.g., \"~1.2M tokens/mo\") instead of `~${recFmtDollars(rec.saving)} est.`. Update the `.rec-saving` CSS class (line 320) if needed for wider badges. Scope: 1 file, ~5 lines. Done when: badges show per-month token savings instead of dollar amounts.",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 4
+  },
+  {
+    "id": 5,
+    "description": "**(M)** Add explanatory tooltips to all card and chart titles in `src/public/index.html` that currently lack them. Use the existing `has-tooltip` CSS pattern (hover to reveal). Titles needing tooltips: (1) Recommendations section title (line 773) — \"Actionable suggestions to reduce token usage, ranked by potential impact\"; (2) Recommendation lens titles rendered in `renderRecommendations()` (line 1315) — Model: \"Switch to cheaper models for simple tasks\", Context: \"Reduce tokens Claude re-reads each turn\", Conversation: \"Optimize session length and prompt specificity\", Pipeline: \"Improve automated pipeline efficiency\"; (3) Insights section title (line 784) — \"Data-driven observations about your usage patterns\"; (4) Lens stat pills rendered in `renderInsights()` (line 1724) — add a `tip` field to each lensStats entry and render as tooltip; (5) Pipeline Efficiency section title (line 807) — \"Automated pipeline run metrics from orchestrator logs\"; (6) Pipeline mini chart titles in HTML (lines 810-816) — Runs per Day: \"Number of orchestrator pipeline runs each day\", Error Rate: \"Percentage of runs that ended in error each day\", Completion %: \"Percentage of runs that completed successfully each day\", Quality Iterations: \"Average quality review loops per run each day\", Test Iterations: \"Average test fix loops per run each day\"; (7) Projects section title (line 878) — \"Token usage broken down by project/codebase\"; (8) Sessions section title (line 925) — \"Every conversation with Claude, sorted by token cost\". Scope: 1 file, ~30 lines. Done when: hovering any title shows an explanatory tooltip.",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 5
+  },
+  {
+    "id": 6,
+    "description": "**(S)** Update Playwright tests in `tests/dashboard-cards.spec.js` — the test \"each recommendation has text content and optional saving badge\" (line 112) should verify that saving badges, when present, contain \"tokens/mo\" not dollar signs. Add a test that pipeline chart titles have tooltips. Scope: 1 file, ~10 lines. Done when: all Playwright tests pass.",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 1
+  }
+]

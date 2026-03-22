@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "description": "**(S)** Fix lens value capitalization in `src/parser.js` — normalize all `insight.lens` values to lowercase before returning from `generateInsights()`. Search for where lens is assigned (grep for `lens:` in parser.js) and add `.toLowerCase()` or change source strings to lowercase.",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 1
+  },
+  {
+    "id": 2,
+    "description": "**(S)** Debug and fix `renderPipeline()` in `src/public/index.html` — open browser console on http://localhost:3456, identify the JS error, fix the data structure mismatch. The function checks `RAW_DATA.orchestrator.summary.totalRuns > 0` but the data path may differ. Add `console.log(RAW_DATA.orchestrator)` temporarily to diagnose.",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 1
+  },
+  {
+    "id": 3,
+    "description": "**(S)** Fix insight count mismatch — investigate why only 10 of 20 insights render. Check if there's a `.slice(0, 10)` or a filter in `renderInsights()` or in the data pipeline. If intentional, update test expectations; if a bug, remove the cap.",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 1
+  },
+  {
+    "id": 4,
+    "description": "**(S)** Verify projects, top prompts, and sessions render after pipeline fix — if the cascade hypothesis is correct, these should work once `renderPipeline()` is fixed. If they still fail, debug each individually by checking `#projectsBody`, `#topPromptsList`, `#sessionsBody` DOM targets exist and `FILTERED` data is populated.",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 1
+  },
+  {
+    "id": 5,
+    "description": "**(S)** Run full Playwright test suite (`npx playwright test --reporter=list`) and verify all 49 tests pass. Fix any remaining test selector mismatches (e.g., `.proj-row` vs actual class names).",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 1
+  }
+]

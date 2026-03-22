@@ -1,0 +1,11 @@
+{
+    "type": "result",
+    "subtype": "error_max_turns",
+    "duration_ms": 19021,
+    "duration_api_ms": 16681,
+    "is_error": false,
+    "num_turns": 15,
+    "result": null,
+    "session_id": "a4ab2523-c342-4a05-bb2c-1d51fe852820",
+    "total_cost_usd": 0.054788
+}

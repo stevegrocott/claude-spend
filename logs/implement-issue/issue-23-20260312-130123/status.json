@@ -1,0 +1,100 @@
+{
+  "state": "running",
+  "issue": "23",
+  "base_branch": "main",
+  "branch": "",
+  "current_stage": "parse_issue",
+  "current_task": null,
+  "stages": {
+    "parse_issue": {
+      "status": "in_progress",
+      "started_at": "2026-03-12T02:01:25Z",
+      "completed_at": null
+    },
+    "validate_plan": {
+      "status": "pending",
+      "started_at": null,
+      "completed_at": null
+    },
+    "implement": {
+      "status": "pending",
+      "task_progress": "0/3"
+    },
+    "quality_loop": {
+      "status": "pending",
+      "iteration": 0
+    },
+    "test_loop": {
+      "status": "pending",
+      "iteration": 0
+    },
+    "e2e_verify": {
+      "status": "pending"
+    },
+    "acceptance_test": {
+      "status": "pending"
+    },
+    "deploy_verify": {
+      "status": "pending"
+    },
+    "docs": {
+      "status": "pending"
+    },
+    "pr": {
+      "status": "pending"
+    },
+    "pr_review": {
+      "status": "pending",
+      "iteration": 0
+    },
+    "complete": {
+      "status": "pending"
+    }
+  },
+  "tasks": [
+    {
+      "id": 1,
+      "description": "**(M)** Add optional `dateRange` parameter to `renderMiniTimeSeries()` in `src/public/index.html`. When provided as `{from: 'YYYY-MM-DD', to: 'YYYY-MM-DD'}`, compute X positions relative to the full range instead of the data array index. Fill missing dates with gaps in the line (moveTo instead of lineTo). Update X-axis labels to span the full range.",
+      "agent": "default",
+      "status": "pending",
+      "review_attempts": 0,
+      "batch": 1
+    },
+    {
+      "id": 2,
+      "description": "**(S)** In `renderSpeedSection()` (called from `renderCostSection`/`renderSpeedSection`/`renderQualitySection`), compute the unified date range from both session `dailyUsage` dates and orchestrator run dates. Pass this range to all `renderMiniTimeSeries()` calls within the same lens section.",
+      "agent": "default",
+      "status": "pending",
+      "review_attempts": 0,
+      "batch": 1
+    },
+    {
+      "id": 3,
+      "description": "**(S)** Apply the same unified date range to Quality lens mini time-series (completion %, avg quality iterations, avg test iterations) so they align with session-derived charts in that section.",
+      "agent": "default",
+      "status": "pending",
+      "review_attempts": 0,
+      "batch": 1
+    }
+  ],
+  "quality_iterations": 0,
+  "test_iterations": 0,
+  "pr_review_iterations": 0,
+  "last_update": "2026-03-12T02:01:26Z",
+  "log_dir": "logs/implement-issue/issue-23-20260312-130123",
+  "escalations": [],
+  "task_summary": {
+    "completed": {
+      "S": 0,
+      "M": 0,
+      "L": 0
+    },
+    "failed": {
+      "S": 0,
+      "M": 0,
+      "L": 0
+    },
+    "sp_completed": 0,
+    "sp_total": 5
+  }
+}

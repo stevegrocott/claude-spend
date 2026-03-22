@@ -1,0 +1,37 @@
+[
+  {
+    "iteration": 1,
+    "issues": [
+      {
+        "file": "src/parser.js",
+        "line": 706,
+        "severity": "minor",
+        "description": "avgSPPerWeek is semantically misleading for short time windows. The `Math.max(1, weeks)` clamp means any date range shorter than 7 days is treated as a full week, causing avgSPPerWeek to equal completedSP (total, not normalized). Likewise, the single-date branch sets avgSPPerWeek = completedSP directly with no normalization. For a user who sees '5 SP/week' in the stats pills but only has 2 days of data, the metric is inflated. Either: (a) add a comment clarifying the intentional clamping behavior, (b) rename to avgSPPerWeekOrTotal when span < 7d, or (c) compute a true partial-week rate (completedSP / weeks) even when weeks < 1."
+      },
+      {
+        "file": "src/public/index.html",
+        "line": 2889,
+        "severity": "minor",
+        "description": "Single data-point bar rendering may clip outside left chart boundary. When days.length === 1, the bar x position is `startX + (0/1)*plotW - barW/2 = startX - barW/2`, which draws barW/2 pixels left of the chart start (startX). This is a visual edge-case bug. Fix by clamping: `const x = Math.max(startX, startX + (i / Math.max(1, days.length - 1)) * plotW - barW / 2)`."
+      }
+    ],
+    "result": "changes_requested"
+  },
+  {
+    "iteration": 2,
+    "issues": [],
+    "result": "approved"
+  },
+  {
+    "iteration": 1,
+    "issues": [
+      {
+        "file": "src/parser.js",
+        "line": 681,
+        "severity": "minor",
+        "description": "avgSPPerWeek is an extrapolated weekly rate, not a true average over completed weeks. For datasets shorter than 7 days (e.g., 3 days of data with 10 SP), this will report ~23 SP/week — a projection, not an average. The UI label 'SP/week avg' implies averaging over completed weeks. Consider documenting this in the tooltip or clamping/flagging for datasets under one week of history."
+      }
+    ],
+    "result": "approved"
+  }
+]

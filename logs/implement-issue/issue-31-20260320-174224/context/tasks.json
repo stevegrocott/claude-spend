@@ -1,0 +1,34 @@
+[
+  {
+    "id": 1,
+    "description": "**(S)** In `src/parser.js`, add `computeSessionEfficiency(sessions)` function that: (1) categorizes each session as `pipeline_subagent` (query count <= 50 AND prompt matches orchestrator patterns) or `interactive`, (2) computes token split between categories, (3) identifies marathon sessions (100+ queries) with date/firstPrompt/tokens, (4) counts implementation-like prompts (first prompt matches fix/add/update/create/build/refactor patterns), (5) computes context balloon curve: average tokens-per-query at query positions 1-10, 11-50, 51-100, 100+. Return as `sessionEfficiency` object in the API response alongside orchestrator summary.",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 1
+  },
+  {
+    "id": 2,
+    "description": "**(S)** In `src/parser.js`, add `generateSessionRecommendations(efficiency)` that produces recommendations array: (a) marathon sessions if any session > 200 queries (cite specific sessions), (b) implementation outside pipeline if > 10 implementation-like sessions exist, (c) low pipeline coverage if pipeline tokens < 40% of total, (d) context balloon warning if avg tokens/query at position 100+ exceeds 10x position 1-10 average. Each recommendation has `id`, `title`, `detail` with specific numbers, `action`.",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 2
+  },
+  {
+    "id": 3,
+    "description": "**(M)** In `src/public/index.html`, add a \"Session Efficiency\" section after the PP/100MT driver charts. Contains: (1) Pipeline vs Interactive token split — a horizontal stacked bar showing 26%/74% split with token counts, (2) Session recommendations — rendered like the Efficiency recommendations but for non-pipeline patterns, (3) Context cost curve — simple line chart showing average tokens-per-query at different session lengths (shows the exponential cost of long sessions). Explainer: \"Tokens spent outside the pipeline don't produce tracked story points. These recommendations help you get more value from interactive sessions.\"",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 1
+  },
+  {
+    "id": 4,
+    "description": "**(S)** Update Playwright tests in `tests/dashboard-cards.spec.js`: add tests for Session Efficiency section rendering, pipeline/interactive split bar, and session recommendations.",
+    "agent": "default",
+    "status": "pending",
+    "review_attempts": 0,
+    "batch": 1
+  }
+]

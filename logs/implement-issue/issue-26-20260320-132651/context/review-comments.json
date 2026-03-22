@@ -1,0 +1,9 @@
+**What's done well:**
+- `parseTaskSummary` correctly handles the upstream `task_summary` passthrough vs. local parsing fallback — good defensive design.
+- The `|| 0` guards on `storyPointsCompleted` and `storyPointsTotal` aggregation correctly handle missing fields.
+- DPR scaling in the canvas chart is correctly implemented (scale after setting canvas dimensions).
+- `velocityStats: null` default in `emptySummary()` is properly guarded in the render function.
+- Using `validRuns` (filtered from `initializing` state) is correct — avoids skewing velocity with incomplete runs.
+- The chart is hidden via `display:none` when no data exists — correct graceful degradation.
+- Resize handler is properly updated to include the new chart.
+- Variable name `d` is reused across closures in the velocity stats block (run date slice and reduce callback) — not a bug but worth a rename for readability (`spItem` or `entry` for the reduce callback).
