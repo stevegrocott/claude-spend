@@ -1460,6 +1460,16 @@ function recomputePpmtAnalysis(runs, sessionEff) {
   return { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield, ppmtByDay, pp100mt, pipelineTokens };
 }
 
+// Normalize model name to haiku/sonnet/opus/unknown
+function clientNormalizeModel(m) {
+  if (!m) return 'unknown';
+  const ml = m.toLowerCase();
+  if (ml.includes('haiku')) return 'haiku';
+  if (ml.includes('opus')) return 'opus';
+  if (ml.includes('sonnet')) return 'sonnet';
+  return 'unknown';
+}
+
 // Client-side recompute of sessionEfficiency for date-filtered sessions
 function recomputeSessionEfficiency(sessions) {
   const pipeline = { sessions: 0, tokens: 0, queries: 0 };
@@ -1554,14 +1564,18 @@ function recomputeSessionEfficiency(sessions) {
     const isPipe = s.sessionType === 'pipeline_subagent';
     const d = s.date;
     if (!d) continue;
-    if (!dayMap[d]) dayMap[d] = { queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0 };
+    if (!dayMap[d]) dayMap[d] = { queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0, interactiveByModel: { haiku: 0, sonnet: 0, opus: 0, unknown: 0 }, pipelineByModel: { haiku: 0, sonnet: 0, opus: 0, unknown: 0 } };
     if (isPipe) {
       dayMap[d].pipelineTokens += s.totalTokens || 0;
+      const pm = clientNormalizeModel(s.model || s.primaryModel || '');
+      dayMap[d].pipelineByModel[pm] = (dayMap[d].pipelineByModel[pm] || 0) + (s.totalTokens || 0);
     } else {
       dayMap[d].sessions++;
       dayMap[d].queries += s.queryCount || 0;
       dayMap[d].tokens += s.totalTokens || 0;
       if ((s.queryCount || 0) <= 20) dayMap[d].shortSessions++;
+      const im = clientNormalizeModel(s.model || s.primaryModel || '');
+      dayMap[d].interactiveByModel[im] = (dayMap[d].interactiveByModel[im] || 0) + (s.totalTokens || 0);
     }
   }
   const efficiencyByDay = Object.keys(dayMap).sort().map(date => {
@@ -1574,6 +1588,9 @@ function recomputeSessionEfficiency(sessions) {
       shortSessionPct: dm.sessions > 0 ? Math.round(dm.shortSessions / dm.sessions * 100) : 0,
       sessionCount: dm.sessions,
       pipelineTokens: dm.pipelineTokens,
+      interactiveByModel: dm.interactiveByModel,
+      pipelineByModel: dm.pipelineByModel,
+      totalTokens: dm.pipelineTokens + dm.tokens,
     };
   });
 
@@ -2862,56 +2879,132 @@ function renderPipelineStackedChart(byDay) {
   const parentW = canvas.parentElement.clientWidth;
   if (parentW < 50) return;
   const w = parentW - 48;
-  const h = 120;
+  const h = 200;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
 
-  const chartH = h - 28;
-  const startX = 32;
-  const plotW = w - startX - 8;
+  const legendH = 68;
+  const chartH = h - legendH - 24; // chart area height
+  const chartTop = 4;
+  const chartBottom = chartTop + chartH;
+  const startX = 38;
+  const endX = w - 38;
+  const plotW = endX - startX;
 
-  // Y-axis: always 0-100%
+  const PIPELINE_COLORS = {
+    haiku:   'rgba(165,180,252,0.7)',
+    sonnet:  'rgba(99,102,241,0.7)',
+    opus:    'rgba(55,48,163,0.75)',
+    unknown: 'rgba(148,163,184,0.5)',
+  };
+  const INTERACTIVE_COLORS = {
+    haiku:   'rgba(253,230,138,0.7)',
+    sonnet:  'rgba(245,158,11,0.7)',
+    opus:    'rgba(180,83,9,0.75)',
+    unknown: 'rgba(148,163,184,0.5)',
+  };
+  const MODEL_ORDER = ['haiku', 'sonnet', 'opus', 'unknown'];
+
+  // Left Y-axis: 0-100%
   ctx.font = '500 9px Inter, system-ui';
   ctx.textAlign = 'right';
   for (let i = 0; i <= 4; i++) {
     const val = i * 25;
-    const y = chartH - (chartH * i / 4) + 4;
+    const y = chartBottom - (chartH * i / 4);
     ctx.fillStyle = '#94A3B8';
     ctx.fillText(val + '%', startX - 4, y + 3);
-    ctx.strokeStyle = 'rgba(0,0,0,0.03)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w - 8, y); ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(endX, y); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Right Y-axis: absolute tokens
+  const maxTotal = Math.max(...byDay.map(d => d.totalTokens || 0), 1);
+  ctx.textAlign = 'left';
+  for (let i = 0; i <= 4; i++) {
+    const val = (maxTotal * i / 4);
+    const y = chartBottom - (chartH * i / 4);
+    const label = val >= 1_000_000 ? (val / 1_000_000).toFixed(1) + 'M'
+                : val >= 1_000 ? (val / 1_000).toFixed(0) + 'K'
+                : val.toFixed(0);
+    ctx.fillStyle = '#94A3B8';
+    ctx.fillText(label, endX + 4, y + 3);
   }
 
   function xPos(i) { return startX + (i / Math.max(1, byDay.length - 1)) * plotW; }
-  function yPos(pct) { return chartH + 4 - (pct / 100) * chartH; }
+  function yPosLeft(pct) { return chartBottom - (pct / 100) * chartH; }
+  function yPosRight(val) { return chartBottom - (val / maxTotal) * chartH; }
 
-  // Pipeline area (bottom, indigo)
-  ctx.beginPath();
-  ctx.moveTo(xPos(0), yPos(0));
-  byDay.forEach((d, i) => ctx.lineTo(xPos(i), yPos(d.pipelineCoveragePct)));
-  ctx.lineTo(xPos(byDay.length - 1), yPos(0));
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(99,102,241,0.35)';
-  ctx.fill();
+  // Compute stacked % values per day
+  // Stack order bottom to top: pipeline-haiku, pipeline-sonnet, pipeline-opus, pipeline-unknown,
+  //                             interactive-haiku, interactive-sonnet, interactive-opus, interactive-unknown
+  // But only show unknown if present. Simplify: always use MODEL_ORDER for both groups.
+  const stackData = byDay.map(d => {
+    const total = (d.totalTokens || 0) || 1;
+    const pby = d.pipelineByModel || {};
+    const iby = d.interactiveByModel || {};
+    const layers = [];
+    let cumPct = 0;
+    // Pipeline layers (bottom)
+    for (const m of MODEL_ORDER) {
+      const tokens = pby[m] || 0;
+      const pct = (tokens / total) * 100;
+      layers.push({ from: cumPct, to: cumPct + pct, color: PIPELINE_COLORS[m] });
+      cumPct += pct;
+    }
+    // Interactive layers (top)
+    for (const m of MODEL_ORDER) {
+      const tokens = iby[m] || 0;
+      const pct = (tokens / total) * 100;
+      layers.push({ from: cumPct, to: cumPct + pct, color: INTERACTIVE_COLORS[m] });
+      cumPct += pct;
+    }
+    return layers;
+  });
 
-  // Interactive area (top, amber)
-  ctx.beginPath();
-  ctx.moveTo(xPos(0), yPos(100));
-  byDay.forEach((d, i) => ctx.lineTo(xPos(i), yPos(d.pipelineCoveragePct)));
-  ctx.lineTo(xPos(byDay.length - 1), yPos(100));
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(245,158,11,0.25)';
-  ctx.fill();
+  // Draw stacked bands (8 bands total)
+  const numLayers = stackData[0] ? stackData[0].length : 0;
+  for (let li = 0; li < numLayers; li++) {
+    ctx.beginPath();
+    // Forward pass: top edge of this layer
+    byDay.forEach((d, i) => {
+      const x = xPos(i);
+      const y = yPosLeft(stackData[i][li].to);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    // Backward pass: bottom edge of this layer
+    for (let i = byDay.length - 1; i >= 0; i--) {
+      ctx.lineTo(xPos(i), yPosLeft(stackData[i][li].from));
+    }
+    ctx.closePath();
+    ctx.fillStyle = stackData[0][li].color;
+    ctx.fill();
+  }
 
-  // Dividing line between pipeline and interactive
-  ctx.strokeStyle = '#6366F1'; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+  // Visual separator at pipeline/interactive boundary
+  ctx.strokeStyle = 'rgba(200,200,210,0.7)'; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
   ctx.beginPath();
   byDay.forEach((d, i) => {
-    const x = xPos(i), y = yPos(d.pipelineCoveragePct);
+    const x = xPos(i);
+    // Pipeline boundary = sum of all pipeline layers = pipelineCoveragePct
+    const y = yPosLeft(d.pipelineCoveragePct || 0);
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   });
+  ctx.stroke();
+
+  // Rolling 3-day average trend line for total tokens (right axis)
+  const trendPts = byDay.map((d, i) => {
+    const slice = byDay.slice(Math.max(0, i - 1), i + 2);
+    const avg = slice.reduce((s, dd) => s + (dd.totalTokens || 0), 0) / slice.length;
+    return { x: xPos(i), y: yPosRight(avg) };
+  });
+  ctx.strokeStyle = 'rgba(30,30,40,0.65)'; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  trendPts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
   ctx.stroke();
 
   // X labels
@@ -2920,21 +3013,50 @@ function renderPipelineStackedChart(byDay) {
   const step = Math.max(1, Math.floor(byDay.length / 6));
   byDay.forEach((d, i) => {
     if (i % step === 0 || i === byDay.length - 1) {
-      ctx.fillText(formatDate(d.date), xPos(i), chartH + 18);
+      ctx.fillText(formatDate(d.date), xPos(i), chartBottom + 14);
     }
   });
 
-  // Legend (inline, small)
+  // Compact 2-column legend
+  const legTop = chartBottom + 22;
   ctx.font = '600 9px Inter, system-ui';
-  const legendY = 10;
-  ctx.fillStyle = 'rgba(99,102,241,0.5)';
-  ctx.fillRect(startX, legendY - 5, 8, 8);
-  ctx.fillStyle = '#6366F1'; ctx.textAlign = 'left';
-  ctx.fillText('Pipeline', startX + 11, legendY + 2);
-  ctx.fillStyle = 'rgba(245,158,11,0.4)';
-  ctx.fillRect(startX + 65, legendY - 5, 8, 8);
-  ctx.fillStyle = '#F59E0B';
-  ctx.fillText('Interactive', startX + 76, legendY + 2);
+  const col1X = startX;
+  const col2X = startX + Math.floor(plotW / 2) + 4;
+  const rowH = 13;
+
+  // Header labels
+  ctx.fillStyle = '#64748B'; ctx.textAlign = 'left';
+  ctx.font = '700 9px Inter, system-ui';
+  ctx.fillText('Pipeline', col1X, legTop);
+  ctx.fillText('Interactive', col2X, legTop);
+
+  ctx.font = '500 9px Inter, system-ui';
+  const modelLabels = { haiku: 'Haiku', sonnet: 'Sonnet', opus: 'Opus', unknown: 'Other' };
+  const displayModels = ['haiku', 'sonnet', 'opus'];
+  displayModels.forEach((m, row) => {
+    const y = legTop + (row + 1) * rowH;
+    // Pipeline column
+    ctx.fillStyle = PIPELINE_COLORS[m];
+    ctx.fillRect(col1X, y - 7, 8, 8);
+    ctx.fillStyle = '#475569'; ctx.textAlign = 'left';
+    ctx.fillText(modelLabels[m], col1X + 11, y);
+    // Interactive column
+    ctx.fillStyle = INTERACTIVE_COLORS[m];
+    ctx.fillRect(col2X, y - 7, 8, 8);
+    ctx.fillStyle = '#475569';
+    ctx.fillText(modelLabels[m], col2X + 11, y);
+  });
+
+  // Trend line legend entry
+  const trendLegY = legTop + 4 * rowH;
+  ctx.strokeStyle = 'rgba(30,30,40,0.65)'; ctx.lineWidth = 1.5;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(col1X, trendLegY - 3);
+  ctx.lineTo(col1X + 8, trendLegY - 3);
+  ctx.stroke();
+  ctx.fillStyle = '#475569'; ctx.textAlign = 'left';
+  ctx.fillText('Token trend (3-day avg)', col1X + 11, trendLegY);
 }
 
 function renderEfficiencyTrends() {

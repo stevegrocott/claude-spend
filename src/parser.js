@@ -1694,11 +1694,13 @@ function computeSessionEfficiency(sessions) {
     if (type === 'pipeline_subagent') continue;
     const d = s.date;
     if (!d) continue;
-    if (!dayMap[d]) dayMap[d] = { queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0 };
+    if (!dayMap[d]) dayMap[d] = { queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0, interactiveByModel: { haiku: 0, sonnet: 0, opus: 0, unknown: 0 }, pipelineByModel: { haiku: 0, sonnet: 0, opus: 0, unknown: 0 } };
     dayMap[d].sessions++;
     dayMap[d].queries += s.queryCount || 0;
     dayMap[d].tokens += s.totalTokens || 0;
     if ((s.queryCount || 0) <= 20) dayMap[d].shortSessions++;
+    const iModel = modelTier(s.model || s.primaryModel || '') || 'unknown';
+    dayMap[d].interactiveByModel[iModel] = (dayMap[d].interactiveByModel[iModel] || 0) + (s.totalTokens || 0);
   }
   // Add pipeline tokens per day (create entry if needed for pipeline-only days)
   for (const s of sessions) {
@@ -1706,8 +1708,10 @@ function computeSessionEfficiency(sessions) {
     if (type !== 'pipeline_subagent') continue;
     const d = s.date;
     if (!d) continue;
-    if (!dayMap[d]) dayMap[d] = { queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0 };
+    if (!dayMap[d]) dayMap[d] = { queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0, interactiveByModel: { haiku: 0, sonnet: 0, opus: 0, unknown: 0 }, pipelineByModel: { haiku: 0, sonnet: 0, opus: 0, unknown: 0 } };
     dayMap[d].pipelineTokens += s.totalTokens || 0;
+    const pModel = modelTier(s.model || s.primaryModel || '') || 'unknown';
+    dayMap[d].pipelineByModel[pModel] = (dayMap[d].pipelineByModel[pModel] || 0) + (s.totalTokens || 0);
   }
   const efficiencyByDay = Object.keys(dayMap).sort().map(date => {
     const dm = dayMap[date];
@@ -1719,6 +1723,9 @@ function computeSessionEfficiency(sessions) {
       shortSessionPct: dm.sessions > 0 ? Math.round(dm.shortSessions / dm.sessions * 100) : 0,
       sessionCount: dm.sessions,
       pipelineTokens: dm.pipelineTokens,
+      interactiveByModel: dm.interactiveByModel,
+      pipelineByModel: dm.pipelineByModel,
+      totalTokens: dm.pipelineTokens + dm.tokens,
     };
   });
 
