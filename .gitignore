@@ -2,3 +2,10 @@ node_modules/
 .env
 .DS_Store
 *.log
+.claude/
+logs/
+status.json
+test-results/
+test-results.json
+inspect-insights.mjs
+test-dashboard.mjs

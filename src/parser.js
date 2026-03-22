@@ -672,7 +672,7 @@ function parseOrchestratorLogs(projectCostMap = {}) {
   runs.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   // Generate summary
-  const validRuns = runs.filter(r => r.state !== 'initializing');
+  const validRuns = runs.filter(r => r.state !== 'initializing' && r.state !== 'running');
   const completedRuns = validRuns.filter(r => r.state === 'completed');
   const errorRuns = validRuns.filter(r => r.state === 'error');
   const maxIterRuns = validRuns.filter(r => r.state.startsWith('max_iterations'));
