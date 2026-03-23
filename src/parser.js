@@ -656,6 +656,7 @@ function parseOrchestratorLogs(projectCostMap = {}) {
             stageModelUsage,
             escalations,
             hasMetrics: metrics !== null,
+            parseIssueCompleted: raw.stages?.parse_issue?.status === 'completed',
             date,
             dirName: entry,
             estimatedCost,
@@ -1369,10 +1370,15 @@ function computePPMTAnalysis(runs, dailyUsage) {
   }
 
   // 3. failureBreakdown — counts by failure type
-  const failureBreakdown = { parse_failure: 0, error: 0, max_iterations_pr_review: 0, running: 0, no_changes: 0, other: 0 };
+  const failureBreakdown = { parse_failure: 0, aborted: 0, error: 0, max_iterations_pr_review: 0, running: 0, no_changes: 0, other: 0 };
   for (const run of runs) {
     if (run.state === 'error' && run.taskCount === 0) {
-      failureBreakdown.parse_failure++;
+      // Distinguish aborted startup crashes from genuine parse failures
+      if (run.parseIssueCompleted) {
+        failureBreakdown.parse_failure++;
+      } else {
+        failureBreakdown.aborted++;
+      }
     } else if (run.state === 'error') {
       failureBreakdown.error++;
     } else if (run.state === 'max_iterations_pr_review') {
