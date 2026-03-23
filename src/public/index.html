@@ -2280,7 +2280,7 @@ function renderTaskCountStat(correlation) {
   const explainer = document.getElementById('taskCountExplainer');
   if (explainer) {
     if (optimal) {
-      explainer.textContent = `Runs with ${optRange[0]}–${optRange[1]} tasks complete most reliably. Completed runs avg ${completedAvg} tasks; failed runs avg ${failedAvg}.`;
+      explainer.textContent = `Runs with ${optRange[0]}–${optRange[1]} tasks had the highest completion rate among groups with 5+ samples. The optimal range reflects which task-count band succeeds most often — the averages above show mean count across all runs.`;
     } else if (completedAvg > 0 && failedAvg > completedAvg) {
       explainer.textContent = `Failed runs average ${failedAvg} tasks vs ${completedAvg} for completed — keeping task counts lower improves success rate.`;
     } else if (completedAvg > 0) {
