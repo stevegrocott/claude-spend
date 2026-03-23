@@ -1387,8 +1387,9 @@ function computePPMTAnalysis(runs, dailyUsage) {
   }
 
   // 4. taskCountCorrelation — avg task count for completed vs failed with optimal range
-  const completedRuns = runs.filter(r => r.state === 'completed');
-  const failedRuns = runs.filter(r => r.state !== 'completed' && r.state !== 'running');
+  // Exclude taskCount === 0 (parse failures that never parsed tasks) — they skew failedAvg
+  const completedRuns = runs.filter(r => r.state === 'completed' && r.taskCount > 0);
+  const failedRuns = runs.filter(r => r.state !== 'completed' && r.state !== 'running' && r.taskCount > 0);
   const completedAvg = completedRuns.length > 0
     ? Math.round(completedRuns.reduce((s, r) => s + r.taskCount, 0) / completedRuns.length)
     : 0;
@@ -1397,10 +1398,11 @@ function computePPMTAnalysis(runs, dailyUsage) {
     : 0;
 
   // Find task count range with highest completion rate (bucket by count)
+  // Exclude taskCount === 0 runs from bucket analysis
   const countBuckets = {};
   for (const run of runs) {
-    // Exclude still-running tasks from optimal range calculation
-    if (run.state === 'running') continue;
+    // Exclude still-running and zero-task runs from optimal range calculation
+    if (run.state === 'running' || run.taskCount === 0) continue;
     const bucket = Math.floor(run.taskCount / 2) * 2; // group by pairs: 0-1, 2-3, 4-5, ...
     if (!countBuckets[bucket]) countBuckets[bucket] = { completed: 0, total: 0 };
     countBuckets[bucket].total++;
