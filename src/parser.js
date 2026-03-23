@@ -450,7 +450,7 @@ async function parseAllSessions() {
 
   // Parse orchestrator logs from project directories
   const orchestrator = parseOrchestratorLogs(projectCostMap);
-  orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs.filter(r => r.state !== 'initializing'), pipelineDailyUsage);
+  orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs.filter(r => r.state !== 'initializing' && r.state !== 'running'), pipelineDailyUsage);
   orchestrator.summary.ppmtAnalysis.pipelineTokens = pipelineTokens;
   orchestrator.summary.recommendations = generatePPMTRecommendations(orchestrator.summary.ppmtAnalysis);
   const orchestratorInsights = generateOrchestratorInsights(orchestrator);
