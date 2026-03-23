@@ -1549,31 +1549,38 @@ function recomputeSessionEfficiency(sessions) {
   marathonSessions.sort((a, b) => b.totalTokens - a.totalTokens);
 
   // Efficiency by day — daily aggregation of interactive session metrics
+  const _mb = m => (m || '').includes('opus') ? 'opus' : (m || '').includes('sonnet') ? 'sonnet' : (m || '').includes('haiku') ? 'haiku' : 'other';
+  const _em = () => ({ haiku: 0, sonnet: 0, opus: 0, other: 0 });
   const dayMap = {};
   for (const s of sessions) {
     const isPipe = s.sessionType === 'pipeline_subagent';
     const d = s.date;
     if (!d) continue;
-    if (!dayMap[d]) dayMap[d] = { queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0 };
+    if (!dayMap[d]) dayMap[d] = { queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0, pipelineByModel: _em(), interactiveByModel: _em() };
     if (isPipe) {
       dayMap[d].pipelineTokens += s.totalTokens || 0;
+      dayMap[d].pipelineByModel[_mb(s.model)] += s.totalTokens || 0;
     } else {
       dayMap[d].sessions++;
       dayMap[d].queries += s.queryCount || 0;
       dayMap[d].tokens += s.totalTokens || 0;
       if ((s.queryCount || 0) <= 20) dayMap[d].shortSessions++;
+      dayMap[d].interactiveByModel[_mb(s.model)] += s.totalTokens || 0;
     }
   }
   const efficiencyByDay = Object.keys(dayMap).sort().map(date => {
     const dm = dayMap[date];
+    const dayTotal = dm.pipelineTokens + dm.tokens;
     return {
       date,
       avgQueriesPerSession: dm.sessions > 0 ? Math.round(dm.queries / dm.sessions) : 0,
       tokensPerQuery: dm.queries > 0 ? Math.round(dm.tokens / dm.queries) : 0,
-      pipelineCoveragePct: (dm.pipelineTokens + dm.tokens) > 0 ? Math.round(dm.pipelineTokens / (dm.pipelineTokens + dm.tokens) * 100) : 0,
+      pipelineCoveragePct: dayTotal > 0 ? Math.round(dm.pipelineTokens / dayTotal * 100) : 0,
       shortSessionPct: dm.sessions > 0 ? Math.round(dm.shortSessions / dm.sessions * 100) : 0,
       sessionCount: dm.sessions,
       pipelineTokens: dm.pipelineTokens,
+      totalTokens: dayTotal,
+      modelTokensByDay: { pipeline: { ...dm.pipelineByModel }, interactive: { ...dm.interactiveByModel } },
     };
   });
 
@@ -2862,79 +2869,161 @@ function renderPipelineStackedChart(byDay) {
   const parentW = canvas.parentElement.clientWidth;
   if (parentW < 50) return;
   const w = parentW - 48;
-  const h = 120;
+  // Extra height for 2-row legend below chart
+  const legendH = 36;
+  const h = 140 + legendH;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
 
-  const chartH = h - 28;
-  const startX = 32;
-  const plotW = w - startX - 8;
+  const chartH = 140 - 28; // plot area height
+  const startX = 36;
+  const endX = w - 40; // reserve right margin for right Y-axis
+  const plotW = endX - startX;
+  const plotTop = 4;
 
-  // Y-axis: always 0-100%
+  // Colors: pipeline = blue family, interactive = amber family
+  const COLORS = {
+    'pipeline-haiku':  'rgba(147,197,253,0.75)', // blue-300
+    'pipeline-sonnet': 'rgba(99,102,241,0.75)',  // indigo-500
+    'pipeline-opus':   'rgba(67,56,202,0.85)',   // indigo-700
+    'interactive-haiku':  'rgba(252,211,77,0.65)',  // amber-300
+    'interactive-sonnet': 'rgba(245,158,11,0.75)',  // amber-500
+    'interactive-opus':   'rgba(180,83,9,0.85)',    // amber-800
+    'trend': '#1E293B',
+  };
+  const LABELS = {
+    'pipeline-haiku': 'Pipe/Haiku', 'pipeline-sonnet': 'Pipe/Sonnet', 'pipeline-opus': 'Pipe/Opus',
+    'interactive-haiku': 'IA/Haiku', 'interactive-sonnet': 'IA/Sonnet', 'interactive-opus': 'IA/Opus',
+    'trend': 'Total tokens',
+  };
+
+  function xPos(i) { return startX + (i / Math.max(1, byDay.length - 1)) * plotW; }
+  function yPct(pct) { return plotTop + chartH - (pct / 100) * chartH; }
+
+  // Left Y-axis grid (0-100%)
   ctx.font = '500 9px Inter, system-ui';
   ctx.textAlign = 'right';
   for (let i = 0; i <= 4; i++) {
     const val = i * 25;
-    const y = chartH - (chartH * i / 4) + 4;
+    const y = yPct(val);
     ctx.fillStyle = '#94A3B8';
     ctx.fillText(val + '%', startX - 4, y + 3);
     ctx.strokeStyle = 'rgba(0,0,0,0.03)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w - 8, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(endX, y); ctx.stroke();
   }
 
-  function xPos(i) { return startX + (i / Math.max(1, byDay.length - 1)) * plotW; }
-  function yPos(pct) { return chartH + 4 - (pct / 100) * chartH; }
+  // Compute stacked bands per day
+  // For each day: pipeline stack = [haiku, sonnet, opus] bottom-up within pipelineCoveragePct
+  //               interactive stack = [haiku, sonnet, opus] bottom-up within interactiveCoveragePct
+  function bandData(day) {
+    const total = day.totalTokens || 0;
+    const mtd = day.modelTokensByDay || {};
+    const pipe = mtd.pipeline || {};
+    const ia = mtd.interactive || {};
+    const pipeTotal = day.pipelineTokens || 0;
+    const iaTotal = total - pipeTotal;
+    const toPct = (v, groupTotal) => (total > 0 && groupTotal > 0) ? (v / total) * 100 : 0;
+    return [
+      toPct(pipe.haiku || 0, pipeTotal),
+      toPct(pipe.sonnet || 0, pipeTotal),
+      toPct(pipe.opus || 0, pipeTotal),
+      toPct(ia.haiku || 0, iaTotal),
+      toPct(ia.sonnet || 0, iaTotal),
+      toPct(ia.opus || 0, iaTotal),
+    ];
+  }
 
-  // Pipeline area (bottom, indigo)
-  ctx.beginPath();
-  ctx.moveTo(xPos(0), yPos(0));
-  byDay.forEach((d, i) => ctx.lineTo(xPos(i), yPos(d.pipelineCoveragePct)));
-  ctx.lineTo(xPos(byDay.length - 1), yPos(0));
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(99,102,241,0.35)';
-  ctx.fill();
+  const bandKeys = ['pipeline-haiku', 'pipeline-sonnet', 'pipeline-opus', 'interactive-haiku', 'interactive-sonnet', 'interactive-opus'];
 
-  // Interactive area (top, amber)
-  ctx.beginPath();
-  ctx.moveTo(xPos(0), yPos(100));
-  byDay.forEach((d, i) => ctx.lineTo(xPos(i), yPos(d.pipelineCoveragePct)));
-  ctx.lineTo(xPos(byDay.length - 1), yPos(100));
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(245,158,11,0.25)';
-  ctx.fill();
+  // Draw 6 stacked bands (filled polygons)
+  for (let b = 5; b >= 0; b--) {
+    // cumulative bottom for band b = sum of bands 0..b-1
+    const getBottom = (day, idx) => bandData(day).slice(0, idx).reduce((s, v) => s + v, 0);
+    const getTop = (day, idx) => getBottom(day, idx) + bandData(day)[idx];
 
-  // Dividing line between pipeline and interactive
-  ctx.strokeStyle = '#6366F1'; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    // bottom edge left→right
+    byDay.forEach((d, i) => {
+      const x = xPos(i), y = yPct(getBottom(d, b));
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    // top edge right→left
+    for (let i = byDay.length - 1; i >= 0; i--) {
+      ctx.lineTo(xPos(i), yPct(getTop(byDay[i], b)));
+    }
+    ctx.closePath();
+    ctx.fillStyle = COLORS[bandKeys[b]];
+    ctx.fill();
+  }
+
+  // Separator line at pipeline/interactive boundary
+  ctx.strokeStyle = 'rgba(100,116,139,0.5)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
   ctx.beginPath();
   byDay.forEach((d, i) => {
-    const x = xPos(i), y = yPos(d.pipelineCoveragePct);
+    const sepPct = bandData(d).slice(0, 3).reduce((s, v) => s + v, 0);
+    const x = xPos(i), y = yPct(sepPct);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Right Y-axis: absolute total tokens in M
+  const maxTokens = Math.max(...byDay.map(d => d.totalTokens || 0));
+  const tokenScale = maxTokens > 0 ? maxTokens : 1;
+  function yAbs(tokens) { return plotTop + chartH - (tokens / tokenScale) * chartH; }
+
+  // Rolling 3-day average of total tokens
+  const rolling = byDay.map((d, i) => {
+    const win = byDay.slice(Math.max(0, i - 2), i + 1);
+    return win.reduce((s, w) => s + (w.totalTokens || 0), 0) / win.length;
+  });
+
+  ctx.strokeStyle = COLORS.trend; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  rolling.forEach((v, i) => {
+    const x = xPos(i), y = yAbs(v);
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   });
   ctx.stroke();
 
+  // Right Y-axis labels (0, mid, max in M)
+  ctx.font = '500 9px Inter, system-ui'; ctx.textAlign = 'left'; ctx.fillStyle = '#94A3B8';
+  const fmtM = v => v >= 1e9 ? (v / 1e9).toFixed(1) + 'B' : v >= 1e6 ? (v / 1e6).toFixed(0) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : String(v);
+  ctx.fillText(fmtM(maxTokens), endX + 3, yAbs(maxTokens) + 3);
+  ctx.fillText(fmtM(maxTokens / 2), endX + 3, yAbs(maxTokens / 2) + 3);
+  ctx.fillText('0', endX + 3, yAbs(0) + 3);
+
   // X labels
   ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
-  ctx.font = '500 9px Inter, system-ui';
   const step = Math.max(1, Math.floor(byDay.length / 6));
   byDay.forEach((d, i) => {
     if (i % step === 0 || i === byDay.length - 1) {
-      ctx.fillText(formatDate(d.date), xPos(i), chartH + 18);
+      ctx.fillText(formatDate(d.date), xPos(i), plotTop + chartH + 16);
     }
   });
 
-  // Legend (inline, small)
-  ctx.font = '600 9px Inter, system-ui';
-  const legendY = 10;
-  ctx.fillStyle = 'rgba(99,102,241,0.5)';
-  ctx.fillRect(startX, legendY - 5, 8, 8);
-  ctx.fillStyle = '#6366F1'; ctx.textAlign = 'left';
-  ctx.fillText('Pipeline', startX + 11, legendY + 2);
-  ctx.fillStyle = 'rgba(245,158,11,0.4)';
-  ctx.fillRect(startX + 65, legendY - 5, 8, 8);
-  ctx.fillStyle = '#F59E0B';
-  ctx.fillText('Interactive', startX + 76, legendY + 2);
+  // 2-column compact legend below chart
+  const legendTop = 140 + 4;
+  const legendItems = [...bandKeys, 'trend'];
+  const colW = Math.floor(w / 4);
+  ctx.font = '500 9px Inter, system-ui';
+  legendItems.forEach((key, idx) => {
+    const col = idx % 4;
+    const row = Math.floor(idx / 4);
+    const lx = col * colW + 4;
+    const ly = legendTop + row * 14;
+    if (key === 'trend') {
+      ctx.strokeStyle = COLORS.trend; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(lx, ly + 1); ctx.lineTo(lx + 10, ly + 1); ctx.stroke();
+    } else {
+      ctx.fillStyle = COLORS[key];
+      ctx.fillRect(lx, ly - 5, 10, 8);
+    }
+    ctx.fillStyle = '#64748B'; ctx.textAlign = 'left';
+    ctx.fillText(LABELS[key], lx + 13, ly + 3);
+  });
 }
 
 function renderEfficiencyTrends() {
