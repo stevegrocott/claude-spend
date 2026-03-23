@@ -1420,7 +1420,8 @@ function recomputePpmtAnalysis(runs, sessionEff) {
   for (const run of validRuns) { if (run.taskCount === 0) continue; const b = Math.floor(run.taskCount / 2) * 2; if (!countBuckets[b]) countBuckets[b] = { completed: 0, total: 0 }; countBuckets[b].total++; if (run.state === 'completed') countBuckets[b].completed++; }
   const bestBucket = Object.entries(countBuckets).filter(([, v]) => v.total >= 5).map(([k, v]) => ({ start: Number(k), rate: v.completed / v.total })).sort((a, b) => b.rate - a.rate)[0];
   const optimalRange = bestBucket ? [bestBucket.start, bestBucket.start + 1] : [];
-  const taskCountCorrelation = { completedAvg, failedAvg, optimalRange };
+  const buckets = Object.entries(countBuckets).sort((a, b) => Number(a[0]) - Number(b[0])).map(([k, v]) => ({ label: k + '-' + (Number(k) + 1), start: Number(k), completed: v.completed, failed: v.total - v.completed, total: v.total }));
+  const taskCountCorrelation = { completedAvg, failedAvg, optimalRange, buckets };
 
   // escalationCorrelation
   const escBuckets = { '0': { completed: 0, total: 0 }, '1-2': { completed: 0, total: 0 }, '3-5': { completed: 0, total: 0 }, '6+': { completed: 0, total: 0 } };
@@ -2070,8 +2071,9 @@ function renderDriverCharts() {
   // (c) Failure Breakdown — horizontal bar chart
   renderFailureChart(analysis.failureBreakdown || {});
 
-  // (d) Task Count vs Outcome — comparison stat
+  // (d) Task Count vs Outcome — comparison stat + chart
   renderTaskCountStat(analysis.taskCountCorrelation || {});
+  renderTaskCountChart(analysis.taskCountCorrelation || {});
 }
 
 function renderYieldTrendChart(yieldByDay) {
@@ -2310,6 +2312,89 @@ function renderTaskCountStat(correlation) {
     '</div>',
     optimalHtml,
   ].join('');
+}
+
+function renderTaskCountChart(correlation) {
+  const canvas = document.getElementById('taskCountChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const buckets = (correlation.buckets || []).filter(b => b.total > 0);
+  if (!buckets.length) return;
+
+  const optRange = correlation.optimalRange || [];
+
+  const dpr = window.devicePixelRatio || 1;
+  const parentW = canvas.parentElement.clientWidth;
+  if (parentW < 50) return;
+  const w = parentW - 48;
+  const h = 170;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const legendH = 24;
+  const chartH = h - 36 - legendH;
+  const maxVal = Math.max(...buckets.map(b => b.total), 1);
+  const barW = Math.min(24, (w - 40) / (buckets.length * 3));
+  const gap = 4;
+  const chartW = w * 0.95;
+  const barGroupW = chartW / buckets.length;
+
+  buckets.forEach((bucket, i) => {
+    const groupX = i * barGroupW + barGroupW / 2;
+    const isOptimal = optRange.length === 2 && bucket.start === optRange[0];
+
+    // Highlight optimal bucket background
+    if (isOptimal) {
+      ctx.fillStyle = 'rgba(16,185,129,0.07)';
+      ctx.fillRect(groupX - barW - gap / 2 - 4, 0, barW * 2 + gap + 8, chartH + 4);
+      ctx.strokeStyle = 'rgba(16,185,129,0.35)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(groupX - barW - gap / 2 - 4, 0, barW * 2 + gap + 8, chartH + 4);
+    }
+
+    // Completed bar (green)
+    const compH = (bucket.completed / maxVal) * chartH;
+    ctx.fillStyle = '#10B981';
+    ctx.fillRect(groupX - barW - gap / 2, chartH - compH + 4, barW, compH);
+
+    // Failed bar (orange-red)
+    const failH = (bucket.failed / maxVal) * chartH;
+    ctx.fillStyle = '#F97316';
+    ctx.fillRect(groupX + gap / 2, chartH - failH + 4, barW, failH);
+
+    // Bucket label on X axis
+    ctx.fillStyle = '#475569'; ctx.textAlign = 'center';
+    ctx.font = '700 10px Inter, system-ui';
+    ctx.fillText(bucket.label, groupX, chartH + 16);
+
+    // Count labels on top of bars
+    ctx.font = '600 9px Inter, system-ui';
+    if (bucket.completed > 0) {
+      ctx.fillStyle = '#10B981';
+      ctx.fillText(bucket.completed, groupX - barW / 2 - gap / 2, Math.max(10, chartH - compH));
+    }
+    if (bucket.failed > 0) {
+      ctx.fillStyle = '#F97316';
+      ctx.fillText(bucket.failed, groupX + barW / 2 + gap / 2, Math.max(10, chartH - failH));
+    }
+  });
+
+  // Legend
+  const legendY = h - 8;
+  ctx.font = '500 10px Inter, system-ui';
+  const legendX = w / 2;
+  ctx.fillStyle = '#10B981';
+  ctx.fillRect(legendX - 70, legendY - 7, 8, 8);
+  ctx.fillStyle = '#94A3B8';
+  ctx.textAlign = 'left';
+  ctx.fillText('Completed', legendX - 58, legendY);
+  ctx.fillStyle = '#F97316';
+  ctx.fillRect(legendX + 20, legendY - 7, 8, 8);
+  ctx.fillStyle = '#94A3B8';
+  ctx.fillText('Failed', legendX + 32, legendY);
 }
 
 // Project accordion
