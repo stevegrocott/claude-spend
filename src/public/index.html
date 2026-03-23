@@ -974,7 +974,7 @@
       <div id="pipelineRecs-quality"></div>
 
       <div class="column-card">
-        <h4>Yield % Trend</h4>
+        <h4>Yield % Trend <span style="font-size:11px;font-weight:400;color:#94A3B8;">(terminal runs only — excludes Still Running)</span></h4>
         <div class="driver-explainer">What percentage of attempted story points actually complete. The single strongest predictor of PP/100MT.</div>
         <canvas id="yieldTrendChart"></canvas>
       </div>
@@ -1272,7 +1272,7 @@ function renderPPMTRecommendations() {
 }
 
 function recomputeOrchestratorSummary(runs) {
-  const validRuns = runs.filter(r => r.state !== 'initializing');
+  const validRuns = runs.filter(r => r.state !== 'initializing' && r.state !== 'running');
   const completedRuns = validRuns.filter(r => r.state === 'completed');
   const errorRuns = validRuns.filter(r => r.state === 'error');
   const maxIterRuns = validRuns.filter(r => r.state && r.state.startsWith('max_iterations'));
@@ -1384,7 +1384,7 @@ function recomputeOrchestratorSummary(runs) {
 
 // Client-side recompute of ppmtAnalysis from filtered runs + session efficiency
 function recomputePpmtAnalysis(runs, sessionEff) {
-  const validRuns = runs.filter(r => r.state !== 'initializing');
+  const validRuns = runs.filter(r => r.state !== 'initializing' && r.state !== 'running');
 
   // taskSizeCompletion
   const taskSizeCompletion = { S: { completed: 0, failed: 0, total: 0, rate: 0 }, M: { completed: 0, failed: 0, total: 0, rate: 0 }, L: { completed: 0, failed: 0, total: 0, rate: 0 } };

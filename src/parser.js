@@ -450,7 +450,7 @@ async function parseAllSessions() {
 
   // Parse orchestrator logs from project directories
   const orchestrator = parseOrchestratorLogs(projectCostMap);
-  orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs.filter(r => r.state !== 'initializing'), pipelineDailyUsage);
+  orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs.filter(r => r.state !== 'initializing' && r.state !== 'running'), pipelineDailyUsage);
   orchestrator.summary.ppmtAnalysis.pipelineTokens = pipelineTokens;
   orchestrator.summary.recommendations = generatePPMTRecommendations(orchestrator.summary.ppmtAnalysis);
   const orchestratorInsights = generateOrchestratorInsights(orchestrator);
@@ -672,7 +672,7 @@ function parseOrchestratorLogs(projectCostMap = {}) {
   runs.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   // Generate summary
-  const validRuns = runs.filter(r => r.state !== 'initializing');
+  const validRuns = runs.filter(r => r.state !== 'initializing' && r.state !== 'running');
   const completedRuns = validRuns.filter(r => r.state === 'completed');
   const errorRuns = validRuns.filter(r => r.state === 'error');
   const maxIterRuns = validRuns.filter(r => r.state.startsWith('max_iterations'));
@@ -1388,7 +1388,7 @@ function computePPMTAnalysis(runs, dailyUsage) {
 
   // 4. taskCountCorrelation — avg task count for completed vs failed with optimal range
   const completedRuns = runs.filter(r => r.state === 'completed');
-  const failedRuns = runs.filter(r => r.state !== 'completed');
+  const failedRuns = runs.filter(r => r.state !== 'completed' && r.state !== 'running');
   const completedAvg = completedRuns.length > 0
     ? Math.round(completedRuns.reduce((s, r) => s + r.taskCount, 0) / completedRuns.length)
     : 0;
@@ -1399,6 +1399,8 @@ function computePPMTAnalysis(runs, dailyUsage) {
   // Find task count range with highest completion rate (bucket by count)
   const countBuckets = {};
   for (const run of runs) {
+    // Exclude still-running tasks from optimal range calculation
+    if (run.state === 'running') continue;
     const bucket = Math.floor(run.taskCount / 2) * 2; // group by pairs: 0-1, 2-3, 4-5, ...
     if (!countBuckets[bucket]) countBuckets[bucket] = { completed: 0, total: 0 };
     countBuckets[bucket].total++;
