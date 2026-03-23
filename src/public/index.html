@@ -993,7 +993,7 @@
 
       <div class="column-card">
         <h4>Task Count vs Outcome</h4>
-        <div class="driver-explainer">Issues with 5+ tasks fail ~70% of the time. Keep issues to 2-3 tasks.</div>
+        <div class="driver-explainer" id="taskCountExplainer"></div>
         <div id="taskCountStat" class="driver-stat"></div>
       </div>
     </div>
@@ -1408,13 +1408,13 @@ function recomputePpmtAnalysis(runs, sessionEff) {
     else if (run.state !== 'completed') failureBreakdown.other++;
   }
 
-  // taskCountCorrelation
-  const completedRuns = validRuns.filter(r => r.state === 'completed');
-  const failedRuns = validRuns.filter(r => r.state !== 'completed');
+  // taskCountCorrelation — exclude taskCount === 0 (parse failures) to avoid skewing averages
+  const completedRuns = validRuns.filter(r => r.state === 'completed' && r.taskCount > 0);
+  const failedRuns = validRuns.filter(r => r.state !== 'completed' && r.taskCount > 0);
   const completedAvg = completedRuns.length > 0 ? Math.round(completedRuns.reduce((s, r) => s + r.taskCount, 0) / completedRuns.length) : 0;
   const failedAvg = failedRuns.length > 0 ? Math.round(failedRuns.reduce((s, r) => s + r.taskCount, 0) / failedRuns.length) : 0;
   const countBuckets = {};
-  for (const run of validRuns) { const b = Math.floor(run.taskCount / 2) * 2; if (!countBuckets[b]) countBuckets[b] = { completed: 0, total: 0 }; countBuckets[b].total++; if (run.state === 'completed') countBuckets[b].completed++; }
+  for (const run of validRuns) { if (run.taskCount === 0) continue; const b = Math.floor(run.taskCount / 2) * 2; if (!countBuckets[b]) countBuckets[b] = { completed: 0, total: 0 }; countBuckets[b].total++; if (run.state === 'completed') countBuckets[b].completed++; }
   const bestBucket = Object.entries(countBuckets).filter(([, v]) => v.total >= 5).map(([k, v]) => ({ start: Number(k), rate: v.completed / v.total })).sort((a, b) => b.rate - a.rate)[0];
   const optimalRange = bestBucket ? [bestBucket.start, bestBucket.start + 1] : [];
   const taskCountCorrelation = { completedAvg, failedAvg, optimalRange };
@@ -2270,7 +2270,29 @@ function renderTaskCountStat(correlation) {
 
   const completedAvg = correlation.completedAvg || 0;
   const failedAvg = correlation.failedAvg || 0;
-  const optimal = (correlation.optimalRange || []).join('-') || '2-3';
+  const optRange = correlation.optimalRange || [];
+  const optimal = optRange.length ? optRange.join('-') : null;
+
+  // Data-driven description
+  const explainer = document.getElementById('taskCountExplainer');
+  if (explainer) {
+    if (optimal) {
+      explainer.textContent = `Runs with ${optRange[0]}–${optRange[1]} tasks complete most reliably. Completed runs avg ${completedAvg} tasks; failed runs avg ${failedAvg}.`;
+    } else if (completedAvg > 0 && failedAvg > completedAvg) {
+      explainer.textContent = `Failed runs average ${failedAvg} tasks vs ${completedAvg} for completed — keeping task counts lower improves success rate.`;
+    } else if (completedAvg > 0) {
+      explainer.textContent = `Completed runs avg ${completedAvg} tasks vs ${failedAvg} for failed (excludes parse failures with 0 tasks).`;
+    } else {
+      explainer.textContent = 'Task count correlation data not yet available.';
+    }
+  }
+
+  const optimalHtml = optimal ? [
+    '<div class="driver-stat-item" style="margin-left:8px">',
+    '<div class="driver-stat-value" style="color:var(--text-secondary);font-size:20px">' + optimal + '</div>',
+    '<div class="driver-stat-label">Optimal<br>range</div>',
+    '</div>',
+  ].join('') : '';
 
   container.innerHTML = [
     '<div class="driver-stat-item">',
@@ -2282,10 +2304,7 @@ function renderTaskCountStat(correlation) {
     '<div class="driver-stat-value" style="color:#EF4444">' + failedAvg + '</div>',
     '<div class="driver-stat-label">Avg tasks<br>(failed)</div>',
     '</div>',
-    '<div class="driver-stat-item" style="margin-left:8px">',
-    '<div class="driver-stat-value" style="color:var(--text-secondary);font-size:20px">' + optimal + '</div>',
-    '<div class="driver-stat-label">Optimal<br>range</div>',
-    '</div>',
+    optimalHtml,
   ].join('');
 }
 
