@@ -1690,17 +1690,21 @@ function computeSessionEfficiency(sessions) {
   }
 
   // Efficiency by day — daily aggregation of interactive session metrics
+  const _modelBucket = m => (m || '').includes('opus') ? 'opus' : (m || '').includes('sonnet') ? 'sonnet' : (m || '').includes('haiku') ? 'haiku' : 'other';
+  const _emptyModelMap = () => ({ haiku: 0, sonnet: 0, opus: 0, other: 0 });
+  const _initDay = () => ({ queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0, pipelineByModel: _emptyModelMap(), interactiveByModel: _emptyModelMap() });
   const dayMap = {};
   for (const s of sessions) {
     const type = s.sessionType || categorizeSession(s);
     if (type === 'pipeline_subagent') continue;
     const d = s.date;
     if (!d) continue;
-    if (!dayMap[d]) dayMap[d] = { queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0 };
+    if (!dayMap[d]) dayMap[d] = _initDay();
     dayMap[d].sessions++;
     dayMap[d].queries += s.queryCount || 0;
     dayMap[d].tokens += s.totalTokens || 0;
     if ((s.queryCount || 0) <= 20) dayMap[d].shortSessions++;
+    dayMap[d].interactiveByModel[_modelBucket(s.model)] += s.totalTokens || 0;
   }
   // Add pipeline tokens per day (create entry if needed for pipeline-only days)
   for (const s of sessions) {
@@ -1708,19 +1712,23 @@ function computeSessionEfficiency(sessions) {
     if (type !== 'pipeline_subagent') continue;
     const d = s.date;
     if (!d) continue;
-    if (!dayMap[d]) dayMap[d] = { queries: 0, tokens: 0, pipelineTokens: 0, sessions: 0, shortSessions: 0 };
+    if (!dayMap[d]) dayMap[d] = _initDay();
     dayMap[d].pipelineTokens += s.totalTokens || 0;
+    dayMap[d].pipelineByModel[_modelBucket(s.model)] += s.totalTokens || 0;
   }
   const efficiencyByDay = Object.keys(dayMap).sort().map(date => {
     const dm = dayMap[date];
+    const totalTokens = dm.pipelineTokens + dm.tokens;
     return {
       date,
       avgQueriesPerSession: dm.sessions > 0 ? Math.round(dm.queries / dm.sessions) : 0,
       tokensPerQuery: dm.queries > 0 ? Math.round(dm.tokens / dm.queries) : 0,
-      pipelineCoveragePct: (dm.pipelineTokens + dm.tokens) > 0 ? Math.round(dm.pipelineTokens / (dm.pipelineTokens + dm.tokens) * 100) : 0,
+      pipelineCoveragePct: totalTokens > 0 ? Math.round(dm.pipelineTokens / totalTokens * 100) : 0,
       shortSessionPct: dm.sessions > 0 ? Math.round(dm.shortSessions / dm.sessions * 100) : 0,
       sessionCount: dm.sessions,
       pipelineTokens: dm.pipelineTokens,
+      totalTokens,
+      modelTokensByDay: { pipeline: { ...dm.pipelineByModel }, interactive: { ...dm.interactiveByModel } },
     };
   });
 
