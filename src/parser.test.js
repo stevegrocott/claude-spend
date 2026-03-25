@@ -76,6 +76,23 @@ describe('parseTaskSummary', () => {
       storyPointsTotal: 0,
     });
   });
+
+  test('counts in_progress tasks as completed', () => {
+    const raw = {
+      tasks: [
+        { description: '**(S)** Task one', status: 'completed' },
+        { description: '**(S)** Task two', status: 'in_progress' },
+      ]
+    };
+    const result = parseTaskSummary(raw);
+    assert.deepStrictEqual(result, {
+      completed: { S: 2, M: 0, L: 0 },
+      failed: { S: 0, M: 0, L: 0 },
+      total: 2,
+      storyPointsCompleted: 2,
+      storyPointsTotal: 2,
+    });
+  });
 });
 
 describe('computePPMTAnalysis', () => {
