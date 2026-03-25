@@ -1312,6 +1312,7 @@ function fmt(n) {
 // Full-form pipeline prompts always identify a pipeline subagent session regardless of length
 const FULL_PIPELINE_PROMPT_PATTERNS = [
   /implement task \d+ on branch .+ in the current working directory/i,
+  /## Project Patterns/i,
 ];
 
 // Structured prompt patterns that identify pipeline-dispatched subagent sessions (short sessions only)
@@ -1327,7 +1328,6 @@ const PIPELINE_PROMPT_PATTERNS = [
   /validate test comprehensiveness/i,
   /address test quality issues/i,
   /ENVIRONMENT NOTE:/,
-  /## Project Patterns/i,
   /# Project Context/i,
 ];
 
