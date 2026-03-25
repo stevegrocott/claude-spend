@@ -2087,6 +2087,14 @@ function renderSPPerTokenChart() {
       ctx.fillText(formatDate(d.date), xPos(i), chartH + 24);
     }
   });
+
+  registerChartTooltip(canvas, data, xPos, function (i, arr) {
+    var d = arr[i];
+    return '<strong>' + formatDate(d.date) + '</strong><br>' +
+      'PP/100MT: <strong>' + d.pp100mt.toFixed(2) + '</strong><br>' +
+      'Story points: ' + d.sp + '<br>' +
+      'Tokens: ' + fmt(d.tokens);
+  });
 }
 
 // Driver charts — 4 charts explaining PP/100MT factors
@@ -2168,6 +2176,12 @@ function renderYieldTrendChart(yieldByDay) {
       ctx.fillText(formatDate(d.date), xPos(i), chartH + 18);
     }
   });
+
+  registerChartTooltip(canvas, yieldByDay, xPos, function (i, arr) {
+    var d = arr[i];
+    return '<strong>' + formatDate(d.date) + '</strong><br>' +
+      'Yield: <strong>' + d.yieldPct.toFixed(1) + '%</strong>';
+  });
 }
 
 function renderTaskSizeChart(taskSize) {
@@ -2244,6 +2258,17 @@ function renderTaskSizeChart(taskSize) {
   ctx.fillStyle = '#6366F1';
   ctx.fillRect(legendX + 10, legendY - 7, 8, 8);
   ctx.fillText('Done', legendX + 22, legendY);
+
+  var sizeData = sizes.map(function (s) { return { size: s, data: taskSize[s] || { completed: 0, total: 0, rate: 0 } }; });
+  registerChartTooltip(canvas, sizeData, function (i) {
+    return i * barGroupW + barGroupW / 2;
+  }, function (i, arr) {
+    var d = arr[i];
+    return '<strong>Size ' + d.size + '</strong><br>' +
+      'Total: ' + d.data.total + '<br>' +
+      'Completed: ' + d.data.completed + '<br>' +
+      'Rate: ' + (d.data.rate || 0) + '%';
+  });
 }
 
 function renderFailureChart(breakdown) {
@@ -2301,6 +2326,18 @@ function renderFailureChart(breakdown) {
     ctx.textAlign = 'left';
     ctx.font = '700 11px Inter, system-ui';
     ctx.fillText(item.count, labelW + barW + 8, y + barH / 2 + 4);
+  });
+
+  var totalFailures = items.reduce(function (s, it) { return s + it.count; }, 0);
+  registerChartTooltip(canvas, items, function (i) {
+    var bw = (items[i].count / maxCount) * barArea;
+    return labelW + Math.max(bw, 4) / 2;
+  }, function (i, arr) {
+    var d = arr[i];
+    var pct = totalFailures > 0 ? (d.count / totalFailures * 100).toFixed(1) : '0';
+    return '<strong>' + d.label + '</strong><br>' +
+      'Count: ' + d.count + '<br>' +
+      'Share: ' + pct + '%';
   });
 }
 
@@ -2429,6 +2466,18 @@ function renderTaskCountChart(correlation) {
   ctx.fillRect(legendX + 20, legendY - 7, 8, 8);
   ctx.fillStyle = '#94A3B8';
   ctx.fillText('Failed', legendX + 32, legendY);
+
+  registerChartTooltip(canvas, buckets, function (i) {
+    return i * barGroupW + barGroupW / 2;
+  }, function (i, arr) {
+    var b = arr[i];
+    var rate = b.total > 0 ? (b.completed / b.total * 100).toFixed(0) : '0';
+    return '<strong>' + b.label + ' tasks</strong><br>' +
+      'Completed: ' + b.completed + '<br>' +
+      'Failed: ' + b.failed + '<br>' +
+      'Total: ' + b.total + '<br>' +
+      'Success rate: ' + rate + '%';
+  });
 }
 
 // Project accordion
@@ -2700,6 +2749,12 @@ function renderContextCostChart() {
   // X axis title
   ctx.fillStyle = '#94A3B8';
   ctx.fillText('Session length (queries)', startX + plotW / 2, h - 4);
+
+  registerChartTooltip(canvas, data, xPos, function (i, arr) {
+    var d = arr[i];
+    return '<strong>' + d.label + ' queries</strong><br>' +
+      'Avg tokens/query: <strong>' + fmt(d.avgTpq) + '</strong>';
+  });
 }
 
 // Project breakdown
@@ -3000,6 +3055,14 @@ function renderEfficiencyTrendChart(canvasId, data, options) {
     ctx.textAlign = 'left';
     ctx.fillText(targetLabel, startX + 2, ty - 4);
   }
+
+  registerChartTooltip(canvas, data, xPos, function (i, arr) {
+    var d = arr[i];
+    var r = rolling[i];
+    return '<strong>' + formatDate(d.date) + '</strong><br>' +
+      'Value: ' + d.value.toFixed(1) + '<br>' +
+      '7-day avg: ' + r.value.toFixed(1);
+  });
 }
 
 function renderPipelineStackedChart(byDay) {
@@ -3163,6 +3226,29 @@ function renderPipelineStackedChart(byDay) {
     ctx.fillStyle = '#64748B'; ctx.textAlign = 'left';
     ctx.fillText(LABELS[key], lx + 13, ly + 3);
   });
+
+  registerChartTooltip(canvas, byDay, xPos, function (i, arr) {
+    var d = arr[i];
+    var total = d.totalTokens || 0;
+    var mtd = d.modelTokensByDay || {};
+    var pipe = mtd.pipeline || {};
+    var ia = mtd.interactive || {};
+    var pipeTotal = d.pipelineTokens || 0;
+    var iaTotal = total - pipeTotal;
+    var pipePct = total > 0 ? (pipeTotal / total * 100).toFixed(1) : '0';
+    var iaPct = total > 0 ? (iaTotal / total * 100).toFixed(1) : '0';
+    var lines = ['<strong>' + formatDate(d.date) + '</strong>'];
+    lines.push('Total: ' + fmt(total));
+    lines.push('Pipeline: ' + fmt(pipeTotal) + ' (' + pipePct + '%)');
+    if (pipe.haiku) lines.push('&nbsp;&nbsp;Haiku: ' + fmt(pipe.haiku));
+    if (pipe.sonnet) lines.push('&nbsp;&nbsp;Sonnet: ' + fmt(pipe.sonnet));
+    if (pipe.opus) lines.push('&nbsp;&nbsp;Opus: ' + fmt(pipe.opus));
+    lines.push('Interactive: ' + fmt(iaTotal) + ' (' + iaPct + '%)');
+    if (ia.haiku) lines.push('&nbsp;&nbsp;Haiku: ' + fmt(ia.haiku));
+    if (ia.sonnet) lines.push('&nbsp;&nbsp;Sonnet: ' + fmt(ia.sonnet));
+    if (ia.opus) lines.push('&nbsp;&nbsp;Opus: ' + fmt(ia.opus));
+    return lines.join('<br>');
+  });
 }
 
 function renderEfficiencyTrends() {
@@ -3237,9 +3323,13 @@ window.addEventListener('resize', () => { if (FILTERED) { renderSPPerTokenChart(
   window.registerChartTooltip = function (canvas, data, xPosFn, formatFn) {
     if (!canvas || !data || !data.length) return;
 
+    // Remove previous tooltip listeners to prevent stacking on re-render
+    if (canvas._ttMove) canvas.removeEventListener('mousemove', canvas._ttMove);
+    if (canvas._ttLeave) canvas.removeEventListener('mouseleave', canvas._ttLeave);
+
     canvas.style.cursor = 'crosshair';
 
-    canvas.addEventListener('mousemove', function (e) {
+    canvas._ttMove = function (e) {
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
 
@@ -3256,9 +3346,11 @@ window.addEventListener('resize', () => { if (FILTERED) { renderSPPerTokenChart(
         showTip(html, e.clientX, e.clientY);
         showHair(canvas, xPosFn(nearest));
       }
-    });
+    };
+    canvas._ttLeave = hideTip;
 
-    canvas.addEventListener('mouseleave', hideTip);
+    canvas.addEventListener('mousemove', canvas._ttMove);
+    canvas.addEventListener('mouseleave', canvas._ttLeave);
   };
 }());
 </script>
