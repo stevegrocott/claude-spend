@@ -562,6 +562,22 @@ describe('categorizeSession', () => {
     };
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
+
+  test('classifies create-merge-request prompt as pipeline_subagent', () => {
+    const session = {
+      queryCount: 6,
+      firstPrompt: 'Create a merge request for issue #42',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies create-pull-request prompt as pipeline_subagent', () => {
+    const session = {
+      queryCount: 7,
+      firstPrompt: 'Create a pull request for issue #99',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
 });
 
 describe('computeSessionEfficiency', () => {
