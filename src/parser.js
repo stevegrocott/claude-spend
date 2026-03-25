@@ -1317,6 +1317,9 @@ function fmt(n) {
 const FULL_PIPELINE_PROMPT_PATTERNS = [
   /implement task \d+ on branch .+ in the current working directory/i,
   /## Project Patterns/i,
+  /generate a completion summary for PR #/i,
+  /review PR #\d+ for issue #/i,
+  /create a (?:merge request|pull request) for issue #/i,
 ];
 
 // Structured prompt patterns that identify pipeline-dispatched subagent sessions (short sessions only)
@@ -1338,7 +1341,6 @@ const PIPELINE_PROMPT_PATTERNS = [
 function categorizeSession(session) {
   const prompt = session.firstPrompt || '';
   if (FULL_PIPELINE_PROMPT_PATTERNS.some(re => re.test(prompt))) return 'pipeline_subagent';
-  if (session.queryCount > 50) return 'interactive';
   const isStructured = PIPELINE_PROMPT_PATTERNS.some(re => re.test(prompt));
   return isStructured ? 'pipeline_subagent' : 'interactive';
 }

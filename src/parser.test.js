@@ -79,6 +79,8 @@ describe('parseTaskSummary', () => {
 
   test('counts in_progress tasks as completed', () => {
     const raw = {
+      state: 'completed',
+      stages: { complete: { status: 'completed' } },
       tasks: [
         { description: '**(S)** Task one', status: 'completed' },
         { description: '**(S)** Task two', status: 'in_progress' },
@@ -91,6 +93,45 @@ describe('parseTaskSummary', () => {
       total: 2,
       storyPointsCompleted: 2,
       storyPointsTotal: 2,
+    });
+  });
+
+  test('counts pending tasks as completed when run is completed', () => {
+    const raw = {
+      state: 'completed',
+      stages: { complete: { status: 'completed' } },
+      tasks: [
+        { description: '**(M)** Task one', status: 'completed' },
+        { description: '**(S)** Task two', status: 'pending' },
+      ]
+    };
+    const result = parseTaskSummary(raw);
+    assert.deepStrictEqual(result, {
+      completed: { S: 1, M: 1, L: 0 },
+      failed: { S: 0, M: 0, L: 0 },
+      total: 2,
+      storyPointsCompleted: 1 + 3,
+      storyPointsTotal: 1 + 3,
+    });
+  });
+
+  test('does not count in_progress or pending tasks as completed when run is not completed', () => {
+    const raw = {
+      state: 'in_progress',
+      stages: { complete: { status: 'in_progress' } },
+      tasks: [
+        { description: '**(S)** Task one', status: 'completed' },
+        { description: '**(M)** Task two', status: 'in_progress' },
+        { description: '**(L)** Task three', status: 'pending' },
+      ]
+    };
+    const result = parseTaskSummary(raw);
+    assert.deepStrictEqual(result, {
+      completed: { S: 1, M: 0, L: 0 },
+      failed: { S: 0, M: 0, L: 0 },
+      total: 3,
+      storyPointsCompleted: 1,
+      storyPointsTotal: 1 + 3 + 5,
     });
   });
 });
@@ -476,12 +517,13 @@ describe('categorizeSession', () => {
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
 
-  test('classifies session with queryCount > 50 as interactive regardless of prompt', () => {
+  test('classifies session with queryCount > 50 and pipeline prompt as pipeline_subagent (AC1)', () => {
     const session = {
       queryCount: 51,
       firstPrompt: 'Implement task 1 on branch wt-task-1',
     };
-    assert.strictEqual(categorizeSession(session), 'interactive');
+    // AC1: Pipeline prompts should classify as pipeline_subagent regardless of queryCount
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
 
   test('classifies session without structured prompt as interactive', () => {
@@ -524,11 +566,12 @@ describe('categorizeSession', () => {
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
 
-  test('classifies "Simplify modified TypeScript" as pipeline_subagent', () => {
+  test('classifies "Simplify modified TypeScript" as pipeline_subagent (AC1: tests at queryCount=93)', () => {
     const session = {
-      queryCount: 40,
+      queryCount: 93,
       firstPrompt: 'Simplify modified TypeScript/React files in the current branch',
     };
+    // AC1: Partial-pattern prompts must classify as pipeline_subagent even at queryCount > 50
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
 
@@ -552,6 +595,38 @@ describe('categorizeSession', () => {
     const session = {
       queryCount: 30,
       firstPrompt: '## Project Patterns are important for API design',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies session with "generate a completion summary for PR #" as pipeline_subagent', () => {
+    const session = {
+      queryCount: 15,
+      firstPrompt: 'Please generate a completion summary for PR #123',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies session with "review PR #N for issue #" as pipeline_subagent', () => {
+    const session = {
+      queryCount: 20,
+      firstPrompt: 'Review PR #456 for issue #789',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies session with "create a merge request for issue #" as pipeline_subagent', () => {
+    const session = {
+      queryCount: 25,
+      firstPrompt: 'Create a merge request for issue #100',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies session with "create a pull request for issue #" as pipeline_subagent', () => {
+    const session = {
+      queryCount: 18,
+      firstPrompt: 'Create a pull request for issue #200',
     };
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
