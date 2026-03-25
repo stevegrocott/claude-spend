@@ -1322,6 +1322,8 @@ const PIPELINE_PROMPT_PATTERNS = [
   /validate test comprehensiveness/i,
   /address test quality issues/i,
   /ENVIRONMENT NOTE:/,
+  /## Project Patterns/i,
+  /# Project Context/i,
 ];
 
 function categorizeSession(session) {
