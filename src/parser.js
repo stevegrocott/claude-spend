@@ -1334,7 +1334,6 @@ const PIPELINE_PROMPT_PATTERNS = [
 function categorizeSession(session) {
   const prompt = session.firstPrompt || '';
   if (FULL_PIPELINE_PROMPT_PATTERNS.some(re => re.test(prompt))) return 'pipeline_subagent';
-  if (session.queryCount > 50) return 'interactive';
   const isStructured = PIPELINE_PROMPT_PATTERNS.some(re => re.test(prompt));
   return isStructured ? 'pipeline_subagent' : 'interactive';
 }
