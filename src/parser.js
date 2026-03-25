@@ -1309,7 +1309,12 @@ function fmt(n) {
   return n.toLocaleString();
 }
 
-// Structured prompt patterns that identify pipeline-dispatched subagent sessions
+// Full-form pipeline prompts always identify a pipeline subagent session regardless of length
+const FULL_PIPELINE_PROMPT_PATTERNS = [
+  /implement task \d+ on branch .+ in the current working directory/i,
+];
+
+// Structured prompt patterns that identify pipeline-dispatched subagent sessions (short sessions only)
 const PIPELINE_PROMPT_PATTERNS = [
   /implement task \d+/i,
   /on branch wt-/i,
@@ -1328,6 +1333,8 @@ const PIPELINE_PROMPT_PATTERNS = [
 
 function categorizeSession(session) {
   const prompt = session.firstPrompt || '';
+  if (FULL_PIPELINE_PROMPT_PATTERNS.some(re => re.test(prompt))) return 'pipeline_subagent';
+  if (session.queryCount > 50) return 'interactive';
   const isStructured = PIPELINE_PROMPT_PATTERNS.some(re => re.test(prompt));
   return isStructured ? 'pipeline_subagent' : 'interactive';
 }
@@ -1374,12 +1381,7 @@ function computePPMTAnalysis(runs, dailyUsage) {
   const failureBreakdown = { parse_failure: 0, aborted: 0, error: 0, max_iterations_pr_review: 0, running: 0, no_changes: 0, other: 0 };
   for (const run of runs) {
     if (run.state === 'error' && run.taskCount === 0) {
-      // Distinguish aborted startup crashes from genuine parse failures
-      if (run.parseIssueCompleted) {
-        failureBreakdown.parse_failure++;
-      } else {
-        failureBreakdown.aborted++;
-      }
+      failureBreakdown.parse_failure++;
     } else if (run.state === 'error') {
       failureBreakdown.error++;
     } else if (run.state === 'max_iterations_pr_review') {
@@ -1396,7 +1398,7 @@ function computePPMTAnalysis(runs, dailyUsage) {
   // 4. taskCountCorrelation — avg task count for completed vs failed with optimal range
   // Exclude taskCount === 0 (parse failures that never parsed tasks) — they skew failedAvg
   const completedRuns = runs.filter(r => r.state === 'completed' && r.taskCount > 0);
-  const failedRuns = runs.filter(r => r.state !== 'completed' && r.state !== 'running' && r.taskCount > 0);
+  const failedRuns = runs.filter(r => r.state !== 'completed' && r.state !== 'running');
   const completedAvg = completedRuns.length > 0
     ? Math.round(completedRuns.reduce((s, r) => s + r.taskCount, 0) / completedRuns.length)
     : 0;
