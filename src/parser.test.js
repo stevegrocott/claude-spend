@@ -522,6 +522,22 @@ describe('categorizeSession', () => {
     };
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
+
+  test('classifies long pipeline session (queryCount=90) with pipeline prompt as pipeline_subagent', () => {
+    const session = {
+      queryCount: 90,
+      firstPrompt: 'Implement task 3 on branch wt-task-3 in the current working directory',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies session with "## Project Patterns" prefix as pipeline_subagent', () => {
+    const session = {
+      queryCount: 30,
+      firstPrompt: '## Project Patterns are important for API design',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
 });
 
 describe('computeSessionEfficiency', () => {
@@ -726,22 +742,3 @@ describe('generateSessionRecommendations', () => {
   });
 });
 
-// Simple test runner
-// NOTE: sets process.exitCode on failure but has no protection against async tests
-// executing after process would naturally exit — safe for this sync-only suite,
-// but async tests added later may produce silent failures.
-function test(name, fn) {
-  try {
-    fn();
-    console.log(`✓ ${name}`);
-  } catch (err) {
-    console.error(`✗ ${name}`);
-    console.error(`  ${err.message}`);
-    process.exitCode = 1;
-  }
-}
-
-function describe(name, fn) {
-  console.log(`\n${name}`);
-  fn();
-}
