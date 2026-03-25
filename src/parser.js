@@ -51,13 +51,17 @@ function parseTaskSummary(raw) {
   let storyPointsCompleted = 0;
   let storyPointsTotal = 0;
 
+  const isRunCompleted = raw.state === 'completed' && raw.stages?.complete?.status === 'completed';
+
   for (const task of tasks) {
     const sizeMatch = (task.description || '').match(/\*\*\((S|M|L)\)\*\*/);
     const size = sizeMatch ? sizeMatch[1] : 'S';
     const points = SIZE_POINTS[size];
     storyPointsTotal += points;
 
-    if (task.status === 'completed') {
+    const isStale = isRunCompleted && (task.status === 'in_progress' || task.status === 'pending');
+
+    if (task.status === 'completed' || isStale) {
       completed[size]++;
       storyPointsCompleted += points;
     } else if (task.status === 'failed') {
