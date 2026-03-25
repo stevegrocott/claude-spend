@@ -459,12 +459,12 @@ describe('categorizeSession', () => {
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
 
-  test('classifies session with queryCount > 50 as interactive regardless of prompt', () => {
+  test('classifies session with queryCount > 50 and pipeline prompt as pipeline_subagent', () => {
     const session = {
       queryCount: 51,
       firstPrompt: 'Implement task 1 on branch wt-task-1',
     };
-    assert.strictEqual(categorizeSession(session), 'interactive');
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
 
   test('classifies session without structured prompt as interactive', () => {
@@ -535,6 +535,30 @@ describe('categorizeSession', () => {
     const session = {
       queryCount: 30,
       firstPrompt: '## Project Patterns are important for API design',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies simplify session with queryCount=93 as pipeline_subagent', () => {
+    const session = {
+      queryCount: 93,
+      firstPrompt: 'Simplify modified TypeScript/React files in the current branch on branch wt-i1038-t1',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies completion-summary prompt as pipeline_subagent', () => {
+    const session = {
+      queryCount: 5,
+      firstPrompt: 'Generate a completion summary for PR #56 on branch feature/issue-55',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies PR-review prompt as pipeline_subagent', () => {
+    const session = {
+      queryCount: 8,
+      firstPrompt: 'Review PR #54 for issue #52 against base main',
     };
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
