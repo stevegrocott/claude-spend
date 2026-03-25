@@ -1325,7 +1325,6 @@ const PIPELINE_PROMPT_PATTERNS = [
 ];
 
 function categorizeSession(session) {
-  if ((session.queryCount || 0) > 50) return 'interactive';
   const prompt = session.firstPrompt || '';
   const isStructured = PIPELINE_PROMPT_PATTERNS.some(re => re.test(prompt));
   return isStructured ? 'pipeline_subagent' : 'interactive';
