@@ -1178,6 +1178,12 @@ function fmt(n) {
   return n.toLocaleString();
 }
 function fmtFull(n) { return n.toLocaleString(); }
+// Smart decimal: values >= 5 are whole numbers, smaller values keep decimals
+function fmtSmart(n, maxDecimals) {
+  if (maxDecimals === undefined) maxDecimals = 2;
+  if (Math.abs(n) >= 5) return Math.round(n).toString();
+  return n.toFixed(Math.min(maxDecimals, 1));
+}
 
 function modelClass(m) {
   if (m.includes('opus')) return 'model-opus';
@@ -1967,7 +1973,7 @@ function renderHeroPPMT() {
 
   container.innerHTML = [
     '<div class="hero-ppmt-label">Points per 100M Pipeline Tokens</div>',
-    '<div class="hero-ppmt-value">' + overallPP100MT.toFixed(2) + '<span class="hero-ppmt-trend ' + trendClass + '">' + trendArrow + '</span></div>',
+    '<div class="hero-ppmt-value">' + fmtSmart(overallPP100MT) + '<span class="hero-ppmt-trend ' + trendClass + '">' + trendArrow + '</span></div>',
     '<div class="hero-ppmt-sub">' + completedSP + ' SP completed \u00B7 ' + fmt(pipelineTokens) + ' pipeline tokens</div>',
   ].join('');
 }
@@ -2055,7 +2061,7 @@ function renderSPPerTokenChart() {
     const val = (maxVal / 4) * i;
     const y = chartH - (chartH * i / 4) + 8;
     ctx.fillStyle = '#6366F1';
-    ctx.fillText(val < 1 ? val.toFixed(2) : val.toFixed(1), startX - 10, y + 3);
+    ctx.fillText(fmtSmart(val), startX - 10, y + 3);
     ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w, y); ctx.stroke();
   }
@@ -2091,7 +2097,7 @@ function renderSPPerTokenChart() {
   registerChartTooltip(canvas, data, xPos, function (i, arr) {
     var d = arr[i];
     return '<strong>' + formatDate(d.date) + '</strong><br>' +
-      'PP/100MT: <strong>' + d.pp100mt.toFixed(2) + '</strong><br>' +
+      'PP/100MT: <strong>' + fmtSmart(d.pp100mt) + '</strong><br>' +
       'Story points: ' + d.sp + '<br>' +
       'Tokens: ' + fmt(d.tokens);
   });
@@ -2180,7 +2186,7 @@ function renderYieldTrendChart(yieldByDay) {
   registerChartTooltip(canvas, yieldByDay, xPos, function (i, arr) {
     var d = arr[i];
     return '<strong>' + formatDate(d.date) + '</strong><br>' +
-      'Yield: <strong>' + d.yieldPct.toFixed(1) + '%</strong>';
+      'Yield: <strong>' + fmtSmart(d.yieldPct) + '%</strong>';
   });
 }
 
@@ -2331,7 +2337,7 @@ function renderFailureChart(breakdown) {
   var totalFailures = items.reduce(function (s, it) { return s + it.count; }, 0);
   registerChartTooltip(canvas, items, null, function (i, arr) {
     var d = arr[i];
-    var pct = totalFailures > 0 ? (d.count / totalFailures * 100).toFixed(1) : '0';
+    var pct = totalFailures > 0 ? fmtSmart(d.count / totalFailures * 100) : '0';
     return '<strong>' + d.label + '</strong><br>' +
       'Count: ' + d.count + '<br>' +
       'Share: ' + pct + '%';
@@ -2793,7 +2799,7 @@ function renderProjectBreakdown() {
       '<div style="flex:1;max-width:60px;height:3px;background:var(--bg);border-radius:4px;overflow:hidden">',
       '<div style="width:' + barPct + '%;height:100%;background:var(--indigo);border-radius:4px"></div>',
       '</div><div><div>' + fmt(p.totalTokens) + '</div><div style="font-size:11px;font-weight:500;color:var(--text-tertiary);margin-top:1px">' + fmt(p.inputTokens) + ' in\u00a0\u00b7\u00a0' + fmt(p.outputTokens) + ' out</div></div></div></td>',
-      '<td class="token-num" style="vertical-align:top;padding-top:12px">' + (p.pp100mt != null ? p.pp100mt.toFixed(2) : '--') + '</td>',
+      '<td class="token-num" style="vertical-align:top;padding-top:12px">' + (p.pp100mt != null ? fmtSmart(p.pp100mt) : '--') + '</td>',
       '<td class="token-num" style="vertical-align:top;padding-top:12px">' + p.sessionCount + '</td>',
       '<td class="token-num" style="vertical-align:top;padding-top:12px">' + p.queryCount + '</td>',
       '</tr>',
@@ -3059,8 +3065,8 @@ function renderEfficiencyTrendChart(canvasId, data, options) {
     var d = arr[i];
     var r = rolling[i];
     return '<strong>' + formatDate(d.date) + '</strong><br>' +
-      'Value: ' + d.value.toFixed(1) + '<br>' +
-      '7-day avg: ' + r.value.toFixed(1);
+      'Value: ' + fmtSmart(d.value) + '<br>' +
+      '7-day avg: ' + fmtSmart(r.value);
   });
 }
 
@@ -3239,8 +3245,8 @@ function renderPipelineStackedChart(byDay) {
     var ia = mtd.interactive || {};
     var pipeTotal = d.pipelineTokens || 0;
     var iaTotal = total - pipeTotal;
-    var pipePct = total > 0 ? (pipeTotal / total * 100).toFixed(1) : '0';
-    var iaPct = total > 0 ? (iaTotal / total * 100).toFixed(1) : '0';
+    var pipePct = total > 0 ? fmtSmart(pipeTotal / total * 100) : '0';
+    var iaPct = total > 0 ? fmtSmart(iaTotal / total * 100) : '0';
     var lines = ['<strong>' + formatDate(d.date) + '</strong>'];
     lines.push('Total: ' + fmt(total));
     // Top-to-bottom matches visual stacking order (topmost band first)
