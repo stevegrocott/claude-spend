@@ -1317,9 +1317,9 @@ function fmt(n) {
 const FULL_PIPELINE_PROMPT_PATTERNS = [
   /implement task \d+ on branch .+ in the current working directory/i,
   /## Project Patterns/i,
-  /generate a completion summary for PR #/i,
-  /review PR #\d+ for issue #/i,
-  /create a (?:merge request|pull request) for issue #/i,
+  /^generate a completion summary for pr #/i,
+  /^review pr #\d+ for issue #/i,
+  /^create a (?:merge request|pull request) for issue #/i,
 ];
 
 // Structured prompt patterns that identify pipeline-dispatched subagent sessions (short sessions only)

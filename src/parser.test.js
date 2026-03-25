@@ -517,12 +517,11 @@ describe('categorizeSession', () => {
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
 
-  test('classifies session with queryCount > 50 and pipeline prompt as pipeline_subagent (AC1)', () => {
+  test('classifies session with queryCount > 50 and pipeline prompt as pipeline_subagent', () => {
     const session = {
       queryCount: 51,
       firstPrompt: 'Implement task 1 on branch wt-task-1',
     };
-    // AC1: Pipeline prompts should classify as pipeline_subagent regardless of queryCount
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
 
@@ -599,34 +598,42 @@ describe('categorizeSession', () => {
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
 
-  test('classifies session with "generate a completion summary for PR #" as pipeline_subagent', () => {
+  test('classifies simplify session with queryCount=93 as pipeline_subagent', () => {
     const session = {
-      queryCount: 15,
-      firstPrompt: 'Please generate a completion summary for PR #123',
+      queryCount: 93,
+      firstPrompt: 'Simplify modified TypeScript/React files in the current branch on branch wt-i1038-t1',
     };
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
 
-  test('classifies session with "review PR #N for issue #" as pipeline_subagent', () => {
+  test('classifies completion-summary prompt as pipeline_subagent', () => {
     const session = {
-      queryCount: 20,
-      firstPrompt: 'Review PR #456 for issue #789',
+      queryCount: 5,
+      firstPrompt: 'Generate a completion summary for PR #56 on branch feature/issue-55',
     };
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
 
-  test('classifies session with "create a merge request for issue #" as pipeline_subagent', () => {
+  test('classifies PR-review prompt as pipeline_subagent', () => {
     const session = {
-      queryCount: 25,
-      firstPrompt: 'Create a merge request for issue #100',
+      queryCount: 8,
+      firstPrompt: 'Review PR #54 for issue #52 against base main',
     };
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
 
-  test('classifies session with "create a pull request for issue #" as pipeline_subagent', () => {
+  test('classifies create-merge-request prompt as pipeline_subagent', () => {
     const session = {
-      queryCount: 18,
-      firstPrompt: 'Create a pull request for issue #200',
+      queryCount: 6,
+      firstPrompt: 'Create a merge request for issue #42',
+    };
+    assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
+  });
+
+  test('classifies create-pull-request prompt as pipeline_subagent', () => {
+    const session = {
+      queryCount: 7,
+      firstPrompt: 'Create a pull request for issue #99',
     };
     assert.strictEqual(categorizeSession(session), 'pipeline_subagent');
   });
