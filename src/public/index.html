@@ -1236,7 +1236,7 @@ function formatDate(d) {
   if (!d) return '';
   const parts = d.split('-');
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[parseInt(parts[1])-1]} ${parseInt(parts[2])}`;
+  return `${months[parseInt(parts[1])-1]}-${parts[2]}`;
 }
 
 async function fetchData() {
@@ -3021,7 +3021,7 @@ function renderEfficiencyTrendChart(canvasId, data, options) {
   const step = Math.max(1, Math.floor(data.length / 5));
   for (let i = 0; i < data.length; i += step) {
     const x = xPos(i);
-    const label = data[i].date.slice(5); // MM-DD
+    const label = formatDate(data[i].date); // Mmm-dd
     ctx.fillText(label, x, h - 2);
   }
 
