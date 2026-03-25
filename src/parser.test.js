@@ -742,22 +742,3 @@ describe('generateSessionRecommendations', () => {
   });
 });
 
-// Simple test runner
-// NOTE: sets process.exitCode on failure but has no protection against async tests
-// executing after process would naturally exit — safe for this sync-only suite,
-// but async tests added later may produce silent failures.
-function test(name, fn) {
-  try {
-    fn();
-    console.log(`✓ ${name}`);
-  } catch (err) {
-    console.error(`✗ ${name}`);
-    console.error(`  ${err.message}`);
-    process.exitCode = 1;
-  }
-}
-
-function describe(name, fn) {
-  console.log(`\n${name}`);
-  fn();
-}
