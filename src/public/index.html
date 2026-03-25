@@ -3082,11 +3082,8 @@ function renderPipelineStackedChart(byDay) {
   const tokenScale = maxTokens > 0 ? maxTokens : 1;
   function yAbs(tokens) { return plotTop + chartH - (tokens / tokenScale) * chartH; }
 
-  // Rolling 3-day average of total tokens
-  const rolling = byDay.map((d, i) => {
-    const win = byDay.slice(Math.max(0, i - 2), i + 1);
-    return win.reduce((s, w) => s + (w.totalTokens || 0), 0) / win.length;
-  });
+  // Total tokens (absolute values)
+  const rolling = byDay.map(d => d.totalTokens || 0);
 
   ctx.strokeStyle = COLORS.trend; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
   ctx.beginPath();
