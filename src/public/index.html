@@ -3244,14 +3244,14 @@ function renderPipelineStackedChart(byDay) {
     var lines = ['<strong>' + formatDate(d.date) + '</strong>'];
     lines.push('Total: ' + fmt(total));
     // Top-to-bottom matches visual stacking order (topmost band first)
+    lines.push('<span style="opacity:0.5;font-size:10px">Interactive: ' + fmt(iaTotal) + ' (' + iaPct + '%)</span>');
     lines.push(dot(COLORS['interactive-opus']) + 'IA/Opus: ' + fmt(ia.opus || 0));
     lines.push(dot(COLORS['interactive-sonnet']) + 'IA/Sonnet: ' + fmt(ia.sonnet || 0));
     lines.push(dot(COLORS['interactive-haiku']) + 'IA/Haiku: ' + fmt(ia.haiku || 0));
-    lines.push('<span style="opacity:0.5;font-size:10px">Interactive: ' + fmt(iaTotal) + ' (' + iaPct + '%)</span>');
+    lines.push('<span style="opacity:0.5;font-size:10px">Pipeline: ' + fmt(pipeTotal) + ' (' + pipePct + '%)</span>');
     lines.push(dot(COLORS['pipeline-opus']) + 'Pipe/Opus: ' + fmt(pipe.opus || 0));
     lines.push(dot(COLORS['pipeline-sonnet']) + 'Pipe/Sonnet: ' + fmt(pipe.sonnet || 0));
     lines.push(dot(COLORS['pipeline-haiku']) + 'Pipe/Haiku: ' + fmt(pipe.haiku || 0));
-    lines.push('<span style="opacity:0.5;font-size:10px">Pipeline: ' + fmt(pipeTotal) + ' (' + pipePct + '%)</span>');
     return lines.join('<br>');
   });
 }
