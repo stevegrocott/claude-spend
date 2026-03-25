@@ -2329,15 +2329,14 @@ function renderFailureChart(breakdown) {
   });
 
   var totalFailures = items.reduce(function (s, it) { return s + it.count; }, 0);
-  registerChartTooltip(canvas, items, function (i) {
-    var bw = (items[i].count / maxCount) * barArea;
-    return labelW + Math.max(bw, 4) / 2;
-  }, function (i, arr) {
+  registerChartTooltip(canvas, items, null, function (i, arr) {
     var d = arr[i];
     var pct = totalFailures > 0 ? (d.count / totalFailures * 100).toFixed(1) : '0';
     return '<strong>' + d.label + '</strong><br>' +
       'Count: ' + d.count + '<br>' +
       'Share: ' + pct + '%';
+  }, function (i) {
+    return startY + i * (barH + gap) + barH / 2;
   });
 }
 
@@ -3319,8 +3318,11 @@ window.addEventListener('resize', () => { if (FILTERED) { renderSPPerTokenChart(
   // canvas   — the <canvas> element
   // data     — array of data-point objects (one per x position)
   // xPosFn   — function(index) → x pixel position in CSS coords (not DPR-scaled)
+  //            Pass null to snap by y-axis instead (e.g. horizontal bar charts).
   // formatFn — function(index, dataArray) → HTML string for the tooltip body
-  window.registerChartTooltip = function (canvas, data, xPosFn, formatFn) {
+  // yPosFn   — optional function(index) → y pixel position; when provided, snaps
+  //            by y-distance and suppresses the vertical crosshair (horizontal bars).
+  window.registerChartTooltip = function (canvas, data, xPosFn, formatFn, yPosFn) {
     if (!canvas || !data || !data.length) return;
 
     // Remove previous tooltip listeners to prevent stacking on re-render
@@ -3331,20 +3333,29 @@ window.addEventListener('resize', () => { if (FILTERED) { renderSPPerTokenChart(
 
     canvas._ttMove = function (e) {
       const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
 
-      // Snap to nearest data index
+      // Snap to nearest data index by y (horizontal bars) or x (all other charts)
       let nearest = 0;
       let minDist = Infinity;
-      for (let i = 0; i < data.length; i++) {
-        const dist = Math.abs(xPosFn(i) - mouseX);
-        if (dist < minDist) { minDist = dist; nearest = i; }
+      if (yPosFn) {
+        const mouseY = e.clientY - rect.top;
+        for (let i = 0; i < data.length; i++) {
+          const dist = Math.abs(yPosFn(i) - mouseY);
+          if (dist < minDist) { minDist = dist; nearest = i; }
+        }
+      } else {
+        const mouseX = e.clientX - rect.left;
+        for (let i = 0; i < data.length; i++) {
+          const dist = Math.abs(xPosFn(i) - mouseX);
+          if (dist < minDist) { minDist = dist; nearest = i; }
+        }
       }
 
       const html = formatFn(nearest, data);
       if (html) {
         showTip(html, e.clientX, e.clientY);
-        showHair(canvas, xPosFn(nearest));
+        // Suppress vertical crosshair for y-snapped (horizontal bar) charts
+        if (!yPosFn) showHair(canvas, xPosFn(nearest));
       }
     };
     canvas._ttLeave = hideTip;
