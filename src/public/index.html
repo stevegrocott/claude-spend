@@ -236,6 +236,40 @@
     border-top-color: transparent;
     border-bottom-color: var(--text);
   }
+  /* Chart canvas tooltip — matches .has-tooltip .tooltip visual style */
+  #chart-tooltip {
+    position: fixed;
+    background: var(--text);
+    color: #F8FAFC;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+    padding: 10px 14px;
+    border-radius: 10px;
+    white-space: normal;
+    width: max-content;
+    max-width: 280px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 200;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    text-align: left;
+  }
+  #chart-tooltip.visible { opacity: 1; }
+
+  /* Vertical crosshair indicator at hover x-position on canvas charts */
+  #chart-crosshair {
+    position: fixed;
+    width: 1px;
+    background: rgba(100,116,139,0.35);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 199;
+  }
+  #chart-crosshair.visible { opacity: 1; }
+
   /* Help icon next to labels */
   .help-icon {
     display: inline-flex;
@@ -3156,6 +3190,80 @@ function renderEfficiencyTrends() {
 
 fetchData();
 window.addEventListener('resize', () => { if (FILTERED) { renderSPPerTokenChart(); renderDriverCharts(); renderEfficiencyTrends(); renderPipelineStackedChart((FILTERED.sessionEfficiency || (DATA && DATA.sessionEfficiency) || {}).efficiencyByDay || []); } });
+
+// ---- Shared chart tooltip + crosshair infrastructure ----
+(function () {
+  // Create tooltip div (matches .has-tooltip .tooltip visual style)
+  const tip = document.createElement('div');
+  tip.id = 'chart-tooltip';
+  tip.setAttribute('role', 'tooltip');
+  document.body.appendChild(tip);
+
+  // Create crosshair vertical line div
+  const hair = document.createElement('div');
+  hair.id = 'chart-crosshair';
+  hair.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(hair);
+
+  function showTip(html, clientX, clientY) {
+    tip.innerHTML = html;
+    tip.classList.add('visible');
+    // Measure after making visible so offsetWidth is accurate
+    const tipW = tip.offsetWidth || 200;
+    const tipH = tip.offsetHeight || 60;
+    let left = clientX + 14;
+    if (left + tipW > window.innerWidth - 8) left = clientX - tipW - 14;
+    let top = clientY - tipH - 10;
+    if (top < 8) top = clientY + 14;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  }
+
+  function hideTip() {
+    tip.classList.remove('visible');
+    hair.classList.remove('visible');
+  }
+
+  function showHair(canvas, xPixel) {
+    const rect = canvas.getBoundingClientRect();
+    hair.style.left = Math.round(rect.left + xPixel) + 'px';
+    hair.style.top = rect.top + 'px';
+    hair.style.height = rect.height + 'px';
+    hair.classList.add('visible');
+  }
+
+  // registerChartTooltip: attach hover tooltip + crosshair to a canvas chart.
+  // canvas   — the <canvas> element
+  // data     — array of data-point objects (one per x position)
+  // xPosFn   — function(index) → x pixel position in CSS coords (not DPR-scaled)
+  // formatFn — function(index, dataArray) → HTML string for the tooltip body
+  window.registerChartTooltip = function (canvas, data, xPosFn, formatFn) {
+    if (!canvas || !data || !data.length) return;
+
+    canvas.style.cursor = 'crosshair';
+
+    canvas.addEventListener('mousemove', function (e) {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+
+      // Snap to nearest data index
+      let nearest = 0;
+      let minDist = Infinity;
+      for (let i = 0; i < data.length; i++) {
+        const dist = Math.abs(xPosFn(i) - mouseX);
+        if (dist < minDist) { minDist = dist; nearest = i; }
+      }
+
+      const html = formatFn(nearest, data);
+      if (html) {
+        showTip(html, e.clientX, e.clientY);
+        showHair(canvas, xPosFn(nearest));
+      }
+    });
+
+    canvas.addEventListener('mouseleave', hideTip);
+  };
+}());
 </script>
 </body>
 </html>
