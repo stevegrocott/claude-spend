@@ -1463,10 +1463,15 @@ function computePPMTAnalysis(runs, dailyUsage) {
 
   // 7. ppmtByDay — daily PP/MT values joining run SP with session tokens by date
   const dailySP = {};
+  const dailySPByProject = {};
   for (const run of runs) {
     if (!run.date || !run.taskSummary) continue;
     if (!dailySP[run.date]) dailySP[run.date] = 0;
     dailySP[run.date] += run.taskSummary.storyPointsCompleted || 0;
+    if (run.project) {
+      if (!dailySPByProject[run.date]) dailySPByProject[run.date] = {};
+      dailySPByProject[run.date][run.project] = (dailySPByProject[run.date][run.project] || 0) + (run.taskSummary.storyPointsCompleted || 0);
+    }
   }
   const dailyTokenMap = {};
   for (const day of dailyUsage) {
@@ -1478,7 +1483,7 @@ function computePPMTAnalysis(runs, dailyUsage) {
     const tokens = dailyTokenMap[date] || 0;
     // PP/100MT: story points per 100 million pipeline tokens
     const pp100mt = tokens > 0 ? Math.round((sp / (tokens / 100_000_000)) * 100) / 100 : 0;
-    return { date, spCompleted: sp, totalTokens: tokens, pp100mt };
+    return { date, spCompleted: sp, totalTokens: tokens, pp100mt, spByProject: dailySPByProject[date] || {} };
   });
 
   // Compute overall PP/100MT from totals

@@ -1485,7 +1485,15 @@ function recomputePpmtAnalysis(runs, sessionEff) {
 
   // ppmtByDay — join run SP with pipeline tokens from efficiencyByDay
   const dailySP = {};
-  for (const run of validRuns) { if (!run.date || !run.taskSummary) continue; dailySP[run.date] = (dailySP[run.date] || 0) + (run.taskSummary.storyPointsCompleted || 0); }
+  const dailySPByProject = {};
+  for (const run of validRuns) {
+    if (!run.date || !run.taskSummary) continue;
+    dailySP[run.date] = (dailySP[run.date] || 0) + (run.taskSummary.storyPointsCompleted || 0);
+    if (run.project) {
+      if (!dailySPByProject[run.date]) dailySPByProject[run.date] = {};
+      dailySPByProject[run.date][run.project] = (dailySPByProject[run.date][run.project] || 0) + (run.taskSummary.storyPointsCompleted || 0);
+    }
+  }
   const pipelineTokensByDay = {};
   for (const d of (sessionEff.efficiencyByDay || [])) { pipelineTokensByDay[d.date] = d.pipelineTokens || 0; }
   const allDates = new Set([...Object.keys(dailySP), ...Object.keys(pipelineTokensByDay)]);
@@ -1493,7 +1501,7 @@ function recomputePpmtAnalysis(runs, sessionEff) {
     const sp = dailySP[date] || 0;
     const tokens = pipelineTokensByDay[date] || 0;
     const pp100mt = tokens > 0 ? Math.round((sp / (tokens / 100000000)) * 100) / 100 : 0;
-    return { date, spCompleted: sp, totalTokens: tokens, pp100mt };
+    return { date, spCompleted: sp, totalTokens: tokens, pp100mt, spByProject: dailySPByProject[date] || {} };
   });
 
   const totalSP = ppmtByDay.reduce((s, d) => s + d.spCompleted, 0);
@@ -2016,7 +2024,7 @@ function renderHeroInteractive() {
   ].join('');
 }
 
-// Points per Token chart — PP/100MT by day using pipeline tokens
+// Points per Token chart — PP/100MT by day using pipeline tokens, with stacked SP bars per project
 function renderSPPerTokenChart() {
   const canvas = document.getElementById('spPerTokenChart');
   if (!canvas) return;
@@ -2034,27 +2042,43 @@ function renderSPPerTokenChart() {
       pp100mt: d.pp100mt,
       sp: d.spCompleted,
       tokens: d.totalTokens,
+      spByProject: d.spByProject || {},
     }));
 
   if (!data.length) return;
+
+  // Collect all projects across all days, sorted by total SP descending
+  const projectTotals = {};
+  data.forEach(d => { Object.entries(d.spByProject).forEach(([p, v]) => { projectTotals[p] = (projectTotals[p] || 0) + v; }); });
+  const projects = Object.keys(projectTotals).sort((a, b) => projectTotals[b] - projectTotals[a]);
+  const PROJECT_COLORS = ['#10B981', '#F59E0B', '#3B82F6', '#EC4899', '#8B5CF6', '#F97316', '#06B6D4', '#84CC16'];
+  const projColor = (p) => PROJECT_COLORS[projects.indexOf(p) % PROJECT_COLORS.length];
+  const projLabel = (p) => p.split('/').filter(Boolean).pop() || p;
 
   const dpr = window.devicePixelRatio || 1;
   const parentW = canvas.parentElement.clientWidth;
   if (parentW < 50) return;
   const w = parentW - 48;
-  const h = 200;
+  const h = projects.length > 0 ? 240 : 200;
+  const legendH = projects.length > 0 ? Math.ceil(projects.length / 3) * 18 + 8 : 0;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
 
-  const chartH = h - 36;
+  const chartH = h - 36 - legendH;
   const startX = 48;
-  const plotW = w - startX - 8;
+  const rightPad = projects.length > 0 ? 52 : 8;
+  const plotW = w - startX - rightPad;
 
   const maxVal = Math.max(...data.map(d => d.pp100mt), 0.01);
+  const maxSP = Math.max(...data.map(d => d.sp), 1);
 
-  // Grid + left axis labels
+  function xPos(i) { return startX + (i / Math.max(1, data.length - 1)) * plotW; }
+  function yPos(val) { return chartH + 8 - (val / maxVal) * chartH; }
+  function yPosSP(sp) { return chartH + 8 - (sp / maxSP) * chartH; }
+
+  // Grid + left axis labels (PP/100MT, indigo)
   ctx.font = '500 10px Inter, system-ui';
   ctx.textAlign = 'right';
   for (let i = 0; i <= 4; i++) {
@@ -2063,13 +2087,58 @@ function renderSPPerTokenChart() {
     ctx.fillStyle = '#6366F1';
     ctx.fillText(fmtSmart(val), startX - 10, y + 3);
     ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w - rightPad + 4, y); ctx.stroke();
   }
 
-  function xPos(i) { return startX + (i / Math.max(1, data.length - 1)) * plotW; }
-  function yPos(val) { return chartH + 8 - (val / maxVal) * chartH; }
+  // Right axis labels (SP, emerald) — only if we have project data
+  if (projects.length > 0) {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#10B981';
+    for (let i = 0; i <= 4; i++) {
+      const val = Math.round((maxSP / 4) * i);
+      const y = chartH - (chartH * i / 4) + 8;
+      ctx.fillText(val, w - rightPad + 8, y + 3);
+    }
+    // Right axis label "SP"
+    ctx.save();
+    ctx.translate(w - 6, chartH / 2 + 8);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#10B981';
+    ctx.font = '500 9px Inter, system-ui';
+    ctx.fillText('SP', 0, 0);
+    ctx.restore();
+  }
 
-  // Line
+  // Stacked bars per project (drawn behind line)
+  if (projects.length > 0 && data.length > 1) {
+    const barW = Math.max(4, Math.min(24, (plotW / data.length) * 0.65));
+    data.forEach((d, i) => {
+      let base = chartH + 8;
+      projects.forEach(proj => {
+        const sp = (d.spByProject[proj] || 0);
+        if (sp === 0) return;
+        const top = yPosSP(((d.sp - sp) > 0 ? d.sp - sp : 0) + sp); // use cumulative
+        // recalculate: draw each segment from cumulative base
+        const segH = (sp / maxSP) * chartH;
+        const segTop = base - segH;
+        ctx.fillStyle = projColor(proj) + 'CC'; // slight transparency
+        ctx.fillRect(xPos(i) - barW / 2, segTop, barW, segH);
+        base = segTop;
+      });
+    });
+  } else if (projects.length === 0 && data.some(d => d.sp > 0)) {
+    // Single bar (no project breakdown)
+    const barW = Math.max(4, Math.min(24, (plotW / data.length) * 0.65));
+    data.forEach((d, i) => {
+      if (!d.sp) return;
+      const segH = (d.sp / maxSP) * chartH;
+      ctx.fillStyle = '#10B981CC';
+      ctx.fillRect(xPos(i) - barW / 2, chartH + 8 - segH, barW, segH);
+    });
+  }
+
+  // PP/100MT line (drawn on top of bars)
   ctx.strokeStyle = '#6366F1'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
   ctx.beginPath();
   data.forEach((d, i) => {
@@ -2094,12 +2163,44 @@ function renderSPPerTokenChart() {
     }
   });
 
+  // Legend (project colors + PP/100MT line)
+  if (projects.length > 0) {
+    const legendY = h - legendH + 4;
+    ctx.font = '500 10px Inter, system-ui';
+    let lx = startX, ly = legendY;
+    const colW = Math.floor((w - startX) / 3);
+    // PP/100MT line legend item
+    ctx.fillStyle = '#6366F1';
+    ctx.fillRect(lx, ly + 3, 16, 3);
+    ctx.fillStyle = '#64748B';
+    ctx.textAlign = 'left';
+    ctx.fillText('PP/100MT', lx + 20, ly + 9);
+    lx += colW;
+    projects.forEach((proj, idx) => {
+      if (lx + colW > w - 4) { lx = startX; ly += 18; }
+      ctx.fillStyle = projColor(proj);
+      ctx.fillRect(lx, ly + 2, 10, 10);
+      ctx.fillStyle = '#64748B';
+      ctx.fillText(projLabel(proj), lx + 14, ly + 9);
+      lx += colW;
+    });
+  }
+
   registerChartTooltip(canvas, data, xPos, function (i, arr) {
     var d = arr[i];
-    return '<strong>' + formatDate(d.date) + '</strong><br>' +
+    let tip = '<strong>' + formatDate(d.date) + '</strong><br>' +
       'PP/100MT: <strong>' + fmtSmart(d.pp100mt) + '</strong><br>' +
       'Story points: ' + d.sp + '<br>' +
       'Tokens: ' + fmt(d.tokens);
+    if (projects.length > 0 && d.sp > 0) {
+      tip += '<br><span style="color:#94A3B8;font-size:11px">';
+      projects.forEach(proj => {
+        const sp = d.spByProject[proj] || 0;
+        if (sp > 0) tip += '<span style="color:' + projColor(proj) + '">&#9632;</span> ' + projLabel(proj) + ': ' + sp + 'sp &nbsp;';
+      });
+      tip += '</span>';
+    }
+    return tip;
   });
 }
 
