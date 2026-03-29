@@ -954,7 +954,7 @@ describe('computeIssueMetrics', () => {
       { project: 'owner/repo', issue: 7, date: '2025-01-01', logType: 'implement-issue' },
     ];
     const result = computeIssueMetrics(runs, []);
-    assert.deepStrictEqual(result.issueMeta, [{ number: 7, repo: 'owner/repo' }]);
+    assert.deepStrictEqual(result.issueMeta, [{ number: 7, repo: 'owner/repo', projectPath: null, implCompletedAt: null }]);
   });
 
   test('runs without issue field do not contribute to issuesAddressed', () => {
