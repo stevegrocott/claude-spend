@@ -453,7 +453,7 @@ async function parseAllSessions() {
   }
 
   // Parse orchestrator logs from project directories
-  const orchestrator = parseOrchestratorLogs(projectCostMap);
+  const orchestrator = parseOrchestratorLogs(projectCostMap, pipelineDailyUsage);
   orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs.filter(r => r.state !== 'initializing' && r.state !== 'running'), pipelineDailyUsage);
   orchestrator.summary.ppmtAnalysis.pipelineTokens = pipelineTokens;
   orchestrator.summary.recommendations = generatePPMTRecommendations(orchestrator.summary.ppmtAnalysis);
@@ -504,7 +504,44 @@ function emptySummary() {
   return { totalRuns: 0, completedRuns: 0, errorRuns: 0, maxIterationsRuns: 0, completionRate: 0, avgQualityIterations: 0, avgTestIterations: 0, stageAvgs: [], topChurners: [], totalModelUsage: {}, escalationCount: 0, runsWithEscalations: 0, allEscalations: [], stageModelTotals: {}, yieldByDay: [] };
 }
 
-function parseOrchestratorLogs(projectCostMap = {}) {
+function computeIssueMetrics(runs, pipelineDailyUsage = []) {
+  const implRuns = runs.filter(r => r.logType === 'implement-issue');
+  const issueMap = new Map(); // key: "project/issue" -> {number, repo}
+  const runDates = new Set();
+  const implementDurations = []; // hours
+
+  for (const run of implRuns) {
+    if (run.issue) {
+      const key = `${run.project}/${run.issue}`;
+      if (!issueMap.has(key)) {
+        issueMap.set(key, { number: run.issue, repo: run.project });
+      }
+    }
+    if (run.date) runDates.add(run.date);
+    const implSecs = run.stageDurations && run.stageDurations.implement;
+    if (implSecs != null) {
+      implementDurations.push(implSecs / 3600);
+    }
+  }
+
+  const issuesAddressed = issueMap.size;
+  const issueMeta = Array.from(issueMap.values());
+
+  const matchingPipelineTokens = pipelineDailyUsage
+    .filter(d => runDates.has(d.date))
+    .reduce((sum, d) => sum + d.totalTokens, 0);
+  const mtPerIssue = issuesAddressed > 0
+    ? Math.round((matchingPipelineTokens / 1_000_000 / issuesAddressed) * 100) / 100
+    : 0;
+
+  const avgImplementHours = implementDurations.length > 0
+    ? Math.round((implementDurations.reduce((s, h) => s + h, 0) / implementDurations.length) * 100) / 100
+    : 0;
+
+  return { issuesAddressed, mtPerIssue, avgImplementHours, issueMeta };
+}
+
+function parseOrchestratorLogs(projectCostMap = {}, pipelineDailyUsage = []) {
   const runs = [];
 
   // Encode a filesystem path to the format used in ~/.claude/projects/
@@ -792,8 +829,11 @@ function parseOrchestratorLogs(projectCostMap = {}) {
     }
   }
 
+  const issueMetrics = computeIssueMetrics(runs, pipelineDailyUsage);
+
   return {
     runs,
+    issueMetrics,
     summary: {
       totalRuns: validRuns.length,
       completedRuns: completedRuns.length,
@@ -1837,4 +1877,4 @@ function generateSessionRecommendations(efficiency) {
   return recs;
 }
 
-module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession, computeSessionEfficiency, generateSessionRecommendations };
+module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession, computeSessionEfficiency, generateSessionRecommendations, computeIssueMetrics };
