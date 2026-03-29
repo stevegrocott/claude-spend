@@ -457,7 +457,7 @@ async function parseAllSessions() {
   orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs.filter(r => r.state !== 'initializing' && r.state !== 'running'), pipelineDailyUsage);
   orchestrator.summary.ppmtAnalysis.pipelineTokens = pipelineTokens;
   orchestrator.summary.recommendations = generatePPMTRecommendations(orchestrator.summary.ppmtAnalysis, orchestrator.issueMetrics);
-  const orchestratorInsights = generateOrchestratorInsights(orchestrator);
+  const orchestratorInsights = [...generateOrchestratorInsights(orchestrator), ...generateSpeedInsights(orchestrator.issueMetrics)];
 
   // Add pp100mt to each projectBreakdown entry using orchestrator projectYield data
   const projectYieldByName = {};
@@ -1106,6 +1106,74 @@ function generateOrchestratorInsights(orchestrator) {
         description: `The "${top.stageName}" stage has consumed ${fmt(top.opusTokens)} Opus tokens across all runs. Other high-Opus stages: ${stageOpusCost.slice(1, 3).map(s => `"${s.stageName}" (${fmt(s.opusTokens)})`).join(', ') || 'none'}. Opus costs 5-10x more than Sonnet per token.`,
         action: `Consider whether the "${top.stageName}" stage truly needs Opus, or if Sonnet would be sufficient. Review the agent prompt for this stage to see if it can be simplified.`,
       });
+    }
+  }
+
+  return insights;
+}
+
+function generateSpeedInsights(issueMetrics) {
+  const insights = [];
+  if (!issueMetrics) return insights;
+
+  const { avgCycleTimeDays, avgImplementHours, issuesAddressed, issueMeta } = issueMetrics;
+
+  // slow_cycle_time: avgCycleTimeDays > 3 with >= 5 issues
+  if (avgCycleTimeDays > 3 && issuesAddressed >= 5) {
+    insights.push({
+      id: 'slow_cycle_time',
+      lens: 'speed',
+      type: 'warning',
+      title: `Slow cycle time: ${avgCycleTimeDays.toFixed(1)} days per issue`,
+      description: `The average cycle time across ${issuesAddressed} issues is ${avgCycleTimeDays.toFixed(1)} days. A healthy pipeline targets under 3 days from issue open to close.`,
+      action: 'Review queue wait times between stages. Consider reducing batch sizes or increasing pipeline parallelism.',
+    });
+  }
+
+  // high_idle_ratio: avgCycleTimeDays > avgImplementHours/24 * 4
+  if (avgCycleTimeDays !== undefined && avgImplementHours !== undefined) {
+    const threshold = (avgImplementHours / 24) * 4;
+    if (avgCycleTimeDays > threshold) {
+      insights.push({
+        id: 'high_idle_ratio',
+        lens: 'speed',
+        type: 'warning',
+        title: `High idle ratio: ${avgCycleTimeDays.toFixed(1)} day cycle vs ${avgImplementHours.toFixed(1)}h implementation`,
+        description: `Cycle time (${avgCycleTimeDays.toFixed(1)} days) is more than 4x the implementation time (${avgImplementHours.toFixed(1)}h). Most elapsed time is idle wait rather than active work.`,
+        action: 'Identify queue wait points between stages. Reduce handoff delays and review triggers.',
+      });
+    }
+  }
+
+  // declining_velocity: issues/week falling >30% over last 3 weeks using issueMeta bucketed by closedAt
+  if (issueMeta && issueMeta.length > 0) {
+    const weekMap = {};
+    for (const m of issueMeta) {
+      if (!m.closedAt) continue;
+      const d = new Date(m.closedAt);
+      const startOfYear = new Date(d.getFullYear(), 0, 1);
+      const weekNum = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+      const key = `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+      weekMap[key] = (weekMap[key] || 0) + 1;
+    }
+
+    const sortedWeeks = Object.entries(weekMap).sort((a, b) => a[0].localeCompare(b[0]));
+    if (sortedWeeks.length >= 3) {
+      const recent3 = sortedWeeks.slice(-3);
+      const w3 = recent3[0][1];
+      const w2 = recent3[1][1];
+      const w1 = recent3[2][1];
+
+      if (w3 > w2 && w2 > w1 && w1 < w3 * 0.7) {
+        insights.push({
+          id: 'declining_velocity',
+          lens: 'speed',
+          type: 'warning',
+          title: `Declining velocity: ${w3} → ${w2} → ${w1} issues/week over last 3 weeks`,
+          description: `Issue throughput has fallen more than 30% from ${w3} issues/week (3 weeks ago) to ${w1} issues/week (this week).`,
+          action: 'Investigate blockers causing throughput drop. Check for increased issue complexity, team availability, or pipeline errors.',
+        });
+      }
     }
   }
 
@@ -1968,4 +2036,4 @@ function generateSessionRecommendations(efficiency) {
   return recs;
 }
 
-module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession, computeSessionEfficiency, generateSessionRecommendations, computeIssueMetrics };
+module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession, computeSessionEfficiency, generateSessionRecommendations, computeIssueMetrics, generateSpeedInsights };
