@@ -2121,7 +2121,7 @@ function renderValueMetrics() {
     : null;
 
   // Render helpers
-  function fillCard(id, label, valueHtml, sub) {
+  function fillCard(id, label, valueHtml, sub, extraHtml = '') {
     const el = document.getElementById(id);
     if (!el) return;
     const existing = el.querySelector('.accent-bar');
@@ -2129,7 +2129,8 @@ function renderValueMetrics() {
     el.innerHTML = accentHtml +
       '<div class="stat-label">' + label + '</div>' +
       '<div class="stat-value">' + valueHtml + '</div>' +
-      '<div class="stat-sub">' + sub + '</div>';
+      '<div class="stat-sub">' + sub + '</div>' +
+      extraHtml;
   }
 
   // Issues Addressed
@@ -2142,16 +2143,7 @@ function renderValueMetrics() {
   const sparkHtml = (hasOrch && issueCount > 0 && sparkData.some(v => v > 0))
     ? '<div class="stat-sparkline">' + buildSparkline(sparkData, '#6366F1') + '</div>'
     : '';
-  const el0 = document.getElementById('vmIssuesAddressed');
-  if (el0) {
-    const accent = el0.querySelector('.accent-bar');
-    const accentHtml = accent ? accent.outerHTML : '';
-    el0.innerHTML = accentHtml +
-      '<div class="stat-label">Issues Addressed</div>' +
-      '<div class="stat-value">' + issuesValueHtml + '</div>' +
-      '<div class="stat-sub">' + issuesSub + '</div>' +
-      sparkHtml;
-  }
+  fillCard('vmIssuesAddressed', 'Issues Addressed', issuesValueHtml, issuesSub, sparkHtml);
 
   // MT per Issue
   fillCard('vmMTPerIssue',

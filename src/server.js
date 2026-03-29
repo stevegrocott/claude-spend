@@ -5,7 +5,7 @@ const { mapInsightToIssue } = require('./issue-mapper');
 
 // Enrich issueMetrics with cycle time data from gh CLI.
 // cache: object used to memoize results across calls (pass {} to create a fresh cache).
-// execFn: injectable for testing (defaults to execSync).
+// execFn: injectable for testing (defaults to execFileSync).
 function enrichIssueCycleTime(issueMetrics, cache = {}, execFn = execFileSync) {
   if (!issueMetrics || !issueMetrics.issueMeta || issueMetrics.issueMeta.length === 0) {
     return issueMetrics;
@@ -140,15 +140,16 @@ function createServer() {
 
     // Check gh CLI availability
     try {
-      execSync('gh --version', { stdio: 'pipe' });
+      execFileSync('gh', ['--version'], { stdio: 'pipe' });
     } catch {
       return res.status(500).json({ error: 'gh CLI not found. Install: https://cli.github.com/' });
     }
 
     // Dedup check — look for open issues with same title
     try {
-      const existing = execSync(
-        `gh issue list --repo ${repo} --label spend-analysis --state open --json title,number,url`,
+      const existing = execFileSync(
+        'gh',
+        ['issue', 'list', '--repo', repo, '--label', 'spend-analysis', '--state', 'open', '--json', 'title,number,url'],
         { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
       );
       const openIssues = JSON.parse(existing || '[]');
@@ -165,9 +166,10 @@ function createServer() {
 
     // Create the issue
     try {
-      const labelArgs = issue.labels.map(l => `--label "${l}"`).join(' ');
-      const result = execSync(
-        `gh issue create --repo ${repo} --title "${issue.title.replace(/"/g, '\\"')}" ${labelArgs} --body -`,
+      const labelArgs = issue.labels.flatMap(l => ['--label', l]);
+      const result = execFileSync(
+        'gh',
+        ['issue', 'create', '--repo', repo, '--title', issue.title, ...labelArgs, '--body', '-'],
         { input: issue.body, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
       );
       const url = result.trim();
