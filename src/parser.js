@@ -1147,8 +1147,8 @@ function generateSpeedInsights(issueMetrics) {
 
   const { avgCycleTimeDays, avgImplementHours, issuesAddressed, issueMeta } = issueMetrics;
 
-  // slow_cycle_time: avgCycleTimeDays > 3 with >= 5 issues
-  if (avgCycleTimeDays > 3 && issuesAddressed >= 5) {
+  // slow_cycle_time: avgCycleTimeDays > 1 with >= 5 issues
+  if (avgCycleTimeDays > 1 && issuesAddressed >= 5) {
     insights.push({
       id: 'slow_cycle_time',
       lens: 'speed',
@@ -1789,8 +1789,8 @@ function generatePPMTRecommendations(analysis, issueMetrics = null) {
     });
   }
 
-  // (h) High MT/Issue: mtPerIssue > 50
-  if (issueMetrics && issueMetrics.mtPerIssue > 50) {
+  // (h) High MT/Issue: mtPerIssue > 20
+  if (issueMetrics && issueMetrics.mtPerIssue > 20) {
     recs.push({
       id: 'high_mt_per_issue',
       priority: 2,

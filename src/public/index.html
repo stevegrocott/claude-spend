@@ -1013,6 +1013,7 @@
       </div>
 
       <div id="pipelineRecs-quality"></div>
+      <div id="pipelineRecs-speed"></div>
 
       <div class="column-card">
         <h4>Yield % Trend <span style="font-size:11px;font-weight:400;color:#94A3B8;">(terminal runs only — excludes Still Running)</span></h4>
@@ -1303,44 +1304,62 @@ async function refreshData() {
 
 function renderPPMTRecommendations() {
   const recs = (FILTERED.orchestrator && FILTERED.orchestrator.summary && FILTERED.orchestrator.summary.recommendations) || [];
+  const allInsights = (FILTERED && FILTERED.insights) || (DATA && DATA.insights) || [];
+  const speedInsights = allInsights.filter(i => i.lens === 'speed');
 
-  // Clear old lens slots
-  ['cost', 'speed'].forEach(k => {
-    const el = document.getElementById('pipelineRecs-' + k);
-    if (el) el.innerHTML = '';
-  });
+  const qualityContainer = document.getElementById('pipelineRecs-quality');
+  const speedContainer = document.getElementById('pipelineRecs-speed');
 
-  const container = document.getElementById('pipelineRecs-quality');
-  if (!container) return;
-
-  if (!recs.length) {
-    container.innerHTML = '';
-    return;
+  // ⚡ Efficiency (PPMT recommendations)
+  if (qualityContainer) {
+    if (!recs.length) {
+      qualityContainer.innerHTML = '';
+    } else {
+      const sorted = [...recs].sort((a, b) => a.priority - b.priority);
+      const cardsHtml = sorted.map(rec => {
+        const impact = rec.ppmt_impact > 0
+          ? `<span class="ppmt-impact-badge">+${rec.ppmt_impact} PP/100MT</span>`
+          : '';
+        return `<div class="ppmt-rec-card">
+          <div class="ppmt-rec-header">
+            <div class="ppmt-rec-title">${escapeHtml(rec.title)}</div>
+            ${impact}
+          </div>
+          <div class="ppmt-rec-detail">${escapeHtml(rec.detail)}</div>
+          <div class="ppmt-rec-action">${escapeHtml(rec.action)}</div>
+        </div>`;
+      }).join('');
+      qualityContainer.innerHTML = `<div class="recs-lens">
+        <div class="recs-lens-header">
+          <div class="recs-lens-icon" style="background:#F0FDF4">&#x26A1;</div>
+          <div class="recs-lens-title">Efficiency</div>
+        </div>
+        ${cardsHtml}
+      </div>`;
+    }
   }
 
-  const sorted = [...recs].sort((a, b) => a.priority - b.priority);
-
-  const cardsHtml = sorted.map(rec => {
-    const impact = rec.ppmt_impact > 0
-      ? `<span class="ppmt-impact-badge">+${rec.ppmt_impact} PP/100MT</span>`
-      : '';
-    return `<div class="ppmt-rec-card">
-      <div class="ppmt-rec-header">
-        <div class="ppmt-rec-title">${escapeHtml(rec.title)}</div>
-        ${impact}
-      </div>
-      <div class="ppmt-rec-detail">${escapeHtml(rec.detail)}</div>
-      <div class="ppmt-rec-action">${escapeHtml(rec.action)}</div>
-    </div>`;
-  }).join('');
-
-  container.innerHTML = `<div class="recs-lens">
-    <div class="recs-lens-header">
-      <div class="recs-lens-icon" style="background:#F0FDF4">&#x26A1;</div>
-      <div class="recs-lens-title">Efficiency</div>
-    </div>
-    ${cardsHtml}
-  </div>`;
+  // 🕐 Speed (Value Metrics-driven insights)
+  if (speedContainer) {
+    if (!speedInsights.length) {
+      speedContainer.innerHTML = '';
+    } else {
+      const cardsHtml = speedInsights.map(ins => `<div class="ppmt-rec-card">
+        <div class="ppmt-rec-header">
+          <div class="ppmt-rec-title">${escapeHtml(ins.title)}</div>
+        </div>
+        <div class="ppmt-rec-detail">${escapeHtml(ins.description)}</div>
+        ${ins.action ? `<div class="ppmt-rec-action">${escapeHtml(ins.action)}</div>` : ''}
+      </div>`).join('');
+      speedContainer.innerHTML = `<div class="recs-lens">
+        <div class="recs-lens-header">
+          <div class="recs-lens-icon" style="background:#F0FDFA">&#x1F550;</div>
+          <div class="recs-lens-title">Speed</div>
+        </div>
+        ${cardsHtml}
+      </div>`;
+    }
+  }
 }
 
 function recomputeOrchestratorSummary(runs) {
