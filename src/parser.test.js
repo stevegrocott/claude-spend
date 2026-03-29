@@ -852,9 +852,9 @@ describe('computeIssueMetrics', () => {
 
   test('counts unique issues across runs (deduplicates same project+issue)', () => {
     const runs = [
-      { project: 'owner/repo', issue: 42, date: '2025-01-01' },
-      { project: 'owner/repo', issue: 42, date: '2025-01-02' }, // duplicate
-      { project: 'owner/repo', issue: 43, date: '2025-01-01' },
+      { project: 'owner/repo', issue: 42, date: '2025-01-01', logType: 'implement-issue' },
+      { project: 'owner/repo', issue: 42, date: '2025-01-02', logType: 'implement-issue' }, // duplicate
+      { project: 'owner/repo', issue: 43, date: '2025-01-01', logType: 'implement-issue' },
     ];
     const result = computeIssueMetrics(runs, []);
     assert.strictEqual(result.issuesAddressed, 2);
@@ -863,7 +863,7 @@ describe('computeIssueMetrics', () => {
 
   test('issueMeta contains number and repo for each unique issue', () => {
     const runs = [
-      { project: 'owner/repo', issue: 7, date: '2025-01-01' },
+      { project: 'owner/repo', issue: 7, date: '2025-01-01', logType: 'implement-issue' },
     ];
     const result = computeIssueMetrics(runs, []);
     assert.deepStrictEqual(result.issueMeta, [{ number: 7, repo: 'owner/repo' }]);
@@ -871,8 +871,8 @@ describe('computeIssueMetrics', () => {
 
   test('runs without issue field do not contribute to issuesAddressed', () => {
     const runs = [
-      { project: 'owner/repo', date: '2025-01-01' }, // no issue
-      { project: 'owner/repo', issue: null, date: '2025-01-02' }, // null issue
+      { project: 'owner/repo', date: '2025-01-01', logType: 'implement-issue' }, // no issue
+      { project: 'owner/repo', issue: null, date: '2025-01-02', logType: 'implement-issue' }, // null issue
     ];
     const result = computeIssueMetrics(runs, []);
     assert.strictEqual(result.issuesAddressed, 0);
@@ -881,8 +881,8 @@ describe('computeIssueMetrics', () => {
 
   test('computes mtPerIssue using pipelineDailyUsage tokens matching run dates', () => {
     const runs = [
-      { project: 'owner/repo', issue: 1, date: '2025-01-01' },
-      { project: 'owner/repo', issue: 2, date: '2025-01-02' },
+      { project: 'owner/repo', issue: 1, date: '2025-01-01', logType: 'implement-issue' },
+      { project: 'owner/repo', issue: 2, date: '2025-01-02', logType: 'implement-issue' },
     ];
     const pipelineDailyUsage = [
       { date: '2025-01-01', totalTokens: 1_000_000 },
@@ -895,13 +895,13 @@ describe('computeIssueMetrics', () => {
   });
 
   test('mtPerIssue is 0 when pipelineDailyUsage is empty', () => {
-    const runs = [{ project: 'owner/repo', issue: 1, date: '2025-01-01' }];
+    const runs = [{ project: 'owner/repo', issue: 1, date: '2025-01-01', logType: 'implement-issue' }];
     const result = computeIssueMetrics(runs, []);
     assert.strictEqual(result.mtPerIssue, 0);
   });
 
   test('mtPerIssue is 0 when there are no issues (avoids divide-by-zero)', () => {
-    const runs = [{ project: 'owner/repo', date: '2025-01-01' }];
+    const runs = [{ project: 'owner/repo', date: '2025-01-01', logType: 'implement-issue' }];
     const pipelineDailyUsage = [{ date: '2025-01-01', totalTokens: 5_000_000 }];
     const result = computeIssueMetrics(runs, pipelineDailyUsage);
     assert.strictEqual(result.mtPerIssue, 0);
@@ -909,8 +909,8 @@ describe('computeIssueMetrics', () => {
 
   test('computes avgImplementHours from stageDurations.implement (in seconds)', () => {
     const runs = [
-      { project: 'owner/repo', issue: 1, date: '2025-01-01', stageDurations: { implement: 3600 } },   // 1 hour
-      { project: 'owner/repo', issue: 2, date: '2025-01-01', stageDurations: { implement: 7200 } },   // 2 hours
+      { project: 'owner/repo', issue: 1, date: '2025-01-01', logType: 'implement-issue', stageDurations: { implement: 3600 } },   // 1 hour
+      { project: 'owner/repo', issue: 2, date: '2025-01-01', logType: 'implement-issue', stageDurations: { implement: 7200 } },   // 2 hours
     ];
     const result = computeIssueMetrics(runs, []);
     assert.strictEqual(result.avgImplementHours, 1.5);
@@ -918,8 +918,8 @@ describe('computeIssueMetrics', () => {
 
   test('avgImplementHours is 0 when no runs have stageDurations.implement', () => {
     const runs = [
-      { project: 'owner/repo', issue: 1, date: '2025-01-01' }, // no stageDurations
-      { project: 'owner/repo', issue: 2, date: '2025-01-01', stageDurations: {} }, // missing implement
+      { project: 'owner/repo', issue: 1, date: '2025-01-01', logType: 'implement-issue' }, // no stageDurations
+      { project: 'owner/repo', issue: 2, date: '2025-01-01', logType: 'implement-issue', stageDurations: {} }, // missing implement
     ];
     const result = computeIssueMetrics(runs, []);
     assert.strictEqual(result.avgImplementHours, 0);
@@ -927,7 +927,7 @@ describe('computeIssueMetrics', () => {
 
   test('runs without date field are excluded from pipeline token matching', () => {
     const runs = [
-      { project: 'owner/repo', issue: 1 }, // no date
+      { project: 'owner/repo', issue: 1, logType: 'implement-issue' }, // no date
     ];
     const pipelineDailyUsage = [{ date: '2025-01-01', totalTokens: 5_000_000 }];
     const result = computeIssueMetrics(runs, pipelineDailyUsage);
@@ -936,8 +936,8 @@ describe('computeIssueMetrics', () => {
 
   test('includes stageDurations.implement of 0 in avgImplementHours (falsy but valid)', () => {
     const runs = [
-      { project: 'r', issue: 1, date: '2025-01-01', stageDurations: { implement: 0 } },
-      { project: 'r', issue: 2, date: '2025-01-01', stageDurations: { implement: 7200 } }, // 2 hours
+      { project: 'r', issue: 1, date: '2025-01-01', logType: 'implement-issue', stageDurations: { implement: 0 } },
+      { project: 'r', issue: 2, date: '2025-01-01', logType: 'implement-issue', stageDurations: { implement: 7200 } }, // 2 hours
     ];
     const result = computeIssueMetrics(runs, []);
     assert.strictEqual(result.avgImplementHours, 1); // (0 + 2) / 2
@@ -945,8 +945,8 @@ describe('computeIssueMetrics', () => {
 
   test('aggregates pipeline tokens across multiple runs sharing the same date', () => {
     const runs = [
-      { project: 'owner/repo', issue: 1, date: '2025-01-01' },
-      { project: 'owner/repo', issue: 2, date: '2025-01-01' }, // same date as above
+      { project: 'owner/repo', issue: 1, date: '2025-01-01', logType: 'implement-issue' },
+      { project: 'owner/repo', issue: 2, date: '2025-01-01', logType: 'implement-issue' }, // same date as above
     ];
     const pipelineDailyUsage = [
       { date: '2025-01-01', totalTokens: 4_000_000 },
@@ -958,9 +958,9 @@ describe('computeIssueMetrics', () => {
 
   test('rounds mtPerIssue and avgImplementHours to 2 decimal places', () => {
     const runs = [
-      { project: 'r', issue: 1, date: '2025-01-01', stageDurations: { implement: 3601 } }, // 1.000277... hours
-      { project: 'r', issue: 2, date: '2025-01-01', stageDurations: { implement: 3601 } },
-      { project: 'r', issue: 3, date: '2025-01-01', stageDurations: { implement: 3601 } },
+      { project: 'r', issue: 1, date: '2025-01-01', logType: 'implement-issue', stageDurations: { implement: 3601 } }, // 1.000277... hours
+      { project: 'r', issue: 2, date: '2025-01-01', logType: 'implement-issue', stageDurations: { implement: 3601 } },
+      { project: 'r', issue: 3, date: '2025-01-01', logType: 'implement-issue', stageDurations: { implement: 3601 } },
     ];
     const pipelineDailyUsage = [{ date: '2025-01-01', totalTokens: 1_000_001 }];
     const result = computeIssueMetrics(runs, pipelineDailyUsage);

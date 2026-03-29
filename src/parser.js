@@ -505,11 +505,12 @@ function emptySummary() {
 }
 
 function computeIssueMetrics(runs, pipelineDailyUsage = []) {
+  const implRuns = runs.filter(r => r.logType === 'implement-issue');
   const issueMap = new Map(); // key: "project/issue" -> {number, repo}
   const runDates = new Set();
   const implementDurations = []; // hours
 
-  for (const run of runs) {
+  for (const run of implRuns) {
     if (run.issue) {
       const key = `${run.project}/${run.issue}`;
       if (!issueMap.has(key)) {

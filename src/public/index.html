@@ -1938,7 +1938,7 @@ function applyDateFilter() {
     const filteredRuns = DATA.orchestrator.runs.filter(r => r.date && r.date >= fromDate && r.date <= toDate);
     const recomputed = recomputeOrchestratorSummary(filteredRuns);
     // Recommendations will be generated after ppmtAnalysis is recomputed below
-    filteredOrchestrator = { runs: filteredRuns, summary: recomputed };
+    filteredOrchestrator = { runs: filteredRuns, summary: recomputed, issueMetrics: DATA.orchestrator.issueMetrics };
   }
 
   const filteredSessionEff = recomputeSessionEfficiency(sessions);
@@ -2066,7 +2066,7 @@ function renderValueMetrics() {
   const hasOrch = orch && orch.runs && orch.runs.length > 0;
 
   // Issues Addressed: unique issue numbers from completed implement-issue runs
-  const uniqueIssues = new Set(completedRuns.map(r => r.issue).filter(Boolean));
+  const uniqueIssues = new Set(completedRuns.filter(r => r.issue).map(r => (r.project || '') + '/' + r.issue));
   const issueCount = uniqueIssues.size;
 
   // Weekly sparkline: issues addressed per day over last 7 days
@@ -2114,13 +2114,10 @@ function renderValueMetrics() {
     ? Math.round(implementSecs.reduce((s, d) => s + d, 0) / implementSecs.length / 3600 * 10) / 10
     : null;
 
-  // Avg Cycle Time (days): sum of all stage durations per run
-  const cycleSecs = completedRuns.map(r => {
-    const vals = Object.values(r.stageDurations || {});
-    return vals.length > 0 ? vals.reduce((s, d) => s + d, 0) : null;
-  }).filter(d => d != null && d > 0);
-  const avgCycleDays = cycleSecs.length > 0
-    ? Math.round(cycleSecs.reduce((s, d) => s + d, 0) / cycleSecs.length / 86400 * 10) / 10
+  // Avg Cycle Time (days): GitHub issue open → close, computed server-side via gh CLI
+  const issueMetrics = orch && orch.issueMetrics;
+  const avgCycleDays = (issueMetrics && issueMetrics.avgCycleTimeDays > 0)
+    ? issueMetrics.avgCycleTimeDays
     : null;
 
   // Render helpers
@@ -2171,10 +2168,11 @@ function renderValueMetrics() {
   );
 
   // Avg Cycle Time
+  const cycleIssueCount = issueMetrics && issueMetrics.issueMeta ? issueMetrics.issueMeta.filter(i => i.cycleTimeDays != null).length : 0;
   fillCard('vmAvgCycleTime',
     'Avg Cycle Time',
     avgCycleDays != null ? fmtSmart(avgCycleDays) + 'd' : '\u2014',
-    avgCycleDays != null ? cycleSecs.length + ' run' + (cycleSecs.length !== 1 ? 's' : '') + ' measured' : (hasOrch ? 'no data' : 'no orchestrator data')
+    avgCycleDays != null ? cycleIssueCount + ' issue' + (cycleIssueCount !== 1 ? 's' : '') + ' measured' : (hasOrch ? 'no data' : 'no orchestrator data')
   );
 }
 

@@ -1,12 +1,12 @@
 const express = require('express');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const { mapInsightToIssue } = require('./issue-mapper');
 
 // Enrich issueMetrics with cycle time data from gh CLI.
 // cache: object used to memoize results across calls (pass {} to create a fresh cache).
 // execFn: injectable for testing (defaults to execSync).
-function enrichIssueCycleTime(issueMetrics, cache = {}, execFn = execSync) {
+function enrichIssueCycleTime(issueMetrics, cache = {}, execFn = execFileSync) {
   if (!issueMetrics || !issueMetrics.issueMeta || issueMetrics.issueMeta.length === 0) {
     return issueMetrics;
   }
@@ -27,10 +27,11 @@ function enrichIssueCycleTime(issueMetrics, cache = {}, execFn = execSync) {
       continue;
     }
 
-    // Try to fetch from gh CLI
+    // Try to fetch from gh CLI (execFileSync avoids shell interpolation — no injection risk)
     try {
       const result = execFn(
-        `gh issue view ${issue.number} --repo ${issue.repo} --json createdAt,closedAt`,
+        'gh',
+        ['issue', 'view', String(issue.number), '--repo', issue.repo, '--json', 'createdAt,closedAt'],
         { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
       );
       const data = JSON.parse(result);
@@ -91,6 +92,8 @@ function createServer() {
   app.get('/api/refresh', async (req, res) => {
     try {
       delete require.cache[require.resolve('./parser')];
+      // Clear cycle time cache so closed issues are re-fetched
+      Object.keys(issueCycleTimeCache).forEach(k => delete issueCycleTimeCache[k]);
       cachedData = await require('./parser').parseAllSessions();
       // Enrich issueMetrics with cycle time data
       if (cachedData.orchestrator && cachedData.orchestrator.issueMetrics) {
