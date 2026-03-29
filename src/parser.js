@@ -514,7 +514,7 @@ function computeIssueMetrics(runs, pipelineDailyUsage = []) {
     if (run.issue) {
       const key = `${run.project}/${run.issue}`;
       if (!issueMap.has(key)) {
-        issueMap.set(key, { number: run.issue, repo: run.project });
+        issueMap.set(key, { number: run.issue, repo: run.project, projectPath: run.projectPath || null });
       }
     }
     if (run.date) runDates.add(run.date);

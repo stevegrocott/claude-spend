@@ -6,6 +6,25 @@ const { mapInsightToIssue } = require('./issue-mapper');
 // Enrich issueMetrics with cycle time data from gh CLI.
 // cache: object used to memoize results across calls (pass {} to create a fresh cache).
 // execFn: injectable for testing (defaults to execFileSync).
+// Resolve a GitHub owner/repo slug from an issueMeta entry.
+// If issue.repo already looks like "owner/repo", use it directly.
+// Otherwise fall back to reading the git remote origin from issue.projectPath.
+function resolveGitHubRepo(issue, execFn) {
+  if (/^[^/\s]+\/[^/\s]+$/.test(issue.repo || '')) return issue.repo;
+  if (!issue.projectPath) return null;
+  try {
+    const remote = execFn(
+      'git',
+      ['-C', issue.projectPath, 'remote', 'get-url', 'origin'],
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+    ).trim();
+    const match = remote.match(/github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
 function enrichIssueCycleTime(issueMetrics, cache = {}, execFn = execFileSync) {
   if (!issueMetrics || !issueMetrics.issueMeta || issueMetrics.issueMeta.length === 0) {
     return issueMetrics;
@@ -15,7 +34,10 @@ function enrichIssueCycleTime(issueMetrics, cache = {}, execFn = execFileSync) {
   const issuesToProcess = issueMetrics.issueMeta.slice(0, 50); // Cap at 50
 
   for (const issue of issuesToProcess) {
-    const cacheKey = `${issue.repo}/${issue.number}`;
+    const resolvedRepo = resolveGitHubRepo(issue, execFn);
+    if (!resolvedRepo) continue;
+
+    const cacheKey = `${resolvedRepo}/${issue.number}`;
 
     // Check cache first
     if (cache[cacheKey] !== undefined) {
@@ -31,7 +53,7 @@ function enrichIssueCycleTime(issueMetrics, cache = {}, execFn = execFileSync) {
     try {
       const result = execFn(
         'gh',
-        ['issue', 'view', String(issue.number), '--repo', issue.repo, '--json', 'createdAt,closedAt'],
+        ['issue', 'view', String(issue.number), '--repo', resolvedRepo, '--json', 'createdAt,closedAt'],
         { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
       );
       const data = JSON.parse(result);
@@ -43,6 +65,7 @@ function enrichIssueCycleTime(issueMetrics, cache = {}, execFn = execFileSync) {
         cache[cacheKey] = cycleTime;
         cycleTimes.push(cycleTime);
         issue.cycleTimeDays = cycleTime;
+        issue.closedAt = data.closedAt;
       } else {
         // Issue not closed, cache null to skip retrying
         cache[cacheKey] = null;

@@ -2099,12 +2099,28 @@ function renderValueMetrics() {
       '</svg>';
   }
 
+  // Build weekly buckets (last 7 weeks) for trend sparklines
+  const NUM_WEEKS = 7;
+  const weekBuckets = [];
+  for (let i = NUM_WEEKS - 1; i >= 0; i--) {
+    const end = new Date(today); end.setDate(end.getDate() - i * 7);
+    const start = new Date(end); start.setDate(start.getDate() - 6);
+    weekBuckets.push({ start, end, runs: [] });
+  }
+  completedRuns.forEach(r => {
+    if (!r.date) return;
+    const d = new Date(r.date);
+    for (const b of weekBuckets) { if (d >= b.start && d <= b.end) { b.runs.push(r); break; } }
+  });
+
   // MT per Issue: pipelineTokens / issueCount / 1_000_000
   const pipelineTokens = (orch && orch.summary && orch.summary.ppmtAnalysis)
     ? (orch.summary.ppmtAnalysis.pipelineTokens || 0) : 0;
   const mtPerIssue = issueCount > 0 && pipelineTokens > 0
     ? Math.round(pipelineTokens / issueCount / 1_000_000 * 10) / 10
     : null;
+  // MT/Issue weekly sparkline: issues per week (denominator trend — more issues = more efficient)
+  const mtSparkData = weekBuckets.map(b => new Set(b.runs.filter(r => r.issue).map(r => r.issue)).size);
 
   // Avg Implement Time (hrs)
   const implementSecs = completedRuns
@@ -2113,12 +2129,27 @@ function renderValueMetrics() {
   const avgImplementHrs = implementSecs.length > 0
     ? Math.round(implementSecs.reduce((s, d) => s + d, 0) / implementSecs.length / 3600 * 10) / 10
     : null;
+  // Implement time weekly sparkline: avg implement hours per week
+  const implSparkData = weekBuckets.map(b => {
+    const durations = b.runs.map(r => r.stageDurations && r.stageDurations.implement).filter(d => d != null && d > 0);
+    return durations.length > 0 ? Math.round(durations.reduce((s, d) => s + d, 0) / durations.length / 3600 * 10) / 10 : 0;
+  });
 
   // Avg Cycle Time (days): GitHub issue open → close, computed server-side via gh CLI
   const issueMetrics = orch && orch.issueMetrics;
   const avgCycleDays = (issueMetrics && issueMetrics.avgCycleTimeDays > 0)
     ? issueMetrics.avgCycleTimeDays
     : null;
+  // Cycle time weekly sparkline: avg cycle days for issues closed each week (from issueMeta)
+  const cycleByWeek = new Array(NUM_WEEKS).fill(null).map(() => []);
+  if (issueMetrics && issueMetrics.issueMeta) {
+    issueMetrics.issueMeta.forEach(im => {
+      if (im.cycleTimeDays == null || !im.closedAt) return;
+      const d = new Date(im.closedAt);
+      weekBuckets.forEach((b, i) => { if (d >= b.start && d <= b.end) cycleByWeek[i].push(im.cycleTimeDays); });
+    });
+  }
+  const cycleSparkData = cycleByWeek.map(arr => arr.length > 0 ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length * 10) / 10 : 0);
 
   // Render helpers
   function fillCard(id, label, valueHtml, sub, extraHtml = '') {
@@ -2133,6 +2164,12 @@ function renderValueMetrics() {
       extraHtml;
   }
 
+  function maybeSparkline(data, color) {
+    return (data && data.some(v => v > 0))
+      ? '<div class="stat-sparkline">' + buildSparkline(data, color) + '</div>'
+      : '';
+  }
+
   // Issues Addressed
   const issuesValueHtml = !hasOrch ? '\u2014' : String(issueCount);
   const issuesSub = !hasOrch
@@ -2140,23 +2177,23 @@ function renderValueMetrics() {
     : (issueCount > 0
       ? completedRuns.length + ' completed run' + (completedRuns.length !== 1 ? 's' : '')
       : 'no completed runs yet');
-  const sparkHtml = (hasOrch && issueCount > 0 && sparkData.some(v => v > 0))
-    ? '<div class="stat-sparkline">' + buildSparkline(sparkData, '#6366F1') + '</div>'
-    : '';
-  fillCard('vmIssuesAddressed', 'Issues Addressed', issuesValueHtml, issuesSub, sparkHtml);
+  fillCard('vmIssuesAddressed', 'Issues Addressed', issuesValueHtml, issuesSub,
+    hasOrch && issueCount > 0 ? maybeSparkline(sparkData, '#6366F1') : '');
 
   // MT per Issue
   fillCard('vmMTPerIssue',
     'MT per Issue',
     mtPerIssue != null ? fmtSmart(mtPerIssue) + 'M' : '\u2014',
-    mtPerIssue != null ? 'pipeline tokens \u00B7 lower is better' : (hasOrch ? 'no completed runs' : 'no orchestrator data')
+    mtPerIssue != null ? 'pipeline tokens \u00B7 lower is better' : (hasOrch ? 'no completed runs' : 'no orchestrator data'),
+    hasOrch ? maybeSparkline(mtSparkData, '#8B5CF6') : ''
   );
 
   // Avg Implement Time
   fillCard('vmAvgImplementTime',
     'Avg Implement Time',
     avgImplementHrs != null ? fmtSmart(avgImplementHrs) + 'h' : '\u2014',
-    avgImplementHrs != null ? implementSecs.length + ' run' + (implementSecs.length !== 1 ? 's' : '') + ' measured' : (hasOrch ? 'no data' : 'no orchestrator data')
+    avgImplementHrs != null ? implementSecs.length + ' run' + (implementSecs.length !== 1 ? 's' : '') + ' measured' : (hasOrch ? 'no data' : 'no orchestrator data'),
+    hasOrch ? maybeSparkline(implSparkData, '#06B6D4') : ''
   );
 
   // Avg Cycle Time
@@ -2164,7 +2201,8 @@ function renderValueMetrics() {
   fillCard('vmAvgCycleTime',
     'Avg Cycle Time',
     avgCycleDays != null ? fmtSmart(avgCycleDays) + 'd' : '\u2014',
-    avgCycleDays != null ? cycleIssueCount + ' issue' + (cycleIssueCount !== 1 ? 's' : '') + ' measured' : (hasOrch ? 'no data' : 'no orchestrator data')
+    avgCycleDays != null ? cycleIssueCount + ' issue' + (cycleIssueCount !== 1 ? 's' : '') + ' measured' : (hasOrch ? 'no gh data \u2014 check gh auth' : 'no orchestrator data'),
+    hasOrch ? maybeSparkline(cycleSparkData, '#10B981') : ''
   );
 }
 
