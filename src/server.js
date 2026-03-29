@@ -10,7 +10,7 @@ const { mapInsightToIssue } = require('./issue-mapper');
 // If issue.repo already looks like "owner/repo", use it directly.
 // Otherwise fall back to reading the git remote origin from issue.projectPath.
 function resolveGitHubRepo(issue, execFn) {
-  if (/^[^/\s]+\/[^/\s]+$/.test(issue.repo || '')) return issue.repo;
+  if (issue.repo) return issue.repo;
   if (!issue.projectPath) return null;
   try {
     const remote = execFn(
