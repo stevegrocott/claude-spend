@@ -506,6 +506,94 @@ describe('generatePPMTRecommendations', () => {
     const recs = generatePPMTRecommendations(analysis);
     assert.ok(!recs.find(r => r.id === 'zero_escalation_failures'), 'should not trigger when <=30%');
   });
+
+  test('(h) generates high_mt_per_issue when mtPerIssue > 50', () => {
+    const issueMetrics = { mtPerIssue: 75, issuesAddressed: 4, issueMeta: [] };
+    const recs = generatePPMTRecommendations(makeAnalysis(), issueMetrics);
+    const rec = recs.find(r => r.id === 'high_mt_per_issue');
+    assert.ok(rec, 'expected high_mt_per_issue recommendation');
+    assert.strictEqual(rec.priority, 2);
+    assert.ok(rec.ppmt_impact > 0, 'ppmt_impact should be positive');
+    assert.ok(rec.evidence.mtPerIssue === 75);
+    assert.ok(rec.evidence.issuesAddressed === 4);
+  });
+
+  test('(h) does NOT generate high_mt_per_issue when mtPerIssue <= 50', () => {
+    const issueMetrics = { mtPerIssue: 50, issuesAddressed: 3, issueMeta: [] };
+    const recs = generatePPMTRecommendations(makeAnalysis(), issueMetrics);
+    assert.ok(!recs.find(r => r.id === 'high_mt_per_issue'), 'should not trigger when mtPerIssue <= 50');
+  });
+
+  test('(h) does NOT generate high_mt_per_issue when issueMetrics is null', () => {
+    const recs = generatePPMTRecommendations(makeAnalysis(), null);
+    assert.ok(!recs.find(r => r.id === 'high_mt_per_issue'), 'should not trigger without issueMetrics');
+  });
+
+  test('(i) generates rising_mt_per_issue when recent 2w avg > prior 2w avg by >25%', () => {
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const threeWeeksAgo = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000);
+    const issueMetrics = {
+      mtPerIssue: 40,
+      issuesAddressed: 4,
+      issueMeta: [
+        { closedAt: oneWeekAgo.toISOString(), mtUsed: 80 },
+        { closedAt: oneWeekAgo.toISOString(), mtUsed: 80 },
+        { closedAt: threeWeeksAgo.toISOString(), mtUsed: 40 },
+        { closedAt: threeWeeksAgo.toISOString(), mtUsed: 40 },
+      ],
+    };
+    const recs = generatePPMTRecommendations(makeAnalysis(), issueMetrics);
+    const rec = recs.find(r => r.id === 'rising_mt_per_issue');
+    assert.ok(rec, 'expected rising_mt_per_issue recommendation');
+    assert.strictEqual(rec.priority, 2);
+    assert.ok(rec.evidence.pctIncrease === 100, `expected 100% increase, got ${rec.evidence.pctIncrease}`);
+  });
+
+  test('(i) does NOT generate rising_mt_per_issue when increase <= 25%', () => {
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const threeWeeksAgo = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000);
+    const issueMetrics = {
+      mtPerIssue: 40,
+      issuesAddressed: 4,
+      issueMeta: [
+        { closedAt: oneWeekAgo.toISOString(), mtUsed: 50 },
+        { closedAt: threeWeeksAgo.toISOString(), mtUsed: 40 },
+      ],
+    };
+    const recs = generatePPMTRecommendations(makeAnalysis(), issueMetrics);
+    assert.ok(!recs.find(r => r.id === 'rising_mt_per_issue'), 'should not trigger when increase <= 25%');
+  });
+
+  test('(i) does NOT generate rising_mt_per_issue when no recent or prior issues exist', () => {
+    const now = new Date();
+    const sixWeeksAgo = new Date(now.getTime() - 42 * 24 * 60 * 60 * 1000);
+    const issueMetrics = {
+      mtPerIssue: 60,
+      issuesAddressed: 2,
+      issueMeta: [
+        { closedAt: sixWeeksAgo.toISOString(), mtUsed: 80 },
+      ],
+    };
+    const recs = generatePPMTRecommendations(makeAnalysis(), issueMetrics);
+    assert.ok(!recs.find(r => r.id === 'rising_mt_per_issue'), 'should not trigger without data in both windows');
+  });
+
+  test('(h) generates high_mt_per_issue at mtPerIssue=60', () => {
+    const issueMetrics = { mtPerIssue: 60, issuesAddressed: 5, issueMeta: [] };
+    const recs = generatePPMTRecommendations(makeAnalysis(), issueMetrics);
+    const rec = recs.find(r => r.id === 'high_mt_per_issue');
+    assert.ok(rec, 'expected high_mt_per_issue recommendation at mtPerIssue=60');
+    assert.strictEqual(rec.priority, 2);
+    assert.ok(rec.ppmt_impact > 0);
+  });
+
+  test('(h) does NOT generate high_mt_per_issue when mtPerIssue=30', () => {
+    const issueMetrics = { mtPerIssue: 30, issuesAddressed: 5, issueMeta: [] };
+    const recs = generatePPMTRecommendations(makeAnalysis(), issueMetrics);
+    assert.ok(!recs.find(r => r.id === 'high_mt_per_issue'), 'should not trigger when mtPerIssue=30 (not > 50)');
+  });
 });
 
 describe('categorizeSession', () => {
@@ -866,7 +954,7 @@ describe('computeIssueMetrics', () => {
       { project: 'owner/repo', issue: 7, date: '2025-01-01', logType: 'implement-issue' },
     ];
     const result = computeIssueMetrics(runs, []);
-    assert.deepStrictEqual(result.issueMeta, [{ number: 7, repo: 'owner/repo' }]);
+    assert.deepStrictEqual(result.issueMeta, [{ number: 7, repo: 'owner/repo', projectPath: null, implCompletedAt: null }]);
   });
 
   test('runs without issue field do not contribute to issuesAddressed', () => {
@@ -969,6 +1057,327 @@ describe('computeIssueMetrics', () => {
     // verify only 2 decimal places
     assert.strictEqual(result.mtPerIssue, Math.round(result.mtPerIssue * 100) / 100);
     assert.strictEqual(result.avgImplementHours, Math.round(result.avgImplementHours * 100) / 100);
+  });
+});
+
+describe('generateSpeedInsights', () => {
+  test('returns empty array when issueMetrics is null', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const insights = generateSpeedInsights(null);
+    assert.deepStrictEqual(insights, []);
+  });
+
+  test('returns empty array when issueMetrics is undefined', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const insights = generateSpeedInsights(undefined);
+    assert.deepStrictEqual(insights, []);
+  });
+
+  test('returns empty array when issueMetrics is missing', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const insights = generateSpeedInsights();
+    assert.deepStrictEqual(insights, []);
+  });
+
+  test('generates slow_cycle_time when avgCycleTimeDays > 3 with >= 5 issues', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const issueMetrics = {
+      issuesAddressed: 5,
+      avgCycleTimeDays: 4.5,
+      avgImplementHours: 2,
+      mtPerIssue: 10,
+      issueMeta: [
+        { number: 1, closedAt: new Date().toISOString() },
+        { number: 2, closedAt: new Date().toISOString() },
+        { number: 3, closedAt: new Date().toISOString() },
+        { number: 4, closedAt: new Date().toISOString() },
+        { number: 5, closedAt: new Date().toISOString() },
+      ],
+    };
+    const insights = generateSpeedInsights(issueMetrics);
+    const slowInsight = insights.find(i => i.id === 'slow_cycle_time');
+    assert.ok(slowInsight, 'expected slow_cycle_time insight');
+    assert.strictEqual(slowInsight.lens, 'speed');
+    assert.strictEqual(slowInsight.type, 'warning');
+    assert.ok(slowInsight.title);
+    assert.ok(slowInsight.description);
+    assert.ok(slowInsight.action);
+  });
+
+  test('does NOT generate slow_cycle_time when avgCycleTimeDays <= 3', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const issueMetrics = {
+      issuesAddressed: 5,
+      avgCycleTimeDays: 3.0,
+      avgImplementHours: 2,
+      mtPerIssue: 10,
+      issueMeta: [
+        { number: 1, closedAt: new Date().toISOString() },
+        { number: 2, closedAt: new Date().toISOString() },
+        { number: 3, closedAt: new Date().toISOString() },
+        { number: 4, closedAt: new Date().toISOString() },
+        { number: 5, closedAt: new Date().toISOString() },
+      ],
+    };
+    const insights = generateSpeedInsights(issueMetrics);
+    assert.ok(!insights.find(i => i.id === 'slow_cycle_time'), 'should not trigger when avgCycleTimeDays <= 3');
+  });
+
+  test('does NOT generate slow_cycle_time when issuesAddressed < 5', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const issueMetrics = {
+      issuesAddressed: 4,
+      avgCycleTimeDays: 4.5,
+      avgImplementHours: 2,
+      mtPerIssue: 10,
+      issueMeta: [
+        { number: 1, closedAt: new Date().toISOString() },
+        { number: 2, closedAt: new Date().toISOString() },
+        { number: 3, closedAt: new Date().toISOString() },
+        { number: 4, closedAt: new Date().toISOString() },
+      ],
+    };
+    const insights = generateSpeedInsights(issueMetrics);
+    assert.ok(!insights.find(i => i.id === 'slow_cycle_time'), 'should not trigger when issuesAddressed < 5');
+  });
+
+  test('generates slow_cycle_time when avgCycleTimeDays=5 with issuesAddressed=6', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const issueMetrics = {
+      issuesAddressed: 6,
+      avgCycleTimeDays: 5,
+      avgImplementHours: 2,
+      mtPerIssue: 10,
+      issueMeta: [
+        { number: 1, closedAt: new Date().toISOString() },
+        { number: 2, closedAt: new Date().toISOString() },
+        { number: 3, closedAt: new Date().toISOString() },
+        { number: 4, closedAt: new Date().toISOString() },
+        { number: 5, closedAt: new Date().toISOString() },
+        { number: 6, closedAt: new Date().toISOString() },
+      ],
+    };
+    const insights = generateSpeedInsights(issueMetrics);
+    const slowInsight = insights.find(i => i.id === 'slow_cycle_time');
+    assert.ok(slowInsight, 'expected slow_cycle_time insight at avgCycleTimeDays=5 with 6 issues');
+    assert.strictEqual(slowInsight.lens, 'speed');
+    assert.strictEqual(slowInsight.type, 'warning');
+  });
+
+  test('does NOT generate slow_cycle_time when issuesAddressed < 5 even with high cycle time', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const issueMetrics = {
+      issuesAddressed: 4,
+      avgCycleTimeDays: 5,
+      avgImplementHours: 2,
+      mtPerIssue: 10,
+      issueMeta: [
+        { number: 1, closedAt: new Date().toISOString() },
+        { number: 2, closedAt: new Date().toISOString() },
+        { number: 3, closedAt: new Date().toISOString() },
+        { number: 4, closedAt: new Date().toISOString() },
+      ],
+    };
+    const insights = generateSpeedInsights(issueMetrics);
+    assert.ok(!insights.find(i => i.id === 'slow_cycle_time'), 'should not trigger when issuesAddressed < 5, even with avgCycleTimeDays=5');
+  });
+
+  test('generates high_idle_ratio when avgCycleTimeDays > avgImplementHours/24 * 4', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const issueMetrics = {
+      issuesAddressed: 5,
+      avgCycleTimeDays: 1.0, // 24 hours
+      avgImplementHours: 5.0, // threshold: 5/24*4 = 0.833
+      mtPerIssue: 10,
+      issueMeta: [],
+    };
+    const insights = generateSpeedInsights(issueMetrics);
+    const idleInsight = insights.find(i => i.id === 'high_idle_ratio');
+    assert.ok(idleInsight, 'expected high_idle_ratio insight');
+    assert.strictEqual(idleInsight.lens, 'speed');
+    assert.strictEqual(idleInsight.type, 'warning');
+  });
+
+  test('does NOT generate high_idle_ratio when avgCycleTimeDays <= threshold', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const issueMetrics = {
+      issuesAddressed: 5,
+      avgCycleTimeDays: 0.8, // below threshold
+      avgImplementHours: 5.0,
+      mtPerIssue: 10,
+      issueMeta: [],
+    };
+    const insights = generateSpeedInsights(issueMetrics);
+    assert.ok(!insights.find(i => i.id === 'high_idle_ratio'), 'should not trigger when avgCycleTimeDays <= threshold');
+  });
+
+  test('generates high_idle_ratio when cycle=4d and implement=0.5h', () => {
+    const { generateSpeedInsights } = require('./parser');
+    // threshold = (0.5 / 24) * 4 = 0.0833 days
+    // 4 > 0.0833, so should trigger
+    const issueMetrics = {
+      issuesAddressed: 5,
+      avgCycleTimeDays: 4,
+      avgImplementHours: 0.5,
+      mtPerIssue: 10,
+      issueMeta: [],
+    };
+    const insights = generateSpeedInsights(issueMetrics);
+    const idleInsight = insights.find(i => i.id === 'high_idle_ratio');
+    assert.ok(idleInsight, 'expected high_idle_ratio insight at cycle=4d, implement=0.5h');
+    assert.strictEqual(idleInsight.lens, 'speed');
+    assert.strictEqual(idleInsight.type, 'warning');
+  });
+
+  test('generates declining_velocity when issues/week falls >30% over last 3 weeks', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const now = new Date();
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+
+    const issueMetrics = {
+      issuesAddressed: 7,
+      avgCycleTimeDays: 2.5,
+      avgImplementHours: 2,
+      mtPerIssue: 10,
+      issueMeta: [
+        // 4 weeks ago: 4 issues
+        { number: 1, closedAt: fourWeeksAgo.toISOString() },
+        { number: 2, closedAt: fourWeeksAgo.toISOString() },
+        { number: 3, closedAt: fourWeeksAgo.toISOString() },
+        { number: 4, closedAt: fourWeeksAgo.toISOString() },
+        // 2 weeks ago: 2 issues (50% drop)
+        { number: 5, closedAt: twoWeeksAgo.toISOString() },
+        { number: 6, closedAt: twoWeeksAgo.toISOString() },
+        // recent: 1 issue
+        { number: 7, closedAt: now.toISOString() },
+      ],
+    };
+    const insights = generateSpeedInsights(issueMetrics);
+    const velocityInsight = insights.find(i => i.id === 'declining_velocity');
+    assert.ok(velocityInsight, 'expected declining_velocity insight');
+    assert.strictEqual(velocityInsight.lens, 'speed');
+    assert.strictEqual(velocityInsight.type, 'warning');
+  });
+
+  test('does NOT generate declining_velocity when velocity is stable or increasing', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const now = new Date();
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+
+    const issueMetrics = {
+      issuesAddressed: 7,
+      avgCycleTimeDays: 2.5,
+      avgImplementHours: 2,
+      mtPerIssue: 10,
+      issueMeta: [
+        // 4 weeks ago: 2 issues
+        { number: 1, closedAt: fourWeeksAgo.toISOString() },
+        { number: 2, closedAt: fourWeeksAgo.toISOString() },
+        // 2 weeks ago: 4 issues (increasing)
+        { number: 3, closedAt: twoWeeksAgo.toISOString() },
+        { number: 4, closedAt: twoWeeksAgo.toISOString() },
+        { number: 5, closedAt: twoWeeksAgo.toISOString() },
+        { number: 6, closedAt: twoWeeksAgo.toISOString() },
+        // recent: 1 issue
+        { number: 7, closedAt: now.toISOString() },
+      ],
+    };
+    const insights = generateSpeedInsights(issueMetrics);
+    assert.ok(!insights.find(i => i.id === 'declining_velocity'), 'should not trigger when velocity is stable');
+  });
+
+  test('does NOT generate declining_velocity when < 3 weeks of data exist', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const issueMetrics = {
+      issuesAddressed: 4,
+      avgCycleTimeDays: 2.5,
+      avgImplementHours: 2,
+      mtPerIssue: 10,
+      issueMeta: [
+        // Only 2 weeks of data
+        { number: 1, closedAt: oneWeekAgo.toISOString() },
+        { number: 2, closedAt: oneWeekAgo.toISOString() },
+        { number: 3, closedAt: now.toISOString() },
+        { number: 4, closedAt: now.toISOString() },
+      ],
+    };
+    const insights = generateSpeedInsights(issueMetrics);
+    assert.ok(!insights.find(i => i.id === 'declining_velocity'), 'should not trigger when < 3 weeks of data exist');
+  });
+
+  test('generates declining_velocity on 3-week declining trend', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const now = new Date();
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+
+    const issueMetrics = {
+      issuesAddressed: 7,
+      avgCycleTimeDays: 2.5,
+      avgImplementHours: 2,
+      mtPerIssue: 10,
+      issueMeta: [
+        // 4 weeks ago: 10 issues (week 3)
+        { number: 1, closedAt: fourWeeksAgo.toISOString() },
+        { number: 2, closedAt: fourWeeksAgo.toISOString() },
+        { number: 3, closedAt: fourWeeksAgo.toISOString() },
+        { number: 4, closedAt: fourWeeksAgo.toISOString() },
+        { number: 5, closedAt: fourWeeksAgo.toISOString() },
+        { number: 6, closedAt: fourWeeksAgo.toISOString() },
+        { number: 7, closedAt: fourWeeksAgo.toISOString() },
+        { number: 8, closedAt: fourWeeksAgo.toISOString() },
+        { number: 9, closedAt: fourWeeksAgo.toISOString() },
+        { number: 10, closedAt: fourWeeksAgo.toISOString() },
+        // 2 weeks ago: 5 issues (week 2)
+        { number: 11, closedAt: twoWeeksAgo.toISOString() },
+        { number: 12, closedAt: twoWeeksAgo.toISOString() },
+        { number: 13, closedAt: twoWeeksAgo.toISOString() },
+        { number: 14, closedAt: twoWeeksAgo.toISOString() },
+        { number: 15, closedAt: twoWeeksAgo.toISOString() },
+        // recent: 2 issues (week 1) - 10 * 0.7 = 7, so 2 < 7 triggers decline
+        { number: 16, closedAt: now.toISOString() },
+        { number: 17, closedAt: now.toISOString() },
+      ],
+    };
+    const insights = generateSpeedInsights(issueMetrics);
+    const velocityInsight = insights.find(i => i.id === 'declining_velocity');
+    assert.ok(velocityInsight, 'expected declining_velocity insight on 3-week declining trend');
+    assert.strictEqual(velocityInsight.lens, 'speed');
+    assert.strictEqual(velocityInsight.type, 'warning');
+  });
+
+  test('returns array of insight objects with correct shape', () => {
+    const { generateSpeedInsights } = require('./parser');
+    const now = new Date();
+    const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+
+    const issueMetrics = {
+      issuesAddressed: 5,
+      avgCycleTimeDays: 4.5,
+      avgImplementHours: 2,
+      mtPerIssue: 10,
+      issueMeta: [
+        { number: 1, closedAt: fourWeeksAgo.toISOString() },
+        { number: 2, closedAt: fourWeeksAgo.toISOString() },
+        { number: 3, closedAt: fourWeeksAgo.toISOString() },
+        { number: 4, closedAt: fourWeeksAgo.toISOString() },
+        { number: 5, closedAt: now.toISOString() },
+      ],
+    };
+    const insights = generateSpeedInsights(issueMetrics);
+    for (const insight of insights) {
+      assert.ok(insight.id, 'insight should have id');
+      assert.ok(insight.lens, 'insight should have lens');
+      assert.ok(insight.type, 'insight should have type');
+      assert.ok(insight.title, 'insight should have title');
+      assert.ok(insight.description, 'insight should have description');
+      assert.ok('action' in insight, 'insight should have action property');
+    }
   });
 });
 

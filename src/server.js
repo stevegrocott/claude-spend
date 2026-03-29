@@ -10,7 +10,7 @@ const { mapInsightToIssue } = require('./issue-mapper');
 // If issue.repo already looks like "owner/repo", use it directly.
 // Otherwise fall back to reading the git remote origin from issue.projectPath.
 function resolveGitHubRepo(issue, execFn) {
-  if (issue.repo) return issue.repo;
+  if (/^[^/\s]+\/[^/\s]+$/.test(issue.repo || '')) return issue.repo;
   if (!issue.projectPath) return null;
   try {
     const remote = execFn(
@@ -76,10 +76,15 @@ function enrichIssueCycleTime(issueMetrics, cache = {}, execFn = execFileSync) {
     }
   }
 
-  // Calculate average cycle time
-  const avgCycleTimeDays = cycleTimes.length > 0
+  // gh-derived cycle times: only supplement issues not already covered by log-based cycle time
+  const ghAvg = cycleTimes.length > 0
     ? Math.round((cycleTimes.reduce((s, t) => s + t, 0) / cycleTimes.length) * 100) / 100
     : 0;
+
+  // Prefer log-based avgCycleTimeDays from parser (covers all history); fall back to gh-only avg
+  const avgCycleTimeDays = issueMetrics.avgCycleTimeDays > 0
+    ? issueMetrics.avgCycleTimeDays
+    : ghAvg;
 
   return {
     ...issueMetrics,

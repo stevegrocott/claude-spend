@@ -456,8 +456,8 @@ async function parseAllSessions() {
   const orchestrator = parseOrchestratorLogs(projectCostMap, pipelineDailyUsage);
   orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs.filter(r => r.state !== 'initializing' && r.state !== 'running'), pipelineDailyUsage);
   orchestrator.summary.ppmtAnalysis.pipelineTokens = pipelineTokens;
-  orchestrator.summary.recommendations = generatePPMTRecommendations(orchestrator.summary.ppmtAnalysis);
-  const orchestratorInsights = generateOrchestratorInsights(orchestrator);
+  orchestrator.summary.recommendations = generatePPMTRecommendations(orchestrator.summary.ppmtAnalysis, orchestrator.issueMetrics);
+  const orchestratorInsights = [...generateOrchestratorInsights(orchestrator), ...generateSpeedInsights(orchestrator.issueMetrics)];
 
   // Add pp100mt to each projectBreakdown entry using orchestrator projectYield data
   const projectYieldByName = {};
@@ -506,21 +506,80 @@ function emptySummary() {
 
 function computeIssueMetrics(runs, pipelineDailyUsage = []) {
   const implRuns = runs.filter(r => r.logType === 'implement-issue');
-  const issueMap = new Map(); // key: "project/issue" -> {number, repo}
+  const exploreRuns = runs.filter(r => r.logType === 'explore');
+  const issueMap = new Map(); // key: "project/issue" -> {number, repo, projectPath, implCompletedAt}
   const runDates = new Set();
   const implementDurations = []; // hours
 
+  const issueDatesMap = new Map(); // key: "project/issue" -> Set of dates
   for (const run of implRuns) {
     if (run.issue) {
       const key = `${run.project}/${run.issue}`;
-      if (!issueMap.has(key)) {
-        issueMap.set(key, { number: run.issue, repo: run.project });
+      const existing = issueMap.get(key);
+      // Keep entry with latest completedAt (most recent completed implement run)
+      if (!existing || (run.completedAt && (!existing.implCompletedAt || run.completedAt > existing.implCompletedAt))) {
+        issueMap.set(key, {
+          number: run.issue,
+          repo: run.project,
+          projectPath: run.projectPath || null,
+          implCompletedAt: run.completedAt || null,
+        });
+      }
+      if (run.date) {
+        if (!issueDatesMap.has(key)) issueDatesMap.set(key, new Set());
+        issueDatesMap.get(key).add(run.date);
       }
     }
     if (run.date) runDates.add(run.date);
     const implSecs = run.stageDurations && run.stageDurations.implement;
-    if (implSecs != null) {
-      implementDurations.push(implSecs / 3600);
+    if (implSecs != null) implementDurations.push(implSecs / 3600);
+  }
+
+  // Build earliest explore completion per issue — used as issue birth timestamp
+  const exploreStartMap = new Map(); // key: "project/issue" -> ISO timestamp
+  for (const run of exploreRuns) {
+    if (run.issue && run.completedAt) {
+      const key = `${run.project}/${run.issue}`;
+      const existing = exploreStartMap.get(key);
+      if (!existing || run.completedAt < existing) exploreStartMap.set(key, run.completedAt);
+    }
+  }
+
+  // Compute log-based cycle time: explore completion → implement completion
+  const cycleTimes = [];
+  for (const [key, meta] of issueMap) {
+    const exploreTs = exploreStartMap.get(key);
+    if (exploreTs && meta.implCompletedAt) {
+      const days = (new Date(meta.implCompletedAt) - new Date(exploreTs)) / (1000 * 60 * 60 * 24);
+      if (days >= 0) {
+        meta.cycleTimeDays = Math.round(days * 100) / 100;
+        meta.closedAt = meta.implCompletedAt; // used by frontend sparkline bucketing
+        cycleTimes.push(meta.cycleTimeDays);
+      }
+    }
+  }
+
+  // Compute mtUsed per issue: apportion daily pipeline tokens equally among issues active on each day
+  if (pipelineDailyUsage.length > 0) {
+    const dailyTokenMap = new Map();
+    for (const d of pipelineDailyUsage) dailyTokenMap.set(d.date, d.totalTokens);
+
+    // Count how many distinct issues were active each day
+    const datIssueCount = new Map();
+    for (const dates of issueDatesMap.values()) {
+      for (const date of dates) datIssueCount.set(date, (datIssueCount.get(date) || 0) + 1);
+    }
+
+    for (const [key, meta] of issueMap) {
+      const dates = issueDatesMap.get(key);
+      if (!dates) continue;
+      let totalTokens = 0;
+      for (const date of dates) {
+        const dayTokens = dailyTokenMap.get(date) || 0;
+        const issueCount = datIssueCount.get(date) || 1;
+        totalTokens += dayTokens / issueCount;
+      }
+      meta.mtUsed = Math.round((totalTokens / 1_000_000) * 100) / 100;
     }
   }
 
@@ -538,7 +597,11 @@ function computeIssueMetrics(runs, pipelineDailyUsage = []) {
     ? Math.round((implementDurations.reduce((s, h) => s + h, 0) / implementDurations.length) * 100) / 100
     : 0;
 
-  return { issuesAddressed, mtPerIssue, avgImplementHours, issueMeta };
+  const avgCycleTimeDays = cycleTimes.length > 0
+    ? Math.round((cycleTimes.reduce((s, v) => s + v, 0) / cycleTimes.length) * 100) / 100
+    : 0;
+
+  return { issuesAddressed, mtPerIssue, avgImplementHours, avgCycleTimeDays, issueMeta };
 }
 
 function parseOrchestratorLogs(projectCostMap = {}, pipelineDailyUsage = []) {
@@ -661,11 +724,21 @@ function parseOrchestratorLogs(projectCostMap = {}, pipelineDailyUsage = []) {
             }
           }
 
-          // Extract date from directory name (e.g., issue-17-20260221-090547)
+          // Extract date and start timestamp from directory name (e.g., issue-17-20260221-090547)
           const dateMatch = entry.match(/(\d{8})-(\d{6})$/);
           const date = dateMatch
             ? `${dateMatch[1].slice(0,4)}-${dateMatch[1].slice(4,6)}-${dateMatch[1].slice(6,8)}`
             : null;
+          const startedAt = dateMatch
+            ? new Date(`${dateMatch[1].slice(0,4)}-${dateMatch[1].slice(4,6)}-${dateMatch[1].slice(6,8)}T${dateMatch[2].slice(0,2)}:${dateMatch[2].slice(2,4)}:${dateMatch[2].slice(4,6)}Z`).toISOString()
+            : null;
+          // completedAt: prefer stages.complete.completed_at (implement-issue),
+          // then stages.create_issue.completed_at (explore), else derive from startedAt + total stage durations
+          const completedAt = raw.stages?.complete?.completed_at
+            || raw.stages?.create_issue?.completed_at
+            || (startedAt && Object.values(stageDurations).length > 0
+              ? new Date(new Date(startedAt).getTime() + Object.values(stageDurations).reduce((s, v) => s + v, 0) * 1000).toISOString()
+              : startedAt);
 
           // Calculate cost from worktree sessions
           const runBaseDir = path.join(logsDir, entry);
@@ -699,6 +772,8 @@ function parseOrchestratorLogs(projectCostMap = {}, pipelineDailyUsage = []) {
             hasMetrics: metrics !== null,
             parseIssueCompleted: raw.stages?.parse_issue?.status === 'completed',
             date,
+            startedAt,
+            completedAt,
             dirName: entry,
             estimatedCost,
             taskSummary: parseTaskSummary(raw),
@@ -1060,6 +1135,74 @@ function generateOrchestratorInsights(orchestrator) {
         description: `The "${top.stageName}" stage has consumed ${fmt(top.opusTokens)} Opus tokens across all runs. Other high-Opus stages: ${stageOpusCost.slice(1, 3).map(s => `"${s.stageName}" (${fmt(s.opusTokens)})`).join(', ') || 'none'}. Opus costs 5-10x more than Sonnet per token.`,
         action: `Consider whether the "${top.stageName}" stage truly needs Opus, or if Sonnet would be sufficient. Review the agent prompt for this stage to see if it can be simplified.`,
       });
+    }
+  }
+
+  return insights;
+}
+
+function generateSpeedInsights(issueMetrics) {
+  const insights = [];
+  if (!issueMetrics) return insights;
+
+  const { avgCycleTimeDays, avgImplementHours, issuesAddressed, issueMeta } = issueMetrics;
+
+  // slow_cycle_time: avgCycleTimeDays > 3 with >= 5 issues
+  if (avgCycleTimeDays > 3 && issuesAddressed >= 5) {
+    insights.push({
+      id: 'slow_cycle_time',
+      lens: 'speed',
+      type: 'warning',
+      title: `Slow cycle time: ${avgCycleTimeDays.toFixed(1)} days per issue`,
+      description: `The average cycle time across ${issuesAddressed} issues is ${avgCycleTimeDays.toFixed(1)} days. A healthy pipeline targets under 3 days from issue open to close.`,
+      action: 'Review queue wait times between stages. Consider reducing batch sizes or increasing pipeline parallelism.',
+    });
+  }
+
+  // high_idle_ratio: avgCycleTimeDays > avgImplementHours/24 * 4
+  if (avgCycleTimeDays !== undefined && avgImplementHours !== undefined) {
+    const threshold = (avgImplementHours / 24) * 4;
+    if (avgCycleTimeDays > threshold) {
+      insights.push({
+        id: 'high_idle_ratio',
+        lens: 'speed',
+        type: 'warning',
+        title: `High idle ratio: ${avgCycleTimeDays.toFixed(1)} day cycle vs ${avgImplementHours.toFixed(1)}h implementation`,
+        description: `Cycle time (${avgCycleTimeDays.toFixed(1)} days) is more than 4x the implementation time (${avgImplementHours.toFixed(1)}h). Most elapsed time is idle wait rather than active work.`,
+        action: 'Identify queue wait points between stages. Reduce handoff delays and review triggers.',
+      });
+    }
+  }
+
+  // declining_velocity: issues/week falling >30% over last 3 weeks using issueMeta bucketed by closedAt
+  if (issueMeta && issueMeta.length > 0) {
+    const weekMap = {};
+    for (const m of issueMeta) {
+      if (!m.closedAt) continue;
+      const d = new Date(m.closedAt);
+      const startOfYear = new Date(d.getFullYear(), 0, 1);
+      const weekNum = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+      const key = `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+      weekMap[key] = (weekMap[key] || 0) + 1;
+    }
+
+    const sortedWeeks = Object.entries(weekMap).sort((a, b) => a[0].localeCompare(b[0]));
+    if (sortedWeeks.length >= 3) {
+      const recent3 = sortedWeeks.slice(-3);
+      const w3 = recent3[0][1];
+      const w2 = recent3[1][1];
+      const w1 = recent3[2][1];
+
+      if (w3 > w2 && w2 > w1 && w1 < w3 * 0.7) {
+        insights.push({
+          id: 'declining_velocity',
+          lens: 'speed',
+          type: 'warning',
+          title: `Declining velocity: ${w3} → ${w2} → ${w1} issues/week over last 3 weeks`,
+          description: `Issue throughput has fallen more than 30% from ${w3} issues/week (3 weeks ago) to ${w1} issues/week (this week).`,
+          action: 'Investigate blockers causing throughput drop. Check for increased issue complexity, team availability, or pipeline errors.',
+        });
+      }
     }
   }
 
@@ -1534,7 +1677,7 @@ function computePPMTAnalysis(runs, dailyUsage) {
   return { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield, ppmtByDay, pp100mt };
 }
 
-function generatePPMTRecommendations(analysis) {
+function generatePPMTRecommendations(analysis, issueMetrics = null) {
   const { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield } = analysis;
 
   // Derive total run count from escalationCorrelation buckets
@@ -1644,6 +1787,51 @@ function generatePPMTRecommendations(analysis) {
       evidence: { zeroEscalationFailures: zeroEscFail, totalFailures, zeroEscalationCorrelation: escalationCorrelation['0'] },
       action: 'Review 0-escalation failures for early task setup errors or misunderstood requirements; add pre-task validation checks',
     });
+  }
+
+  // (h) High MT/Issue: mtPerIssue > 50
+  if (issueMetrics && issueMetrics.mtPerIssue > 50) {
+    recs.push({
+      id: 'high_mt_per_issue',
+      priority: 2,
+      ppmt_impact: Math.min(Math.round(issueMetrics.mtPerIssue), 100),
+      title: `High MT/Issue: ${issueMetrics.mtPerIssue} MT per issue`,
+      detail: `On average, ${issueMetrics.mtPerIssue} million tokens are consumed per issue addressed. Issues requiring >50 MT suggest tasks are either oversized, prompts are verbose, or there is inefficient exploration.`,
+      evidence: { mtPerIssue: issueMetrics.mtPerIssue, issuesAddressed: issueMetrics.issuesAddressed },
+      action: 'Break oversized issues into smaller, more focused tasks; review and tighten agent prompts for verbosity; reduce file reading in exploration phases',
+    });
+  }
+
+  // (i) Rising MT/Issue: recent 2 weeks > prior 2 weeks by >25%
+  if (issueMetrics && issueMetrics.issueMeta && issueMetrics.issueMeta.length > 0) {
+    const now = new Date();
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+
+    const recent = issueMetrics.issueMeta.filter(m => m.closedAt && new Date(m.closedAt) >= twoWeeksAgo);
+    const prior = issueMetrics.issueMeta.filter(m => m.closedAt && new Date(m.closedAt) >= fourWeeksAgo && new Date(m.closedAt) < twoWeeksAgo);
+
+    if (recent.length > 0 && prior.length > 0) {
+      const recentMT = recent.reduce((sum, m) => sum + (m.mtUsed || 0), 0);
+      const priorMT = prior.reduce((sum, m) => sum + (m.mtUsed || 0), 0);
+      const recentAvgMT = recentMT / recent.length;
+      const priorAvgMT = priorMT / prior.length;
+
+      if (priorAvgMT > 0) {
+        const pctIncrease = ((recentAvgMT - priorAvgMT) / priorAvgMT) * 100;
+        if (pctIncrease > 25) {
+          recs.push({
+            id: 'rising_mt_per_issue',
+            priority: 2,
+            ppmt_impact: Math.min(Math.round(pctIncrease * 0.5), 100),
+            title: `MT/Issue rising: +${Math.round(pctIncrease)}% in last 2 weeks`,
+            detail: `Recent 2 weeks: ${Math.round(recentAvgMT)} MT/issue avg (${recent.length} issues). Prior 2 weeks: ${Math.round(priorAvgMT)} MT/issue avg (${prior.length} issues). A ${Math.round(pctIncrease)}% increase suggests tasks are becoming more complex or less efficient.`,
+            evidence: { recentAvgMT: Math.round(recentAvgMT), priorAvgMT: Math.round(priorAvgMT), pctIncrease: Math.round(pctIncrease), recentCount: recent.length, priorCount: prior.length },
+            action: 'Review recent high-cost issues for scope creep, inefficient exploration, or verbose prompts; consider adjusting task sizing or agent configuration',
+          });
+        }
+      }
+    }
   }
 
   // Sort by priority ascending (1 = highest)
@@ -1877,4 +2065,4 @@ function generateSessionRecommendations(efficiency) {
   return recs;
 }
 
-module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession, computeSessionEfficiency, generateSessionRecommendations, computeIssueMetrics };
+module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession, computeSessionEfficiency, generateSessionRecommendations, computeIssueMetrics, generateSpeedInsights };
