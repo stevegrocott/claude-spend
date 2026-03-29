@@ -511,6 +511,7 @@ function computeIssueMetrics(runs, pipelineDailyUsage = []) {
   const runDates = new Set();
   const implementDurations = []; // hours
 
+  const issueDatesMap = new Map(); // key: "project/issue" -> Set of dates
   for (const run of implRuns) {
     if (run.issue) {
       const key = `${run.project}/${run.issue}`;
@@ -523,6 +524,10 @@ function computeIssueMetrics(runs, pipelineDailyUsage = []) {
           projectPath: run.projectPath || null,
           implCompletedAt: run.completedAt || null,
         });
+      }
+      if (run.date) {
+        if (!issueDatesMap.has(key)) issueDatesMap.set(key, new Set());
+        issueDatesMap.get(key).add(run.date);
       }
     }
     if (run.date) runDates.add(run.date);
@@ -551,6 +556,30 @@ function computeIssueMetrics(runs, pipelineDailyUsage = []) {
         meta.closedAt = meta.implCompletedAt; // used by frontend sparkline bucketing
         cycleTimes.push(meta.cycleTimeDays);
       }
+    }
+  }
+
+  // Compute mtUsed per issue: apportion daily pipeline tokens equally among issues active on each day
+  if (pipelineDailyUsage.length > 0) {
+    const dailyTokenMap = new Map();
+    for (const d of pipelineDailyUsage) dailyTokenMap.set(d.date, d.totalTokens);
+
+    // Count how many distinct issues were active each day
+    const datIssueCount = new Map();
+    for (const dates of issueDatesMap.values()) {
+      for (const date of dates) datIssueCount.set(date, (datIssueCount.get(date) || 0) + 1);
+    }
+
+    for (const [key, meta] of issueMap) {
+      const dates = issueDatesMap.get(key);
+      if (!dates) continue;
+      let totalTokens = 0;
+      for (const date of dates) {
+        const dayTokens = dailyTokenMap.get(date) || 0;
+        const issueCount = datIssueCount.get(date) || 1;
+        totalTokens += dayTokens / issueCount;
+      }
+      meta.mtUsed = Math.round((totalTokens / 1_000_000) * 100) / 100;
     }
   }
 
