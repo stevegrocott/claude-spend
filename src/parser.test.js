@@ -506,6 +506,79 @@ describe('generatePPMTRecommendations', () => {
     const recs = generatePPMTRecommendations(analysis);
     assert.ok(!recs.find(r => r.id === 'zero_escalation_failures'), 'should not trigger when <=30%');
   });
+
+  test('(h) generates high_mt_per_issue when mtPerIssue > 50', () => {
+    const issueMetrics = { mtPerIssue: 75, issuesAddressed: 4, issueMeta: [] };
+    const recs = generatePPMTRecommendations(makeAnalysis(), issueMetrics);
+    const rec = recs.find(r => r.id === 'high_mt_per_issue');
+    assert.ok(rec, 'expected high_mt_per_issue recommendation');
+    assert.strictEqual(rec.priority, 2);
+    assert.ok(rec.ppmt_impact > 0, 'ppmt_impact should be positive');
+    assert.ok(rec.evidence.mtPerIssue === 75);
+    assert.ok(rec.evidence.issuesAddressed === 4);
+  });
+
+  test('(h) does NOT generate high_mt_per_issue when mtPerIssue <= 50', () => {
+    const issueMetrics = { mtPerIssue: 50, issuesAddressed: 3, issueMeta: [] };
+    const recs = generatePPMTRecommendations(makeAnalysis(), issueMetrics);
+    assert.ok(!recs.find(r => r.id === 'high_mt_per_issue'), 'should not trigger when mtPerIssue <= 50');
+  });
+
+  test('(h) does NOT generate high_mt_per_issue when issueMetrics is null', () => {
+    const recs = generatePPMTRecommendations(makeAnalysis(), null);
+    assert.ok(!recs.find(r => r.id === 'high_mt_per_issue'), 'should not trigger without issueMetrics');
+  });
+
+  test('(i) generates rising_mt_per_issue when recent 2w avg > prior 2w avg by >25%', () => {
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const threeWeeksAgo = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000);
+    const issueMetrics = {
+      mtPerIssue: 40,
+      issuesAddressed: 4,
+      issueMeta: [
+        { closedAt: oneWeekAgo.toISOString(), mtUsed: 80 },
+        { closedAt: oneWeekAgo.toISOString(), mtUsed: 80 },
+        { closedAt: threeWeeksAgo.toISOString(), mtUsed: 40 },
+        { closedAt: threeWeeksAgo.toISOString(), mtUsed: 40 },
+      ],
+    };
+    const recs = generatePPMTRecommendations(makeAnalysis(), issueMetrics);
+    const rec = recs.find(r => r.id === 'rising_mt_per_issue');
+    assert.ok(rec, 'expected rising_mt_per_issue recommendation');
+    assert.strictEqual(rec.priority, 2);
+    assert.ok(rec.evidence.pctIncrease === 100, `expected 100% increase, got ${rec.evidence.pctIncrease}`);
+  });
+
+  test('(i) does NOT generate rising_mt_per_issue when increase <= 25%', () => {
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const threeWeeksAgo = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000);
+    const issueMetrics = {
+      mtPerIssue: 40,
+      issuesAddressed: 4,
+      issueMeta: [
+        { closedAt: oneWeekAgo.toISOString(), mtUsed: 50 },
+        { closedAt: threeWeeksAgo.toISOString(), mtUsed: 40 },
+      ],
+    };
+    const recs = generatePPMTRecommendations(makeAnalysis(), issueMetrics);
+    assert.ok(!recs.find(r => r.id === 'rising_mt_per_issue'), 'should not trigger when increase <= 25%');
+  });
+
+  test('(i) does NOT generate rising_mt_per_issue when no recent or prior issues exist', () => {
+    const now = new Date();
+    const sixWeeksAgo = new Date(now.getTime() - 42 * 24 * 60 * 60 * 1000);
+    const issueMetrics = {
+      mtPerIssue: 60,
+      issuesAddressed: 2,
+      issueMeta: [
+        { closedAt: sixWeeksAgo.toISOString(), mtUsed: 80 },
+      ],
+    };
+    const recs = generatePPMTRecommendations(makeAnalysis(), issueMetrics);
+    assert.ok(!recs.find(r => r.id === 'rising_mt_per_issue'), 'should not trigger without data in both windows');
+  });
 });
 
 describe('categorizeSession', () => {
