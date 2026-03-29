@@ -934,6 +934,28 @@ describe('computeIssueMetrics', () => {
     assert.strictEqual(result.mtPerIssue, 0); // no matching dates
   });
 
+  test('includes stageDurations.implement of 0 in avgImplementHours (falsy but valid)', () => {
+    const runs = [
+      { project: 'r', issue: 1, date: '2025-01-01', stageDurations: { implement: 0 } },
+      { project: 'r', issue: 2, date: '2025-01-01', stageDurations: { implement: 7200 } }, // 2 hours
+    ];
+    const result = computeIssueMetrics(runs, []);
+    assert.strictEqual(result.avgImplementHours, 1); // (0 + 2) / 2
+  });
+
+  test('aggregates pipeline tokens across multiple runs sharing the same date', () => {
+    const runs = [
+      { project: 'owner/repo', issue: 1, date: '2025-01-01' },
+      { project: 'owner/repo', issue: 2, date: '2025-01-01' }, // same date as above
+    ];
+    const pipelineDailyUsage = [
+      { date: '2025-01-01', totalTokens: 4_000_000 },
+    ];
+    const result = computeIssueMetrics(runs, pipelineDailyUsage);
+    // 4_000_000 / 1_000_000 / 2 issues = 2.0
+    assert.strictEqual(result.mtPerIssue, 2.0);
+  });
+
   test('rounds mtPerIssue and avgImplementHours to 2 decimal places', () => {
     const runs = [
       { project: 'r', issue: 1, date: '2025-01-01', stageDurations: { implement: 3601 } }, // 1.000277... hours

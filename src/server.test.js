@@ -137,6 +137,57 @@ describe('enrichIssueCycleTime', () => {
     assert.strictEqual(result.avgImplementHours, 2.3);
   });
 
+  test('returns issueMetrics unchanged when issueMeta is null', () => {
+    const metrics = makeIssueMetrics({ issueMeta: null });
+    const result = enrichIssueCycleTime(metrics, {});
+    assert.strictEqual(result, metrics);
+  });
+
+  test('handles invalid JSON from gh CLI (caught by catch block)', () => {
+    const execFn = () => 'not valid json';
+    const cache = {};
+    const result = enrichIssueCycleTime(makeIssueMetrics(), cache, execFn);
+    assert.strictEqual(result.avgCycleTimeDays, 0);
+    assert.strictEqual(cache['owner/repo/1'], null);
+  });
+
+  test('averages only closed issues when results are mixed (closed, open, errored)', () => {
+    let call = 0;
+    const responses = [
+      () => JSON.stringify({ createdAt: '2025-01-01T00:00:00Z', closedAt: '2025-01-11T00:00:00Z' }), // 10 days
+      () => JSON.stringify({ createdAt: '2025-01-01T00:00:00Z' }), // open
+      () => { throw new Error('gh error'); }, // error
+    ];
+    const execFn = () => responses[call++]();
+    const metrics = makeIssueMetrics({
+      issueMeta: [
+        { repo: 'owner/repo', number: 1 },
+        { repo: 'owner/repo', number: 2 },
+        { repo: 'owner/repo', number: 3 },
+      ],
+    });
+    const result = enrichIssueCycleTime(metrics, {}, execFn);
+    assert.strictEqual(result.avgCycleTimeDays, 10); // only issue 1 contributes
+  });
+
+  test('caches correct cycle time value after successful fetch', () => {
+    const cache = {};
+    const execFn = makeExecFn('2025-01-01T00:00:00Z', '2025-01-06T00:00:00Z');
+    enrichIssueCycleTime(makeIssueMetrics(), cache, execFn);
+    assert.strictEqual(cache['owner/repo/1'], 5);
+  });
+
+  test('does not set cycleTimeDays on issues beyond the 50 cap', () => {
+    const execFn = makeExecFn('2025-01-01T00:00:00Z', '2025-01-06T00:00:00Z');
+    const issueMeta = Array.from({ length: 55 }, (_, i) => ({ repo: 'r', number: i + 1 }));
+    const metrics = makeIssueMetrics({ issueMeta });
+    enrichIssueCycleTime(metrics, {}, execFn);
+    // Issue at index 50 should NOT have cycleTimeDays
+    assert.strictEqual(metrics.issueMeta[50].cycleTimeDays, undefined);
+    // Issue at index 49 SHOULD have cycleTimeDays
+    assert.strictEqual(metrics.issueMeta[49].cycleTimeDays, 5);
+  });
+
   test('rounds avgCycleTimeDays to 2 decimal places', () => {
     // 1 day + 1 second = 1.0000115... days
     const execFn = makeExecFn('2025-01-01T00:00:00Z', '2025-01-02T00:00:01Z');
