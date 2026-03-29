@@ -49,7 +49,7 @@ function enrichIssueCycleTime(issueMetrics, cache = {}, execFn = execFileSync) {
       continue;
     }
 
-    // Try to fetch from gh CLI (execFileSync avoids shell interpolation — no injection risk)
+    // Try to fetch from gh CLI (execFileSync avoids shell interpolation — no injection risk; see #66)
     try {
       const result = execFn(
         'gh',
