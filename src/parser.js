@@ -506,21 +506,51 @@ function emptySummary() {
 
 function computeIssueMetrics(runs, pipelineDailyUsage = []) {
   const implRuns = runs.filter(r => r.logType === 'implement-issue');
-  const issueMap = new Map(); // key: "project/issue" -> {number, repo}
+  const exploreRuns = runs.filter(r => r.logType === 'explore');
+  const issueMap = new Map(); // key: "project/issue" -> {number, repo, projectPath, implCompletedAt}
   const runDates = new Set();
   const implementDurations = []; // hours
 
   for (const run of implRuns) {
     if (run.issue) {
       const key = `${run.project}/${run.issue}`;
-      if (!issueMap.has(key)) {
-        issueMap.set(key, { number: run.issue, repo: run.project });
+      const existing = issueMap.get(key);
+      // Keep entry with latest completedAt (most recent completed implement run)
+      if (!existing || (run.completedAt && (!existing.implCompletedAt || run.completedAt > existing.implCompletedAt))) {
+        issueMap.set(key, {
+          number: run.issue,
+          repo: run.project,
+          projectPath: run.projectPath || null,
+          implCompletedAt: run.completedAt || null,
+        });
       }
     }
     if (run.date) runDates.add(run.date);
     const implSecs = run.stageDurations && run.stageDurations.implement;
-    if (implSecs != null) {
-      implementDurations.push(implSecs / 3600);
+    if (implSecs != null) implementDurations.push(implSecs / 3600);
+  }
+
+  // Build earliest explore completion per issue — used as issue birth timestamp
+  const exploreStartMap = new Map(); // key: "project/issue" -> ISO timestamp
+  for (const run of exploreRuns) {
+    if (run.issue && run.completedAt) {
+      const key = `${run.project}/${run.issue}`;
+      const existing = exploreStartMap.get(key);
+      if (!existing || run.completedAt < existing) exploreStartMap.set(key, run.completedAt);
+    }
+  }
+
+  // Compute log-based cycle time: explore completion → implement completion
+  const cycleTimes = [];
+  for (const [key, meta] of issueMap) {
+    const exploreTs = exploreStartMap.get(key);
+    if (exploreTs && meta.implCompletedAt) {
+      const days = (new Date(meta.implCompletedAt) - new Date(exploreTs)) / (1000 * 60 * 60 * 24);
+      if (days >= 0) {
+        meta.cycleTimeDays = Math.round(days * 100) / 100;
+        meta.closedAt = meta.implCompletedAt; // used by frontend sparkline bucketing
+        cycleTimes.push(meta.cycleTimeDays);
+      }
     }
   }
 
@@ -538,7 +568,11 @@ function computeIssueMetrics(runs, pipelineDailyUsage = []) {
     ? Math.round((implementDurations.reduce((s, h) => s + h, 0) / implementDurations.length) * 100) / 100
     : 0;
 
-  return { issuesAddressed, mtPerIssue, avgImplementHours, issueMeta };
+  const avgCycleTimeDays = cycleTimes.length > 0
+    ? Math.round((cycleTimes.reduce((s, v) => s + v, 0) / cycleTimes.length) * 100) / 100
+    : 0;
+
+  return { issuesAddressed, mtPerIssue, avgImplementHours, avgCycleTimeDays, issueMeta };
 }
 
 function parseOrchestratorLogs(projectCostMap = {}, pipelineDailyUsage = []) {
@@ -661,11 +695,21 @@ function parseOrchestratorLogs(projectCostMap = {}, pipelineDailyUsage = []) {
             }
           }
 
-          // Extract date from directory name (e.g., issue-17-20260221-090547)
+          // Extract date and start timestamp from directory name (e.g., issue-17-20260221-090547)
           const dateMatch = entry.match(/(\d{8})-(\d{6})$/);
           const date = dateMatch
             ? `${dateMatch[1].slice(0,4)}-${dateMatch[1].slice(4,6)}-${dateMatch[1].slice(6,8)}`
             : null;
+          const startedAt = dateMatch
+            ? new Date(`${dateMatch[1].slice(0,4)}-${dateMatch[1].slice(4,6)}-${dateMatch[1].slice(6,8)}T${dateMatch[2].slice(0,2)}:${dateMatch[2].slice(2,4)}:${dateMatch[2].slice(4,6)}Z`).toISOString()
+            : null;
+          // completedAt: prefer stages.complete.completed_at (implement-issue),
+          // then stages.create_issue.completed_at (explore), else derive from startedAt + total stage durations
+          const completedAt = raw.stages?.complete?.completed_at
+            || raw.stages?.create_issue?.completed_at
+            || (startedAt && Object.values(stageDurations).length > 0
+              ? new Date(new Date(startedAt).getTime() + Object.values(stageDurations).reduce((s, v) => s + v, 0) * 1000).toISOString()
+              : startedAt);
 
           // Calculate cost from worktree sessions
           const runBaseDir = path.join(logsDir, entry);
@@ -699,6 +743,8 @@ function parseOrchestratorLogs(projectCostMap = {}, pipelineDailyUsage = []) {
             hasMetrics: metrics !== null,
             parseIssueCompleted: raw.stages?.parse_issue?.status === 'completed',
             date,
+            startedAt,
+            completedAt,
             dirName: entry,
             estimatedCost,
             taskSummary: parseTaskSummary(raw),
