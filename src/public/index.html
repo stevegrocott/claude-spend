@@ -942,6 +942,13 @@
     text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;
   }
   .column-card canvas { display: block; }
+
+  /* ---- VALUE METRICS ---- */
+  .value-metrics-section { margin-bottom: 32px; }
+  .stat-sparkline {
+    margin-top: 10px;
+  }
+  .stat-sparkline svg { display: block; overflow: visible; }
 </style>
 </head>
 <body>
@@ -1065,6 +1072,30 @@
         <h4>Context Cost Curve</h4>
         <div class="driver-explainer">Average tokens per query at different session lengths — longer sessions accumulate context that inflates every subsequent query.</div>
         <canvas id="contextCostChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Value Metrics -->
+  <div class="value-metrics-section animate delay-3">
+    <div class="section-header">
+      <div class="section-icon" style="background:linear-gradient(135deg,#EEF2FF,#E0E7FF)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+      </div>
+      <div class="section-title">Value Metrics</div>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card" id="vmIssuesAddressed">
+        <div class="accent-bar" style="background:var(--gradient-main)"></div>
+      </div>
+      <div class="stat-card" id="vmMTPerIssue">
+        <div class="accent-bar" style="background:var(--gradient-teal)"></div>
+      </div>
+      <div class="stat-card" id="vmAvgImplementTime">
+        <div class="accent-bar" style="background:var(--gradient-warm)"></div>
+      </div>
+      <div class="stat-card" id="vmAvgCycleTime">
+        <div class="accent-bar" style="background:var(--gradient-rose)"></div>
       </div>
     </div>
   </div>
@@ -1929,6 +1960,7 @@ function render() {
   document.getElementById('app').style.display = 'block';
   renderHeroPPMT();
   renderHeroInteractive();
+  renderValueMetrics();
   renderPPMTRecommendations();
   renderSessionEfficiency();
   renderProjectBreakdown();
@@ -2022,6 +2054,128 @@ function renderHeroInteractive() {
     '<div class="hero-ppmt-value">' + tpqK + 'K<span class="hero-ppmt-trend ' + trendClass + '">' + trendArrow + '</span></div>',
     '<div class="hero-ppmt-sub">' + fmt(se.interactive.tokens) + ' tokens \u00B7 ' + fmt(se.interactive.queries) + ' queries \u00B7 ' + se.interactive.sessions + ' sessions</div>',
   ].join('');
+}
+
+// Value Metrics — four stat cards derived from orchestrator runs
+function renderValueMetrics() {
+  const orch = FILTERED.orchestrator || (DATA && DATA.orchestrator);
+  const implRuns = (orch && orch.runs)
+    ? orch.runs.filter(r => r.logType === 'implement-issue')
+    : [];
+  const completedRuns = implRuns.filter(r => r.state === 'completed');
+  const hasOrch = orch && orch.runs && orch.runs.length > 0;
+
+  // Issues Addressed: unique issue numbers from completed implement-issue runs
+  const uniqueIssues = new Set(completedRuns.map(r => r.issue).filter(Boolean));
+  const issueCount = uniqueIssues.size;
+
+  // Weekly sparkline: issues addressed per day over last 7 days
+  const today = new Date();
+  const weekDays = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    weekDays.push(d.toISOString().slice(0, 10));
+  }
+  const issuesByDay = {};
+  completedRuns.forEach(r => {
+    if (r.date && r.issue) {
+      if (!issuesByDay[r.date]) issuesByDay[r.date] = new Set();
+      issuesByDay[r.date].add(r.issue);
+    }
+  });
+  const sparkData = weekDays.map(d => issuesByDay[d] ? issuesByDay[d].size : 0);
+
+  function buildSparkline(data, color) {
+    const w = 80, h = 28, pad = 2;
+    const maxV = Math.max(...data, 1);
+    const pts = data.map((v, i) => {
+      const x = pad + (i / (data.length - 1)) * (w - pad * 2);
+      const y = h - pad - (v / maxV) * (h - pad * 2);
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
+      '<polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+      '</svg>';
+  }
+
+  // MT per Issue: pipelineTokens / issueCount / 1_000_000
+  const pipelineTokens = (orch && orch.summary && orch.summary.ppmtAnalysis)
+    ? (orch.summary.ppmtAnalysis.pipelineTokens || 0) : 0;
+  const mtPerIssue = issueCount > 0 && pipelineTokens > 0
+    ? Math.round(pipelineTokens / issueCount / 1_000_000 * 10) / 10
+    : null;
+
+  // Avg Implement Time (hrs)
+  const implementSecs = completedRuns
+    .map(r => r.stageDurations && r.stageDurations.implement)
+    .filter(d => d != null && d > 0);
+  const avgImplementHrs = implementSecs.length > 0
+    ? Math.round(implementSecs.reduce((s, d) => s + d, 0) / implementSecs.length / 3600 * 10) / 10
+    : null;
+
+  // Avg Cycle Time (days): sum of all stage durations per run
+  const cycleSecs = completedRuns.map(r => {
+    const vals = Object.values(r.stageDurations || {});
+    return vals.length > 0 ? vals.reduce((s, d) => s + d, 0) : null;
+  }).filter(d => d != null && d > 0);
+  const avgCycleDays = cycleSecs.length > 0
+    ? Math.round(cycleSecs.reduce((s, d) => s + d, 0) / cycleSecs.length / 86400 * 10) / 10
+    : null;
+
+  // Render helpers
+  function fillCard(id, label, valueHtml, sub) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const existing = el.querySelector('.accent-bar');
+    const accentHtml = existing ? existing.outerHTML : '';
+    el.innerHTML = accentHtml +
+      '<div class="stat-label">' + label + '</div>' +
+      '<div class="stat-value">' + valueHtml + '</div>' +
+      '<div class="stat-sub">' + sub + '</div>';
+  }
+
+  // Issues Addressed
+  const issuesValueHtml = !hasOrch ? '\u2014' : String(issueCount);
+  const issuesSub = !hasOrch
+    ? 'no orchestrator data'
+    : (issueCount > 0
+      ? completedRuns.length + ' completed run' + (completedRuns.length !== 1 ? 's' : '')
+      : 'no completed runs yet');
+  const sparkHtml = (hasOrch && issueCount > 0 && sparkData.some(v => v > 0))
+    ? '<div class="stat-sparkline">' + buildSparkline(sparkData, '#6366F1') + '</div>'
+    : '';
+  const el0 = document.getElementById('vmIssuesAddressed');
+  if (el0) {
+    const accent = el0.querySelector('.accent-bar');
+    const accentHtml = accent ? accent.outerHTML : '';
+    el0.innerHTML = accentHtml +
+      '<div class="stat-label">Issues Addressed</div>' +
+      '<div class="stat-value">' + issuesValueHtml + '</div>' +
+      '<div class="stat-sub">' + issuesSub + '</div>' +
+      sparkHtml;
+  }
+
+  // MT per Issue
+  fillCard('vmMTPerIssue',
+    'MT per Issue',
+    mtPerIssue != null ? fmtSmart(mtPerIssue) + 'M' : '\u2014',
+    mtPerIssue != null ? 'pipeline tokens \u00B7 lower is better' : (hasOrch ? 'no completed runs' : 'no orchestrator data')
+  );
+
+  // Avg Implement Time
+  fillCard('vmAvgImplementTime',
+    'Avg Implement Time',
+    avgImplementHrs != null ? fmtSmart(avgImplementHrs) + 'h' : '\u2014',
+    avgImplementHrs != null ? implementSecs.length + ' run' + (implementSecs.length !== 1 ? 's' : '') + ' measured' : (hasOrch ? 'no data' : 'no orchestrator data')
+  );
+
+  // Avg Cycle Time
+  fillCard('vmAvgCycleTime',
+    'Avg Cycle Time',
+    avgCycleDays != null ? fmtSmart(avgCycleDays) + 'd' : '\u2014',
+    avgCycleDays != null ? cycleSecs.length + ' run' + (cycleSecs.length !== 1 ? 's' : '') + ' measured' : (hasOrch ? 'no data' : 'no orchestrator data')
+  );
 }
 
 // Points per Token chart — PP/100MT by day using pipeline tokens, with stacked SP bars per project
