@@ -456,7 +456,7 @@ async function parseAllSessions() {
   const orchestrator = parseOrchestratorLogs(projectCostMap, pipelineDailyUsage);
   orchestrator.summary.ppmtAnalysis = computePPMTAnalysis(orchestrator.runs.filter(r => r.state !== 'initializing' && r.state !== 'running'), pipelineDailyUsage);
   orchestrator.summary.ppmtAnalysis.pipelineTokens = pipelineTokens;
-  orchestrator.summary.recommendations = generatePPMTRecommendations(orchestrator.summary.ppmtAnalysis);
+  orchestrator.summary.recommendations = generatePPMTRecommendations(orchestrator.summary.ppmtAnalysis, orchestrator.issueMetrics);
   const orchestratorInsights = generateOrchestratorInsights(orchestrator);
 
   // Add pp100mt to each projectBreakdown entry using orchestrator projectYield data
@@ -1580,7 +1580,7 @@ function computePPMTAnalysis(runs, dailyUsage) {
   return { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield, ppmtByDay, pp100mt };
 }
 
-function generatePPMTRecommendations(analysis) {
+function generatePPMTRecommendations(analysis, issueMetrics = null) {
   const { taskSizeCompletion, escalationCorrelation, failureBreakdown, taskCountCorrelation, topEscalationStages, projectYield } = analysis;
 
   // Derive total run count from escalationCorrelation buckets
@@ -1690,6 +1690,51 @@ function generatePPMTRecommendations(analysis) {
       evidence: { zeroEscalationFailures: zeroEscFail, totalFailures, zeroEscalationCorrelation: escalationCorrelation['0'] },
       action: 'Review 0-escalation failures for early task setup errors or misunderstood requirements; add pre-task validation checks',
     });
+  }
+
+  // (h) High MT/Issue: mtPerIssue > 50
+  if (issueMetrics && issueMetrics.mtPerIssue > 50) {
+    recs.push({
+      id: 'high_mt_per_issue',
+      priority: 2,
+      ppmt_impact: Math.min(Math.round(issueMetrics.mtPerIssue), 100),
+      title: `High MT/Issue: ${issueMetrics.mtPerIssue} MT per issue`,
+      detail: `On average, ${issueMetrics.mtPerIssue} million tokens are consumed per issue addressed. Issues requiring >50 MT suggest tasks are either oversized, prompts are verbose, or there is inefficient exploration.`,
+      evidence: { mtPerIssue: issueMetrics.mtPerIssue, issuesAddressed: issueMetrics.issuesAddressed },
+      action: 'Break oversized issues into smaller, more focused tasks; review and tighten agent prompts for verbosity; reduce file reading in exploration phases',
+    });
+  }
+
+  // (i) Rising MT/Issue: recent 2 weeks > prior 2 weeks by >25%
+  if (issueMetrics && issueMetrics.issueMeta && issueMetrics.issueMeta.length > 0) {
+    const now = new Date();
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+
+    const recent = issueMetrics.issueMeta.filter(m => m.closedAt && new Date(m.closedAt) >= twoWeeksAgo);
+    const prior = issueMetrics.issueMeta.filter(m => m.closedAt && new Date(m.closedAt) >= fourWeeksAgo && new Date(m.closedAt) < twoWeeksAgo);
+
+    if (recent.length > 0 && prior.length > 0) {
+      const recentMT = recent.reduce((sum, m) => sum + (m.mtUsed || 0), 0);
+      const priorMT = prior.reduce((sum, m) => sum + (m.mtUsed || 0), 0);
+      const recentAvgMT = recentMT / recent.length;
+      const priorAvgMT = priorMT / prior.length;
+
+      if (priorAvgMT > 0) {
+        const pctIncrease = ((recentAvgMT - priorAvgMT) / priorAvgMT) * 100;
+        if (pctIncrease > 25) {
+          recs.push({
+            id: 'rising_mt_per_issue',
+            priority: 2,
+            ppmt_impact: Math.min(Math.round(pctIncrease * 0.5), 100),
+            title: `MT/Issue rising: +${Math.round(pctIncrease)}% in last 2 weeks`,
+            detail: `Recent 2 weeks: ${Math.round(recentAvgMT)} MT/issue avg (${recent.length} issues). Prior 2 weeks: ${Math.round(priorAvgMT)} MT/issue avg (${prior.length} issues). A ${Math.round(pctIncrease)}% increase suggests tasks are becoming more complex or less efficient.`,
+            evidence: { recentAvgMT: Math.round(recentAvgMT), priorAvgMT: Math.round(priorAvgMT), pctIncrease: Math.round(pctIncrease), recentCount: recent.length, priorCount: prior.length },
+            action: 'Review recent high-cost issues for scope creep, inefficient exploration, or verbose prompts; consider adjusting task sizing or agent configuration',
+          });
+        }
+      }
+    }
   }
 
   // Sort by priority ascending (1 = highest)
