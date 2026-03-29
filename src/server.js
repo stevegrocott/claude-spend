@@ -10,10 +10,75 @@ function createServer() {
   // Cache parsed data (reparse on demand via refresh endpoint)
   let cachedData = null;
 
+  // In-memory cache for issue cycle times to avoid repeated gh CLI calls
+  const issueCycleTimeCache = {};
+
+  // Enrich issueMetrics with cycle time data from gh CLI
+  function enrichIssueCycleTime(issueMetrics) {
+    if (!issueMetrics || !issueMetrics.issueMeta || issueMetrics.issueMeta.length === 0) {
+      return issueMetrics;
+    }
+
+    const cycleTimes = [];
+    const issuesToProcess = issueMetrics.issueMeta.slice(0, 50); // Cap at 50
+
+    for (const issue of issuesToProcess) {
+      const cacheKey = `${issue.repo}/${issue.number}`;
+
+      // Check cache first
+      if (issueCycleTimeCache[cacheKey] !== undefined) {
+        const cycleTime = issueCycleTimeCache[cacheKey];
+        if (cycleTime !== null) {
+          cycleTimes.push(cycleTime);
+          issue.cycleTimeDays = cycleTime;
+        }
+        continue;
+      }
+
+      // Try to fetch from gh CLI
+      try {
+        const result = execSync(
+          `gh issue view ${issue.number} --repo ${issue.repo} --json createdAt,closedAt`,
+          { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+        );
+        const data = JSON.parse(result);
+
+        if (data.createdAt && data.closedAt) {
+          const created = new Date(data.createdAt);
+          const closed = new Date(data.closedAt);
+          const cycleTime = Math.round((closed - created) / (1000 * 60 * 60 * 24) * 100) / 100;
+          issueCycleTimeCache[cacheKey] = cycleTime;
+          cycleTimes.push(cycleTime);
+          issue.cycleTimeDays = cycleTime;
+        } else {
+          // Issue not closed, cache null to skip retrying
+          issueCycleTimeCache[cacheKey] = null;
+        }
+      } catch {
+        // gh CLI unavailable or issue not found, cache null to skip retrying
+        issueCycleTimeCache[cacheKey] = null;
+      }
+    }
+
+    // Calculate average cycle time
+    const avgCycleTimeDays = cycleTimes.length > 0
+      ? Math.round((cycleTimes.reduce((s, t) => s + t, 0) / cycleTimes.length) * 100) / 100
+      : 0;
+
+    return {
+      ...issueMetrics,
+      avgCycleTimeDays,
+    };
+  }
+
   app.get('/api/data', async (req, res) => {
     try {
       if (!cachedData) {
         cachedData = await require('./parser').parseAllSessions();
+        // Enrich issueMetrics with cycle time data
+        if (cachedData.orchestrator && cachedData.orchestrator.issueMetrics) {
+          cachedData.orchestrator.issueMetrics = enrichIssueCycleTime(cachedData.orchestrator.issueMetrics);
+        }
       }
       res.json(cachedData);
     } catch (err) {
@@ -25,6 +90,10 @@ function createServer() {
     try {
       delete require.cache[require.resolve('./parser')];
       cachedData = await require('./parser').parseAllSessions();
+      // Enrich issueMetrics with cycle time data
+      if (cachedData.orchestrator && cachedData.orchestrator.issueMetrics) {
+        cachedData.orchestrator.issueMetrics = enrichIssueCycleTime(cachedData.orchestrator.issueMetrics);
+      }
       res.json({ ok: true, sessions: cachedData.sessions.length });
     } catch (err) {
       res.status(500).json({ error: err.message });
