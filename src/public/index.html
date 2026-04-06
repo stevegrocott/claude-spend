@@ -1835,6 +1835,55 @@ function generateClientPipelineRecs(analysis) {
   return recs;
 }
 
+// Client-side port of generateSpeedInsights() — cycle time insights from issueMetrics
+function generateClientSpeedInsights(issueMetrics, fromDate, toDate) {
+  const insights = [];
+  if (!issueMetrics) return insights;
+
+  // Filter issueMeta to date window so numbers reflect selected range
+  let avgCycleTimeDays = issueMetrics.avgCycleTimeDays;
+  let issuesAddressed = issueMetrics.issuesAddressed;
+  let avgImplementHours = issueMetrics.avgImplementHours;
+
+  if (issueMetrics.issueMeta && (fromDate || toDate)) {
+    const filteredMeta = issueMetrics.issueMeta.filter(im => {
+      if (!im.closedAt) return false;
+      const d = im.closedAt.slice(0, 10);
+      if (fromDate && d < fromDate) return false;
+      if (toDate && d > toDate) return false;
+      return true;
+    });
+    const withCycle = filteredMeta.filter(im => im.cycleTimeDays != null);
+    issuesAddressed = filteredMeta.length;
+    avgCycleTimeDays = withCycle.length > 0
+      ? withCycle.reduce((s, im) => s + im.cycleTimeDays, 0) / withCycle.length
+      : undefined;
+    const withHours = filteredMeta.filter(im => im.implementHours != null);
+    avgImplementHours = withHours.length > 0
+      ? withHours.reduce((s, im) => s + im.implementHours, 0) / withHours.length
+      : issueMetrics.avgImplementHours;
+  }
+
+  if (avgCycleTimeDays > 1 && issuesAddressed >= 5) {
+    insights.push({ id: 'slow_cycle_time', lens: 'speed', type: 'warning',
+      title: `Slow cycle time: ${avgCycleTimeDays.toFixed(1)} days per issue`,
+      description: `The average cycle time across ${issuesAddressed} issues is ${avgCycleTimeDays.toFixed(1)} days. A healthy pipeline targets under 3 days from issue open to close.`,
+      action: 'Review queue wait times between stages. Consider reducing batch sizes or increasing pipeline parallelism.' });
+  }
+
+  if (avgCycleTimeDays !== undefined && avgImplementHours !== undefined) {
+    const threshold = (avgImplementHours / 24) * 4;
+    if (avgCycleTimeDays > threshold) {
+      insights.push({ id: 'high_idle_ratio', lens: 'speed', type: 'warning',
+        title: `High idle ratio: ${avgCycleTimeDays.toFixed(1)} day cycle vs ${avgImplementHours.toFixed(1)}h implementation`,
+        description: `Cycle time (${avgCycleTimeDays.toFixed(1)} days) is more than 4x the implementation time (${avgImplementHours.toFixed(1)}h). Most elapsed time is idle wait rather than active work.`,
+        action: 'Identify queue wait points between stages. Reduce handoff delays and review triggers.' });
+    }
+  }
+
+  return insights;
+}
+
 function applyDateFilter() {
   if (!DATA) return;
   const from = document.getElementById('dateFrom').value;
@@ -1969,7 +2018,9 @@ function applyDateFilter() {
     filteredOrchestrator.summary.recommendations = generateClientPipelineRecs(
       filteredOrchestrator.summary.ppmtAnalysis);
   }
-  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, orchestrator: filteredOrchestrator, sessionEfficiency: filteredSessionEff };
+  // Recompute speed insights from filtered data so recommendations reflect the selected date range
+  const filteredInsights = generateClientSpeedInsights(DATA.orchestrator && DATA.orchestrator.issueMetrics, from || null, to || null);
+  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, orchestrator: filteredOrchestrator, sessionEfficiency: filteredSessionEff, insights: filteredInsights };
   render();
 }
 
