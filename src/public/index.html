@@ -1835,6 +1835,172 @@ function generateClientPipelineRecs(analysis) {
   return recs;
 }
 
+// Client-side port of generateInsights() — session-level speed/cost insights
+function generateClientInsights(sessions, allPrompts, totals) {
+  const insights = [];
+
+  // Short prompts that triggered expensive explore scans
+  const shortExpensive = allPrompts.filter(p => p.prompt && p.prompt.trim().length < 30 && p.totalTokens > 100_000);
+  if (shortExpensive.length > 0) {
+    const totalWasted = shortExpensive.reduce((s, p) => s + p.totalTokens, 0);
+    const avgTokens = Math.round(totalWasted / shortExpensive.length);
+    insights.push({ id: 'explore-stage-bloat', lens: 'cost', type: 'warning',
+      title: `Explore stage searches too broadly — ${shortExpensive.length} queries averaged ${fmt(avgTokens)} tokens`,
+      description: `${shortExpensive.length} short queries (like "Yes", "Do it") triggered wide-open explore patterns that scanned entire codebase. Each used 100K+ tokens searching for context. The explore skill has insufficient constraints and returns too many candidate files.`,
+      action: 'Refine explore skill: limit file candidates to 3-5 maximum, require specific path patterns in task description, or add "scope:" field to task template.' });
+  }
+
+  // Output% below 2% — context re-reading dominates
+  if (totals.totalTokens > 0) {
+    const outputPct = (totals.totalOutputTokens / totals.totalTokens) * 100;
+    if (outputPct < 2) {
+      insights.push({ id: 'impl-excessive-rereads', lens: 'speed', type: 'warning',
+        title: `${outputPct.toFixed(1)}% of tokens are actual work — implement caching`,
+        description: `${(100 - outputPct).toFixed(1)}% is context re-reading: same files loaded repeatedly across quality loop iterations. Each implement-check-fix cycle re-reads the entire codebase. File caching eliminates redundant reads and can save ${fmt(Math.round(totals.totalTokens * 0.3))} tokens.`,
+        action: 'Enable CACHE_MODE in model-config.sh: identify 5-10 "hot" files (frequently modified files, config templates, test utilities) and pin them to context across iterations.' });
+    }
+  }
+
+  // Tool-heavy sessions — explore making too many file reads per user turn
+  if (sessions.length >= 5) {
+    const toolHeavy = sessions.filter(s => {
+      const userMessages = (s.queries || []).filter(q => q.userPrompt).length;
+      const toolCalls = (s.queryCount || 0) - userMessages;
+      return userMessages > 0 && toolCalls > userMessages * 3;
+    });
+    if (toolHeavy.length >= 3) {
+      const totalToolTokens = toolHeavy.reduce((s, ses) => s + ses.totalTokens, 0);
+      const avgRatio = toolHeavy.reduce((s, ses) => {
+        const userMsgs = (ses.queries || []).filter(q => q.userPrompt).length;
+        return s + ((ses.queryCount || 0) - userMsgs) / Math.max(userMsgs, 1);
+      }, 0) / toolHeavy.length;
+      insights.push({ id: 'tool-heavy', lens: 'speed', type: 'info',
+        title: `Explore stage averaged ${Math.round(avgRatio)} file searches per task input across ${toolHeavy.length} sessions — task descriptions lack file paths`,
+        description: `In ${toolHeavy.length} pipeline runs, the explore stage made ~${Math.round(avgRatio)} file search/read operations per task turn. Each search re-reads the full conversation context. These runs used ${fmt(totalToolTokens)} tokens total. Under-specified task descriptions force the explore stage to scan broadly instead of targeting known files.`,
+        action: 'Add file paths to task descriptions in the explore skill template. Include "Affected files: src/module/file.js" field in task format so explore stage skips broad searches.' });
+    }
+  }
+
+  return insights;
+}
+
+// Client-side port of generateOrchestratorInsights() — orchestrator run insights
+function generateClientOrchestratorInsights(orch) {
+  const insights = [];
+  if (!orch) return insights;
+  const { summary, runs } = orch;
+  if (!summary || summary.totalRuns < 3) return insights;
+
+  // Stage bottleneck
+  if (summary.stageAvgs && summary.stageAvgs.length > 0) {
+    const slowest = summary.stageAvgs[0];
+    if (slowest.avgSeconds > 300) {
+      const mins = Math.round(slowest.avgSeconds / 60);
+      insights.push({ id: 'stage-bottleneck', lens: 'speed', type: 'info',
+        title: `"${slowest.name}" stage averages ${mins} minutes — slowest pipeline stage`,
+        description: `The "${slowest.name}" stage averages ${mins} minutes across ${slowest.count} runs. ${summary.stageAvgs.slice(1, 4).map(s => `"${s.name}": ${Math.round(s.avgSeconds / 60)}m`).join(', ')}. Long stages increase token cost due to context accumulation.`,
+        action: 'Consider splitting large tasks in this stage, or check if the stage is doing unnecessary work (e.g., reading too many files, running full test suites instead of targeted tests).' });
+    }
+  }
+
+  // Task throughput — issues/week
+  const completedWithDate = (runs || []).filter(r => r.state === 'completed' && r.date);
+  if (completedWithDate.length >= 3) {
+    const weekMap = {};
+    for (const run of completedWithDate) {
+      const d = new Date(run.date);
+      const startOfYear = new Date(d.getFullYear(), 0, 1);
+      const weekNum = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+      const key = `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+      weekMap[key] = (weekMap[key] || 0) + 1;
+    }
+    const weekCounts = Object.values(weekMap);
+    const avgPerWeek = (weekCounts.reduce((s, v) => s + v, 0) / weekCounts.length).toFixed(1);
+    const recentWeeks = Object.entries(weekMap).sort().slice(-4);
+    const recentAvg = recentWeeks.length > 0
+      ? (recentWeeks.reduce((s, [, v]) => s + v, 0) / recentWeeks.length).toFixed(1) : avgPerWeek;
+    const trend = parseFloat(recentAvg) > parseFloat(avgPerWeek) ? 'Throughput is trending up.'
+      : parseFloat(recentAvg) < parseFloat(avgPerWeek) ? 'Throughput has slowed recently.' : 'Throughput is stable.';
+    insights.push({ id: 'task-throughput', lens: 'speed', type: 'info',
+      title: `Pipeline completes ~${avgPerWeek} issues/week on average`,
+      description: `Out of ${summary.totalRuns} total runs, ${summary.completedRuns} completed successfully across ${weekCounts.length} active weeks. Overall average: ${avgPerWeek} completions/week. Recent ${recentWeeks.length}-week average: ${recentAvg}/week. ${trend}`,
+      action: null });
+  }
+
+  // Parallel speedup ratio
+  const implementRuns = (runs || []).filter(r => r.logType === 'implement-issue' && r.taskCount > 0);
+  const runsWithDuration = implementRuns.map(r => ({
+    ...r, totalDuration: Object.values(r.stageDurations || {}).reduce((s, v) => s + v, 0),
+  })).filter(r => r.totalDuration > 30);
+  const singleTaskRuns = runsWithDuration.filter(r => r.taskCount === 1);
+  const multiTaskRuns = runsWithDuration.filter(r => r.taskCount > 1);
+  if (singleTaskRuns.length >= 2 && multiTaskRuns.length >= 2) {
+    const avgSingleDuration = singleTaskRuns.reduce((s, r) => s + r.totalDuration, 0) / singleTaskRuns.length;
+    const avgMultiTasks = multiTaskRuns.reduce((s, r) => s + r.taskCount, 0) / multiTaskRuns.length;
+    const avgMultiDuration = multiTaskRuns.reduce((s, r) => s + r.totalDuration, 0) / multiTaskRuns.length;
+    const theoreticalSeq = avgMultiTasks * avgSingleDuration;
+    const speedupRatio = Math.round((theoreticalSeq / Math.max(avgMultiDuration, 1)) * 10) / 10;
+    if (speedupRatio > 1.2) {
+      const timeSavedMin = Math.round((theoreticalSeq - avgMultiDuration) / 60);
+      insights.push({ id: 'parallel-speedup-ratio', lens: 'speed', type: 'info',
+        title: `Parallel task execution is ${speedupRatio}x faster than sequential would be`,
+        description: `Single-task runs average ${Math.round(avgSingleDuration / 60)} minutes. Multi-task runs average ${Math.round(avgMultiTasks)} tasks but only take ${Math.round(avgMultiDuration / 60)} minutes — ${speedupRatio}x faster than running those tasks one at a time would take. That saves ~${timeSavedMin} minutes per multi-task run. Across ${multiTaskRuns.length} such runs, parallel execution has saved substantial pipeline time.`,
+        action: 'Break large issues into independent parallel tasks to maximize this speedup. Tasks with shared state or sequential dependencies cannot be parallelized, but independent tasks (separate files, separate modules) can.' });
+    }
+  }
+
+  return insights;
+}
+
+// Client-side port of generateSpeedInsights() — cycle time insights from issueMetrics
+function generateClientSpeedInsights(issueMetrics, fromDate, toDate) {
+  const insights = [];
+  if (!issueMetrics) return insights;
+
+  // Filter issueMeta to date window so numbers reflect selected range
+  let avgCycleTimeDays = issueMetrics.avgCycleTimeDays;
+  let issuesAddressed = issueMetrics.issuesAddressed;
+  let avgImplementHours = issueMetrics.avgImplementHours;
+
+  if (issueMetrics.issueMeta && (fromDate || toDate)) {
+    const filteredMeta = issueMetrics.issueMeta.filter(im => {
+      if (!im.closedAt) return false;
+      const d = im.closedAt.slice(0, 10);
+      if (fromDate && d < fromDate) return false;
+      if (toDate && d > toDate) return false;
+      return true;
+    });
+    const withCycle = filteredMeta.filter(im => im.cycleTimeDays != null);
+    issuesAddressed = filteredMeta.length;
+    avgCycleTimeDays = withCycle.length > 0
+      ? withCycle.reduce((s, im) => s + im.cycleTimeDays, 0) / withCycle.length
+      : undefined;
+    const withHours = filteredMeta.filter(im => im.implementHours != null);
+    avgImplementHours = withHours.length > 0
+      ? withHours.reduce((s, im) => s + im.implementHours, 0) / withHours.length
+      : issueMetrics.avgImplementHours;
+  }
+
+  if (avgCycleTimeDays > 1 && issuesAddressed >= 5) {
+    insights.push({ id: 'slow_cycle_time', lens: 'speed', type: 'warning',
+      title: `Slow cycle time: ${avgCycleTimeDays.toFixed(1)} days per issue`,
+      description: `The average cycle time across ${issuesAddressed} issues is ${avgCycleTimeDays.toFixed(1)} days. A healthy pipeline targets under 3 days from issue open to close.`,
+      action: 'Review queue wait times between stages. Consider reducing batch sizes or increasing pipeline parallelism.' });
+  }
+
+  if (avgCycleTimeDays !== undefined && avgImplementHours !== undefined) {
+    const threshold = (avgImplementHours / 24) * 4;
+    if (avgCycleTimeDays > threshold) {
+      insights.push({ id: 'high_idle_ratio', lens: 'speed', type: 'warning',
+        title: `High idle ratio: ${avgCycleTimeDays.toFixed(1)} day cycle vs ${avgImplementHours.toFixed(1)}h implementation`,
+        description: `Cycle time (${avgCycleTimeDays.toFixed(1)} days) is more than 4x the implementation time (${avgImplementHours.toFixed(1)}h). Most elapsed time is idle wait rather than active work.`,
+        action: 'Identify queue wait points between stages. Reduce handoff delays and review triggers.' });
+    }
+  }
+
+  return insights;
+}
+
 function applyDateFilter() {
   if (!DATA) return;
   const from = document.getElementById('dateFrom').value;
@@ -1969,7 +2135,13 @@ function applyDateFilter() {
     filteredOrchestrator.summary.recommendations = generateClientPipelineRecs(
       filteredOrchestrator.summary.ppmtAnalysis);
   }
-  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, orchestrator: filteredOrchestrator, sessionEfficiency: filteredSessionEff };
+  // Recompute insights from filtered data so recommendations reflect the selected date range
+  const filteredInsights = [
+    ...generateClientInsights(sessions, allPrompts, totals),
+    ...generateClientOrchestratorInsights(filteredOrchestrator),
+    ...generateClientSpeedInsights(DATA.orchestrator && DATA.orchestrator.issueMetrics, from || null, to || null),
+  ];
+  FILTERED = { sessions, dailyUsage, modelBreakdown, projectBreakdown, topPrompts, totals, orchestrator: filteredOrchestrator, sessionEfficiency: filteredSessionEff, insights: filteredInsights };
   render();
 }
 
