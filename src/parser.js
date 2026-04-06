@@ -512,6 +512,7 @@ function computeIssueMetrics(runs, pipelineDailyUsage = []) {
   const implementDurations = []; // hours
 
   const issueDatesMap = new Map(); // key: "project/issue" -> Set of dates
+  const issueDurationsMap = new Map(); // key: "project/issue" -> number[] (hours)
   for (const run of implRuns) {
     if (run.issue) {
       const key = `${run.project}/${run.issue}`;
@@ -528,6 +529,11 @@ function computeIssueMetrics(runs, pipelineDailyUsage = []) {
       if (run.date) {
         if (!issueDatesMap.has(key)) issueDatesMap.set(key, new Set());
         issueDatesMap.get(key).add(run.date);
+      }
+      const implSecs = run.stageDurations && run.stageDurations.implement;
+      if (implSecs != null) {
+        if (!issueDurationsMap.has(key)) issueDurationsMap.set(key, []);
+        issueDurationsMap.get(key).push(implSecs / 3600);
       }
     }
     if (run.date) runDates.add(run.date);
@@ -580,6 +586,13 @@ function computeIssueMetrics(runs, pipelineDailyUsage = []) {
         totalTokens += dayTokens / issueCount;
       }
       meta.mtUsed = Math.round((totalTokens / 1_000_000) * 100) / 100;
+    }
+  }
+
+  for (const [key, meta] of issueMap) {
+    const durations = issueDurationsMap.get(key);
+    if (durations && durations.length > 0) {
+      meta.implementHours = Math.round((durations.reduce((s, h) => s + h, 0) / durations.length) * 100) / 100;
     }
   }
 
