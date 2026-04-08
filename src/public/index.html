@@ -2139,22 +2139,29 @@ function renderValueMetrics() {
   const uniqueIssues = new Set(completedRuns.filter(r => r.issue).map(r => (r.project || '') + '/' + r.issue));
   const issueCount = uniqueIssues.size;
 
-  // Weekly sparkline: issues addressed per day over last 7 days
+  // Build buckets spanning the selected date range (falls back to last 7 days)
+  const fromInput = document.getElementById('dateFrom').value;
+  const toInput = document.getElementById('dateTo').value;
   const today = new Date();
-  const weekDays = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    weekDays.push(d.toISOString().slice(0, 10));
+  const rangeEnd = toInput ? new Date(toInput + 'T23:59:59') : today;
+  const rangeStart = fromInput ? new Date(fromInput + 'T00:00:00') : new Date(today.getTime() - 6 * 86400000);
+  const NUM_BUCKETS = 7;
+  const rangeDuration = Math.max(rangeEnd - rangeStart, 86400000); // min 1 day
+  const bucketMs = rangeDuration / NUM_BUCKETS;
+  const dateBuckets = [];
+  for (let i = 0; i < NUM_BUCKETS; i++) {
+    dateBuckets.push({
+      start: new Date(rangeStart.getTime() + i * bucketMs),
+      end:   new Date(rangeStart.getTime() + (i + 1) * bucketMs - 1),
+      runs:  []
+    });
   }
-  const issuesByDay = {};
   completedRuns.forEach(r => {
-    if (r.date && r.issue) {
-      if (!issuesByDay[r.date]) issuesByDay[r.date] = new Set();
-      issuesByDay[r.date].add(r.issue);
-    }
+    if (!r.date) return;
+    const d = new Date(r.date);
+    for (const b of dateBuckets) { if (d >= b.start && d <= b.end) { b.runs.push(r); break; } }
   });
-  const sparkData = weekDays.map(d => issuesByDay[d] ? issuesByDay[d].size : 0);
+  const sparkData = dateBuckets.map(b => new Set(b.runs.filter(r => r.issue).map(r => r.issue)).size);
 
   function buildSparkline(data, color) {
     const w = 80, h = 28, pad = 2;
@@ -2169,19 +2176,7 @@ function renderValueMetrics() {
       '</svg>';
   }
 
-  // Build weekly buckets (last 7 weeks) for trend sparklines
-  const NUM_WEEKS = 7;
-  const weekBuckets = [];
-  for (let i = NUM_WEEKS - 1; i >= 0; i--) {
-    const end = new Date(today); end.setDate(end.getDate() - i * 7);
-    const start = new Date(end); start.setDate(start.getDate() - 6);
-    weekBuckets.push({ start, end, runs: [] });
-  }
-  completedRuns.forEach(r => {
-    if (!r.date) return;
-    const d = new Date(r.date);
-    for (const b of weekBuckets) { if (d >= b.start && d <= b.end) { b.runs.push(r); break; } }
-  });
+  // dateBuckets already built above — reused for all sparklines
 
   // MT per Issue: pipelineTokens / issueCount / 1_000_000
   const pipelineTokens = (orch && orch.summary && orch.summary.ppmtAnalysis)
@@ -2189,8 +2184,8 @@ function renderValueMetrics() {
   const mtPerIssue = issueCount > 0 && pipelineTokens > 0
     ? Math.round(pipelineTokens / issueCount / 1_000_000 * 10) / 10
     : null;
-  // MT/Issue weekly sparkline: issues per week (denominator trend — more issues = more efficient)
-  const mtSparkData = weekBuckets.map(b => new Set(b.runs.filter(r => r.issue).map(r => r.issue)).size);
+  // MT/Issue sparkline: issues per bucket over selected range
+  const mtSparkData = dateBuckets.map(b => new Set(b.runs.filter(r => r.issue).map(r => r.issue)).size);
 
   // Avg Implement Time (hrs)
   const implementSecs = completedRuns
@@ -2199,8 +2194,8 @@ function renderValueMetrics() {
   const avgImplementHrs = implementSecs.length > 0
     ? Math.round(implementSecs.reduce((s, d) => s + d, 0) / implementSecs.length / 3600 * 10) / 10
     : null;
-  // Implement time weekly sparkline: avg implement hours per week
-  const implSparkData = weekBuckets.map(b => {
+  // Implement time sparkline: avg implement hours per bucket over selected range
+  const implSparkData = dateBuckets.map(b => {
     const durations = b.runs.map(r => r.stageDurations && r.stageDurations.implement).filter(d => d != null && d > 0);
     return durations.length > 0 ? Math.round(durations.reduce((s, d) => s + d, 0) / durations.length / 3600 * 10) / 10 : 0;
   });
@@ -2210,16 +2205,16 @@ function renderValueMetrics() {
   const avgCycleDays = (issueMetrics && issueMetrics.avgCycleTimeDays > 0)
     ? issueMetrics.avgCycleTimeDays
     : null;
-  // Cycle time weekly sparkline: avg cycle days for issues closed each week (from issueMeta)
-  const cycleByWeek = new Array(NUM_WEEKS).fill(null).map(() => []);
+  // Cycle time sparkline: avg cycle days per bucket over selected range (filtered by closedAt)
+  const cycleByBucket = dateBuckets.map(() => []);
   if (issueMetrics && issueMetrics.issueMeta) {
     issueMetrics.issueMeta.forEach(im => {
       if (im.cycleTimeDays == null || !im.closedAt) return;
       const d = new Date(im.closedAt);
-      weekBuckets.forEach((b, i) => { if (d >= b.start && d <= b.end) cycleByWeek[i].push(im.cycleTimeDays); });
+      dateBuckets.forEach((b, i) => { if (d >= b.start && d <= b.end) cycleByBucket[i].push(im.cycleTimeDays); });
     });
   }
-  const cycleSparkData = cycleByWeek.map(arr => arr.length > 0 ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length * 10) / 10 : 0);
+  const cycleSparkData = cycleByBucket.map(arr => arr.length > 0 ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length * 10) / 10 : 0);
 
   // Render helpers
   function fillCard(id, label, valueHtml, sub, extraHtml = '') {
