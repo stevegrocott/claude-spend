@@ -3441,14 +3441,14 @@ function renderPipelineStackedChart(byDay) {
   const plotW = endX - startX;
   const plotTop = 4;
 
-  // Colors: pipeline = blue family, interactive = amber family
+  // Solid colors — pipeline = blue family, interactive = amber/brown family
   const COLORS = {
-    'pipeline-haiku':  'rgba(147,197,253,0.75)', // blue-300
-    'pipeline-sonnet': 'rgba(99,102,241,0.75)',  // indigo-500
-    'pipeline-opus':   'rgba(67,56,202,0.85)',   // indigo-700
-    'interactive-haiku':  'rgba(252,211,77,0.65)',  // amber-300
-    'interactive-sonnet': 'rgba(245,158,11,0.75)',  // amber-500
-    'interactive-opus':   'rgba(180,83,9,0.85)',    // amber-800
+    'pipeline-haiku':     '#93C5FD', // blue-300
+    'pipeline-sonnet':    '#6366F1', // indigo-500
+    'pipeline-opus':      '#4338CA', // indigo-700
+    'interactive-haiku':  '#FCD34D', // amber-300
+    'interactive-sonnet': '#F59E0B', // amber-500
+    'interactive-opus':   '#92400E', // amber-900
     'trend': '#1E293B',
   };
   const LABELS = {
@@ -3457,7 +3457,11 @@ function renderPipelineStackedChart(byDay) {
     'trend': 'Total tokens',
   };
 
-  function xPos(i) { return startX + (i / Math.max(1, byDay.length - 1)) * plotW; }
+  // Filter out zero-data days to eliminate white gaps
+  const days = byDay.filter(d => (d.totalTokens || 0) > 0);
+  if (!days.length) return;
+
+  function xPos(i) { return startX + (i / Math.max(1, days.length - 1)) * plotW; }
   function yPct(pct) { return plotTop + chartH - (pct / 100) * chartH; }
 
   // Left Y-axis grid (0-100%)
@@ -3468,13 +3472,11 @@ function renderPipelineStackedChart(byDay) {
     const y = yPct(val);
     ctx.fillStyle = '#94A3B8';
     ctx.fillText(val + '%', startX - 4, y + 3);
-    ctx.strokeStyle = 'rgba(0,0,0,0.03)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(0,0,0,0.05)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(endX, y); ctx.stroke();
   }
 
   // Compute stacked bands per day
-  // For each day: pipeline stack = [haiku, sonnet, opus] bottom-up within pipelineCoveragePct
-  //               interactive stack = [haiku, sonnet, opus] bottom-up within interactiveCoveragePct
   function bandData(day) {
     const total = day.totalTokens || 0;
     const mtd = day.modelTokensByDay || {};
@@ -3495,71 +3497,77 @@ function renderPipelineStackedChart(byDay) {
 
   const bandKeys = ['pipeline-haiku', 'pipeline-sonnet', 'pipeline-opus', 'interactive-haiku', 'interactive-sonnet', 'interactive-opus'];
 
-  // Draw 6 stacked bands as stepped filled polygons
-  for (let b = 5; b >= 0; b--) {
-    const getBottom = (day, idx) => bandData(day).slice(0, idx).reduce((s, v) => s + v, 0);
-    const getTop    = (day, idx) => getBottom(day, idx) + bandData(day)[idx];
+  const R = 4; // step corner radius
 
-    ctx.beginPath();
-    // bottom edge left→right (step-after: horizontal at prev value, then vertical)
-    byDay.forEach((d, i) => {
-      const x = xPos(i), y = yPct(getBottom(d, b));
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, yPct(getBottom(byDay[i - 1], b))); // hold prev y to current x
-        ctx.lineTo(x, y);                                  // step vertically
-      }
-    });
-    // top edge right→left (step-after in reverse)
-    for (let i = byDay.length - 1; i >= 0; i--) {
-      const x = xPos(i), y = yPct(getTop(byDay[i], b));
-      if (i === byDay.length - 1) {
+  // Stepped path L→R with rounded corners
+  function stepLTR(arr, getY, first) {
+    arr.forEach((d, i) => {
+      const x = xPos(i), y = getY(d);
+      if (i === 0) { first ? ctx.moveTo(x, y) : ctx.lineTo(x, y); return; }
+      const prevY = getY(arr[i - 1]);
+      if (Math.abs(y - prevY) > R * 2) {
+        ctx.lineTo(x - R, prevY);
+        ctx.arcTo(x, prevY, x, y, R);
         ctx.lineTo(x, y);
       } else {
-        ctx.lineTo(x, yPct(getTop(byDay[i + 1], b))); // hold right neighbour's y to current x
-        ctx.lineTo(x, y);                               // step vertically
+        ctx.lineTo(x, prevY); ctx.lineTo(x, y);
+      }
+    });
+  }
+
+  // Stepped path R→L with rounded corners (for top edge of fill polygon)
+  function stepRTL(arr, getY) {
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const x = xPos(i), y = getY(arr[i]);
+      if (i === arr.length - 1) { ctx.lineTo(x, y); continue; }
+      const prevY = getY(arr[i + 1]);
+      if (Math.abs(y - prevY) > R * 2) {
+        ctx.lineTo(x + R, prevY);
+        ctx.arcTo(x, prevY, x, y, R);
+        ctx.lineTo(x, y);
+      } else {
+        ctx.lineTo(x, prevY); ctx.lineTo(x, y);
       }
     }
+  }
+
+  // Draw bands bottom→top (b=0 first so higher bands paint over lower)
+  for (let b = 0; b <= 5; b++) {
+    const getBottom = (d) => bandData(d).slice(0, b).reduce((s, v) => s + v, 0);
+    const getTop    = (d) => getBottom(d) + bandData(d)[b];
+
+    // Fill: closed polygon with rounded step corners
+    ctx.beginPath();
+    stepLTR(days, (d) => yPct(getBottom(d)), true);                          // bottom edge L→R
+    ctx.lineTo(xPos(days.length - 1), yPct(getTop(days[days.length - 1]))); // right wall up
+    stepRTL(days, (d) => yPct(getTop(d)));                                   // top edge R→L
     ctx.closePath();
     ctx.fillStyle = COLORS[bandKeys[b]];
     ctx.fill();
+
+    // Top-edge boundary stroke with rounded corners
+    ctx.beginPath();
+    stepLTR(days, (d) => yPct(getTop(d)), true);
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
   }
 
-  // Separator line at pipeline/interactive boundary (stepped to match bands)
-  ctx.strokeStyle = 'rgba(100,116,139,0.5)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
-  ctx.beginPath();
-  byDay.forEach((d, i) => {
-    const sepPct = bandData(d).slice(0, 3).reduce((s, v) => s + v, 0);
-    const x = xPos(i), y = yPct(sepPct);
-    if (i === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      const prevSep = bandData(byDay[i - 1]).slice(0, 3).reduce((s, v) => s + v, 0);
-      ctx.lineTo(x, yPct(prevSep)); // horizontal
-      ctx.lineTo(x, y);             // vertical step
-    }
-  });
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Right Y-axis: absolute total tokens in M
-  const maxTokens = Math.max(...byDay.map(d => d.totalTokens || 0));
+  // Right Y-axis: absolute total tokens
+  const maxTokens = Math.max(...days.map(d => d.totalTokens || 0));
   const tokenScale = maxTokens > 0 ? maxTokens : 1;
   function yAbs(tokens) { return plotTop + chartH - (tokens / tokenScale) * chartH; }
 
-  // Total tokens (absolute values)
-  const rolling = byDay.map(d => d.totalTokens || 0);
-
+  // Total tokens line — smooth, unchanged
   ctx.strokeStyle = COLORS.trend; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
   ctx.beginPath();
-  rolling.forEach((v, i) => {
-    const x = xPos(i), y = yAbs(v);
+  days.forEach((d, i) => {
+    const x = xPos(i), y = yAbs(d.totalTokens || 0);
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   });
   ctx.stroke();
 
-  // Right Y-axis labels (0, mid, max in M)
+  // Right Y-axis labels
   ctx.font = '500 9px Inter, system-ui'; ctx.textAlign = 'left'; ctx.fillStyle = '#94A3B8';
   const fmtM = v => v >= 1e9 ? (v / 1e9).toFixed(1) + 'B' : v >= 1e6 ? (v / 1e6).toFixed(0) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : String(v);
   ctx.fillText(fmtM(maxTokens), endX + 3, yAbs(maxTokens) + 3);
@@ -3568,23 +3576,21 @@ function renderPipelineStackedChart(byDay) {
 
   // X labels
   ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
-  const step = Math.max(1, Math.floor(byDay.length / 6));
-  byDay.forEach((d, i) => {
-    if (i % step === 0 || i === byDay.length - 1) {
+  const step = Math.max(1, Math.floor(days.length / 6));
+  days.forEach((d, i) => {
+    if (i % step === 0 || i === days.length - 1) {
       ctx.fillText(formatDate(d.date), xPos(i), plotTop + chartH + 16);
     }
   });
 
-  // 2-column compact legend below chart
+  // Legend
   const legendTop = 140 + 4;
   const legendItems = [...bandKeys, 'trend'];
   const colW = Math.floor(w / 4);
   ctx.font = '500 9px Inter, system-ui';
   legendItems.forEach((key, idx) => {
-    const col = idx % 4;
-    const row = Math.floor(idx / 4);
-    const lx = col * colW + 4;
-    const ly = legendTop + row * 14;
+    const col = idx % 4, row = Math.floor(idx / 4);
+    const lx = col * colW + 4, ly = legendTop + row * 14;
     if (key === 'trend') {
       ctx.strokeStyle = COLORS.trend; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(lx, ly + 1); ctx.lineTo(lx + 10, ly + 1); ctx.stroke();
@@ -3596,12 +3602,12 @@ function renderPipelineStackedChart(byDay) {
     ctx.fillText(LABELS[key], lx + 13, ly + 3);
   });
 
-  // Color dot helper for tooltip lines
-  var dot = function (rgba) {
-    return '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle;background:' + rgba + '"></span>';
+  // Tooltip
+  var dot = function (color) {
+    return '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle;background:' + color + '"></span>';
   };
 
-  registerChartTooltip(canvas, byDay, xPos, function (i, arr) {
+  registerChartTooltip(canvas, days, xPos, function (i, arr) {
     var d = arr[i];
     var total = d.totalTokens || 0;
     var mtd = d.modelTokensByDay || {};
@@ -3613,7 +3619,6 @@ function renderPipelineStackedChart(byDay) {
     var iaPct = total > 0 ? fmtSmart(iaTotal / total * 100) : '0';
     var lines = ['<strong>' + formatDate(d.date) + '</strong>'];
     lines.push('Total: ' + fmt(total));
-    // Top-to-bottom matches visual stacking order (topmost band first)
     lines.push('<span style="opacity:0.5;font-size:10px">Interactive: ' + fmt(iaTotal) + ' (' + iaPct + '%)</span>');
     lines.push(dot(COLORS['interactive-opus']) + 'IA/Opus: ' + fmt(ia.opus || 0));
     lines.push(dot(COLORS['interactive-sonnet']) + 'IA/Sonnet: ' + fmt(ia.sonnet || 0));
