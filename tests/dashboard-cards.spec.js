@@ -496,43 +496,36 @@ test.describe('Pipeline stacked chart', () => {
     expect(box.height).toBeGreaterThan(50);
   });
 
-  test('chart interior has no white-gap rows (all pixels are coloured)', async ({ page }) => {
+  test('chart interior has no transparent gaps (all plot pixels are painted)', async ({ page }) => {
     await waitForDashboard(page);
     const canvas = page.locator('#trendPipelineChart');
     await expect(canvas).toBeVisible();
 
-    // Sample horizontal rows across the middle 50% of the plot area.
-    // Extract pixel data via canvas.toDataURL → ImageData in the browser.
-    const whitePixelCount = await page.evaluate(() => {
+    // The root cause of visible white gaps is transparent pixels (alpha ≈ 0) —
+    // canvas.clearRect() leaves alpha=0 and the white page background shows through.
+    // A previous test checked for opaque-white pixels and incorrectly passed.
+    const result = await page.evaluate(() => {
       const canvas = document.getElementById('trendPipelineChart');
-      if (!canvas) return -1;
+      if (!canvas) return { error: 'no canvas' };
       const ctx = canvas.getContext('2d');
       const w = canvas.width, h = canvas.height;
-      // Examine the centre 60% of the canvas width and the middle 50% of height
-      // (avoids legend, y-axis labels, and x-axis labels)
-      const x0 = Math.floor(w * 0.15), x1 = Math.floor(w * 0.85);
-      const y0 = Math.floor(h * 0.10), y1 = Math.floor(h * 0.60);
+      // Plot area: skip top 8% (padding), bottom 40% (x-labels + legend),
+      // left 15% (y-axis), right 10% (right y-axis margin)
+      const x0 = Math.floor(w * 0.15), x1 = Math.floor(w * 0.90);
+      const y0 = Math.floor(h * 0.08), y1 = Math.floor(h * 0.60);
       const imgData = ctx.getImageData(x0, y0, x1 - x0, y1 - y0);
       const d = imgData.data;
-      let whites = 0;
+      let transparent = 0, total = 0;
       for (let i = 0; i < d.length; i += 4) {
-        const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
-        // White = rgb(255,255,255) fully opaque — canvas background showing through
-        if (a > 200 && r > 240 && g > 240 && b > 240) whites++;
+        total++;
+        if (d[i + 3] < 30) transparent++; // alpha < 30 = effectively transparent
       }
-      return whites;
+      return { transparent, total, pct: transparent / total };
     });
 
-    expect(whitePixelCount).not.toBe(-1); // canvas found
-    // Tolerate at most 0.5% white pixels (anti-aliasing on boundary strokes)
-    const totalSampled = await page.evaluate(() => {
-      const c = document.getElementById('trendPipelineChart');
-      if (!c) return 1;
-      const w = c.width, h = c.height;
-      return Math.floor(w * 0.70) * Math.floor(h * 0.50);
-    });
-    const whitePct = whitePixelCount / totalSampled;
-    expect(whitePct).toBeLessThan(0.005); // <0.5% white pixels
+    expect(result.error).toBeUndefined();
+    // Allow ≤0.5% transparent pixels (anti-aliasing on white boundary strokes)
+    expect(result.pct).toBeLessThan(0.005);
   });
 
   test('chart uses distinct band colours for pipeline (blue) and interactive (amber)', async ({ page }) => {

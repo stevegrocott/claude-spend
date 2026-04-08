@@ -3497,25 +3497,9 @@ function renderPipelineStackedChart(byDay) {
 
   const bandKeys = ['pipeline-haiku', 'pipeline-sonnet', 'pipeline-opus', 'interactive-haiku', 'interactive-sonnet', 'interactive-opus'];
 
-  const R = 4; // step corner radius — used ONLY on strokes, not fills
+  const R = 4; // corner radius for boundary strokes
 
-  // Sharp stepped path L→R (fills must be gap-free between adjacent bands)
-  function stepSharpLTR(arr, getY, first) {
-    arr.forEach((d, i) => {
-      const x = xPos(i), y = getY(d);
-      if (i === 0) { first ? ctx.moveTo(x, y) : ctx.lineTo(x, y); return; }
-      ctx.lineTo(x, getY(arr[i - 1])); ctx.lineTo(x, y);
-    });
-  }
-  function stepSharpRTL(arr, getY) {
-    for (let i = arr.length - 1; i >= 0; i--) {
-      const x = xPos(i), y = getY(arr[i]);
-      if (i === arr.length - 1) { ctx.lineTo(x, y); continue; }
-      ctx.lineTo(x, getY(arr[i + 1])); ctx.lineTo(x, y);
-    }
-  }
-
-  // Rounded stepped path L→R — for visible strokes only
+  // Rounded stepped path L→R — for visible boundary strokes only
   function stepRoundedLTR(arr, getY, first) {
     arr.forEach((d, i) => {
       const x = xPos(i), y = getY(d);
@@ -3531,23 +3515,38 @@ function renderPipelineStackedChart(byDay) {
     });
   }
 
-  // Draw bands bottom→top (b=0 first so higher bands paint over lower)
-  for (let b = 0; b <= 5; b++) {
-    const getBottom = (d) => bandData(d).slice(0, b).reduce((s, v) => s + v, 0);
-    const getTop    = (d) => getBottom(d) + bandData(d)[b];
+  // Draw bands as per-day filled rectangles — guarantees zero gaps between bands
+  // and between adjacent day columns regardless of sub-pixel rounding.
+  const stepW = days.length > 1 ? plotW / (days.length - 1) : plotW;
+  days.forEach((d, i) => {
+    const bands = bandData(d);
+    const colLeft  = Math.floor(xPos(i));
+    const colRight = i < days.length - 1
+      ? Math.ceil(xPos(i + 1))        // extend to next day's x (overlap by 1px to close seam)
+      : Math.ceil(xPos(i) + stepW);   // last day: extend by one step width
+    const colW = Math.max(1, colRight - colLeft);
+    let cumPct = 0;
+    for (let b = 0; b < 6; b++) {
+      const botPct = cumPct;
+      cumPct += bands[b];
+      const topPct = b === 5 ? 100 : cumPct; // last band always fills to 100%
+      if (topPct <= botPct) continue;
+      const yTop = Math.floor(yPct(topPct));
+      const yBot = Math.ceil(yPct(botPct));
+      ctx.fillStyle = COLORS[bandKeys[b]];
+      ctx.fillRect(colLeft, yTop, colW, Math.max(1, yBot - yTop));
+    }
+  });
 
-    // Fill: sharp corners — adjacent bands share edges exactly, no gaps
+  // Overlay rounded boundary strokes for each band's top edge
+  for (let b = 0; b < 6; b++) {
+    const cumTop = (d) => {
+      const bands = bandData(d);
+      if (b === 5) return 100;
+      return bands.slice(0, b + 1).reduce((s, v) => s + v, 0);
+    };
     ctx.beginPath();
-    stepSharpLTR(days, (d) => yPct(getBottom(d)), true);
-    ctx.lineTo(xPos(days.length - 1), yPct(getTop(days[days.length - 1])));
-    stepSharpRTL(days, (d) => yPct(getTop(d)));
-    ctx.closePath();
-    ctx.fillStyle = COLORS[bandKeys[b]];
-    ctx.fill();
-
-    // Top-edge boundary stroke with rounded corners (cosmetic only, drawn over fill)
-    ctx.beginPath();
-    stepRoundedLTR(days, (d) => yPct(getTop(d)), true);
+    stepRoundedLTR(days, (d) => yPct(cumTop(d)), true);
     ctx.strokeStyle = 'rgba(255,255,255,0.55)';
     ctx.lineWidth = 1;
     ctx.stroke();
