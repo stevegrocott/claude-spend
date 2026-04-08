@@ -3497,10 +3497,26 @@ function renderPipelineStackedChart(byDay) {
 
   const bandKeys = ['pipeline-haiku', 'pipeline-sonnet', 'pipeline-opus', 'interactive-haiku', 'interactive-sonnet', 'interactive-opus'];
 
-  const R = 4; // step corner radius
+  const R = 4; // step corner radius — used ONLY on strokes, not fills
 
-  // Stepped path L→R with rounded corners
-  function stepLTR(arr, getY, first) {
+  // Sharp stepped path L→R (fills must be gap-free between adjacent bands)
+  function stepSharpLTR(arr, getY, first) {
+    arr.forEach((d, i) => {
+      const x = xPos(i), y = getY(d);
+      if (i === 0) { first ? ctx.moveTo(x, y) : ctx.lineTo(x, y); return; }
+      ctx.lineTo(x, getY(arr[i - 1])); ctx.lineTo(x, y);
+    });
+  }
+  function stepSharpRTL(arr, getY) {
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const x = xPos(i), y = getY(arr[i]);
+      if (i === arr.length - 1) { ctx.lineTo(x, y); continue; }
+      ctx.lineTo(x, getY(arr[i + 1])); ctx.lineTo(x, y);
+    }
+  }
+
+  // Rounded stepped path L→R — for visible strokes only
+  function stepRoundedLTR(arr, getY, first) {
     arr.forEach((d, i) => {
       const x = xPos(i), y = getY(d);
       if (i === 0) { first ? ctx.moveTo(x, y) : ctx.lineTo(x, y); return; }
@@ -3515,39 +3531,23 @@ function renderPipelineStackedChart(byDay) {
     });
   }
 
-  // Stepped path R→L with rounded corners (for top edge of fill polygon)
-  function stepRTL(arr, getY) {
-    for (let i = arr.length - 1; i >= 0; i--) {
-      const x = xPos(i), y = getY(arr[i]);
-      if (i === arr.length - 1) { ctx.lineTo(x, y); continue; }
-      const prevY = getY(arr[i + 1]);
-      if (Math.abs(y - prevY) > R * 2) {
-        ctx.lineTo(x + R, prevY);
-        ctx.arcTo(x, prevY, x, y, R);
-        ctx.lineTo(x, y);
-      } else {
-        ctx.lineTo(x, prevY); ctx.lineTo(x, y);
-      }
-    }
-  }
-
   // Draw bands bottom→top (b=0 first so higher bands paint over lower)
   for (let b = 0; b <= 5; b++) {
     const getBottom = (d) => bandData(d).slice(0, b).reduce((s, v) => s + v, 0);
     const getTop    = (d) => getBottom(d) + bandData(d)[b];
 
-    // Fill: closed polygon with rounded step corners
+    // Fill: sharp corners — adjacent bands share edges exactly, no gaps
     ctx.beginPath();
-    stepLTR(days, (d) => yPct(getBottom(d)), true);                          // bottom edge L→R
-    ctx.lineTo(xPos(days.length - 1), yPct(getTop(days[days.length - 1]))); // right wall up
-    stepRTL(days, (d) => yPct(getTop(d)));                                   // top edge R→L
+    stepSharpLTR(days, (d) => yPct(getBottom(d)), true);
+    ctx.lineTo(xPos(days.length - 1), yPct(getTop(days[days.length - 1])));
+    stepSharpRTL(days, (d) => yPct(getTop(d)));
     ctx.closePath();
     ctx.fillStyle = COLORS[bandKeys[b]];
     ctx.fill();
 
-    // Top-edge boundary stroke with rounded corners
+    // Top-edge boundary stroke with rounded corners (cosmetic only, drawn over fill)
     ctx.beginPath();
-    stepLTR(days, (d) => yPct(getTop(d)), true);
+    stepRoundedLTR(days, (d) => yPct(getTop(d)), true);
     ctx.strokeStyle = 'rgba(255,255,255,0.55)';
     ctx.lineWidth = 1;
     ctx.stroke();
