@@ -3495,34 +3495,50 @@ function renderPipelineStackedChart(byDay) {
 
   const bandKeys = ['pipeline-haiku', 'pipeline-sonnet', 'pipeline-opus', 'interactive-haiku', 'interactive-sonnet', 'interactive-opus'];
 
-  // Draw 6 stacked bands (filled polygons)
+  // Draw 6 stacked bands as stepped filled polygons
   for (let b = 5; b >= 0; b--) {
-    // cumulative bottom for band b = sum of bands 0..b-1
     const getBottom = (day, idx) => bandData(day).slice(0, idx).reduce((s, v) => s + v, 0);
-    const getTop = (day, idx) => getBottom(day, idx) + bandData(day)[idx];
+    const getTop    = (day, idx) => getBottom(day, idx) + bandData(day)[idx];
 
     ctx.beginPath();
-    // bottom edge left→right
+    // bottom edge left→right (step-after: horizontal at prev value, then vertical)
     byDay.forEach((d, i) => {
       const x = xPos(i), y = yPct(getBottom(d, b));
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, yPct(getBottom(byDay[i - 1], b))); // hold prev y to current x
+        ctx.lineTo(x, y);                                  // step vertically
+      }
     });
-    // top edge right→left
+    // top edge right→left (step-after in reverse)
     for (let i = byDay.length - 1; i >= 0; i--) {
-      ctx.lineTo(xPos(i), yPct(getTop(byDay[i], b)));
+      const x = xPos(i), y = yPct(getTop(byDay[i], b));
+      if (i === byDay.length - 1) {
+        ctx.lineTo(x, y);
+      } else {
+        ctx.lineTo(x, yPct(getTop(byDay[i + 1], b))); // hold right neighbour's y to current x
+        ctx.lineTo(x, y);                               // step vertically
+      }
     }
     ctx.closePath();
     ctx.fillStyle = COLORS[bandKeys[b]];
     ctx.fill();
   }
 
-  // Separator line at pipeline/interactive boundary
+  // Separator line at pipeline/interactive boundary (stepped to match bands)
   ctx.strokeStyle = 'rgba(100,116,139,0.5)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
   ctx.beginPath();
   byDay.forEach((d, i) => {
     const sepPct = bandData(d).slice(0, 3).reduce((s, v) => s + v, 0);
     const x = xPos(i), y = yPct(sepPct);
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      const prevSep = bandData(byDay[i - 1]).slice(0, 3).reduce((s, v) => s + v, 0);
+      ctx.lineTo(x, yPct(prevSep)); // horizontal
+      ctx.lineTo(x, y);             // vertical step
+    }
   });
   ctx.stroke();
   ctx.setLineDash([]);
