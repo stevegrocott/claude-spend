@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const readline = require('readline');
+const { execFileSync } = require('child_process');
 
 function getClaudeDir() {
   return path.join(os.homedir(), '.claude');
@@ -944,6 +945,80 @@ function parseOrchestratorLogs(projectCostMap = {}, pipelineDailyUsage = []) {
   };
 }
 
+// Resolve an "owner/repo" GitHub slug from a local project's git remote (execFileSync avoids shell interpolation — no injection risk; see #66)
+function resolveRepoFromPath(projectPath, execFn = execFileSync) {
+  if (!projectPath) return null;
+  try {
+    const remote = execFn(
+      'git',
+      ['-C', projectPath, 'remote', 'get-url', 'origin'],
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 10000 }
+    ).trim();
+    const match = remote.match(/github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+// Computes how often merged PRs touch files that another PR already changed within the
+// prior windowDays — a proxy for rework/thrashing on the same files.
+function computeReworkRate(projectRepo, windowDays = 14, execFn = execFileSync) {
+  if (!projectRepo) return { reworkRate: 0, reworkedPRs: [], hotFiles: [] };
+
+  let prs;
+  try {
+    const result = execFn(
+      'gh',
+      ['pr', 'list', '--repo', projectRepo, '--state', 'merged', '--limit', '30', '--json', 'number,mergedAt,files'],
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 10000 }
+    );
+    prs = JSON.parse(result || '[]');
+  } catch {
+    return { reworkRate: 0, reworkedPRs: [], hotFiles: [] };
+  }
+
+  const merged = (Array.isArray(prs) ? prs : []).filter(pr => pr.mergedAt);
+  if (merged.length === 0) return { reworkRate: 0, reworkedPRs: [], hotFiles: [] };
+
+  const sorted = [...merged].sort((a, b) => new Date(a.mergedAt) - new Date(b.mergedAt));
+  const windowMs = windowDays * 24 * 60 * 60 * 1000;
+
+  const reworkedPRs = [];
+  const hotFileCounts = {};
+
+  for (let i = 0; i < sorted.length; i++) {
+    const pr = sorted[i];
+    const prFiles = (pr.files || []).map(f => f.path).filter(Boolean);
+    if (prFiles.length === 0) continue;
+    const mergedAt = new Date(pr.mergedAt).getTime();
+    const windowStart = mergedAt - windowMs;
+
+    const overlappingFiles = new Set();
+    for (let j = 0; j < i; j++) {
+      const priorMergedAt = new Date(sorted[j].mergedAt).getTime();
+      if (priorMergedAt < windowStart || priorMergedAt >= mergedAt) continue;
+      const priorFiles = new Set((sorted[j].files || []).map(f => f.path));
+      for (const filePath of prFiles) {
+        if (priorFiles.has(filePath)) overlappingFiles.add(filePath);
+      }
+    }
+
+    if (overlappingFiles.size > 0) {
+      reworkedPRs.push({ number: pr.number, mergedAt: pr.mergedAt, files: [...overlappingFiles] });
+      for (const f of overlappingFiles) hotFileCounts[f] = (hotFileCounts[f] || 0) + 1;
+    }
+  }
+
+  const reworkRate = Math.round((reworkedPRs.length / sorted.length) * 100);
+  const hotFiles = Object.entries(hotFileCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([file, count]) => ({ file, count }));
+
+  return { reworkRate, reworkedPRs, hotFiles };
+}
+
 function generateOrchestratorInsights(orchestrator) {
   const insights = [];
   const { summary, runs } = orchestrator;
@@ -1147,6 +1222,28 @@ function generateOrchestratorInsights(orchestrator) {
         title: `"${top.stageName}" stage uses the most Opus tokens across pipeline runs`,
         description: `The "${top.stageName}" stage has consumed ${fmt(top.opusTokens)} Opus tokens across all runs. Other high-Opus stages: ${stageOpusCost.slice(1, 3).map(s => `"${s.stageName}" (${fmt(s.opusTokens)})`).join(', ') || 'none'}. Opus costs 5-10x more than Sonnet per token.`,
         action: `Consider whether the "${top.stageName}" stage truly needs Opus, or if Sonnet would be sufficient. Review the agent prompt for this stage to see if it can be simplified.`,
+      });
+    }
+  }
+
+  // 8. Rework rate — merged PRs that touch files another PR already changed recently
+  const projectPaths = [...new Set(runs.map(r => r.projectPath).filter(Boolean))].slice(0, 50); // Cap at 50
+  for (const projectPath of projectPaths) {
+    const repo = resolveRepoFromPath(projectPath);
+    if (!repo) continue;
+
+    const reworkWindowDays = 14;
+    const { reworkRate, reworkedPRs, hotFiles } = computeReworkRate(repo, reworkWindowDays);
+    if (reworkRate > 20) {
+      const projLabel = repo.split('/').pop();
+      const topHotFiles = hotFiles.slice(0, 3).map(h => h.file).join(', ');
+      insights.push({
+        id: `rework-rate-${repo}`,
+        lens: 'quality',
+        type: reworkRate > 40 ? 'critical' : 'warning',
+        title: `${reworkRate}% rework rate in ${projLabel} — PRs frequently touch recently-changed files`,
+        description: `${reworkedPRs.length} of the last merged PRs in ${repo} changed files that were also touched by another PR merged within the prior ${reworkWindowDays} days (${reworkRate}% rework rate).${topHotFiles ? ` Hot files: ${topHotFiles}.` : ''} High rework rates suggest files are being repeatedly patched — a sign of incomplete implementations, thrashing, or insufficient upfront task scoping.`,
+        action: `Review ${topHotFiles || 'the recently reworked files'} for underlying design issues. Consider more complete task scoping upfront to reduce follow-up PRs touching the same files.`,
       });
     }
   }
@@ -2078,4 +2175,4 @@ function generateSessionRecommendations(efficiency) {
   return recs;
 }
 
-module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession, computeSessionEfficiency, generateSessionRecommendations, computeIssueMetrics, generateSpeedInsights };
+module.exports = { parseAllSessions, parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession, computeSessionEfficiency, generateSessionRecommendations, computeIssueMetrics, generateSpeedInsights, computeReworkRate, resolveRepoFromPath, generateOrchestratorInsights };
