@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession, computeSessionEfficiency, generateSessionRecommendations, computeIssueMetrics } = require('./parser');
+const { parseTaskSummary, computePPMTAnalysis, generatePPMTRecommendations, categorizeSession, computeSessionEfficiency, generateSessionRecommendations, computeIssueMetrics, computeReworkRate, resolveRepoFromPath, generateOrchestratorInsights } = require('./parser');
 
 // Test parseTaskSummary function
 describe('parseTaskSummary', () => {
@@ -1378,6 +1378,120 @@ describe('generateSpeedInsights', () => {
       assert.ok(insight.description, 'insight should have description');
       assert.ok('action' in insight, 'insight should have action property');
     }
+  });
+});
+
+describe('resolveRepoFromPath', () => {
+  test('returns null when projectPath is missing', () => {
+    const execFn = jest.fn();
+    assert.strictEqual(resolveRepoFromPath(null, execFn), null);
+    assert.strictEqual(execFn.mock.calls.length, 0);
+  });
+
+  test('parses owner/repo from an https remote URL', () => {
+    const execFn = jest.fn().mockReturnValue('https://github.com/acme/widgets.git\n');
+    assert.strictEqual(resolveRepoFromPath('/repo/path', execFn), 'acme/widgets');
+  });
+
+  test('parses owner/repo from an ssh remote URL', () => {
+    const execFn = jest.fn().mockReturnValue('git@github.com:acme/widgets.git\n');
+    assert.strictEqual(resolveRepoFromPath('/repo/path', execFn), 'acme/widgets');
+  });
+
+  test('returns null when remote is not a GitHub URL', () => {
+    const execFn = jest.fn().mockReturnValue('https://gitlab.com/acme/widgets.git\n');
+    assert.strictEqual(resolveRepoFromPath('/repo/path', execFn), null);
+  });
+
+  test('returns null when git command throws', () => {
+    const execFn = jest.fn().mockImplementation(() => { throw new Error('not a git repo'); });
+    assert.strictEqual(resolveRepoFromPath('/repo/path', execFn), null);
+  });
+});
+
+describe('computeReworkRate', () => {
+  test('returns zero result when projectRepo is missing', () => {
+    const execFn = jest.fn();
+    const result = computeReworkRate(null, 14, execFn);
+    assert.deepStrictEqual(result, { reworkRate: 0, reworkedPRs: [], hotFiles: [] });
+    assert.strictEqual(execFn.mock.calls.length, 0);
+  });
+
+  test('returns zero result when gh CLI throws', () => {
+    const execFn = jest.fn().mockImplementation(() => { throw new Error('gh not found'); });
+    const result = computeReworkRate('acme/widgets', 14, execFn);
+    assert.deepStrictEqual(result, { reworkRate: 0, reworkedPRs: [], hotFiles: [] });
+  });
+
+  test('returns zero result when there are no merged PRs', () => {
+    const execFn = jest.fn().mockReturnValue('[]');
+    const result = computeReworkRate('acme/widgets', 14, execFn);
+    assert.deepStrictEqual(result, { reworkRate: 0, reworkedPRs: [], hotFiles: [] });
+  });
+
+  test('flags PRs whose files overlap with a PR merged within the prior window', () => {
+    const day = 24 * 60 * 60 * 1000;
+    const base = new Date('2026-01-15T00:00:00Z').getTime();
+    const prs = [
+      { number: 1, mergedAt: new Date(base).toISOString(), files: [{ path: 'src/a.js' }] },
+      // Merged 5 days later, touches the same file as PR #1 (within 14-day window)
+      { number: 2, mergedAt: new Date(base + 5 * day).toISOString(), files: [{ path: 'src/a.js' }, { path: 'src/b.js' }] },
+      // Merged 20 days after PR #1 (outside the window relative to PR #1), touches unrelated file
+      { number: 3, mergedAt: new Date(base + 20 * day).toISOString(), files: [{ path: 'src/c.js' }] },
+    ];
+    const execFn = jest.fn().mockReturnValue(JSON.stringify(prs));
+    const result = computeReworkRate('acme/widgets', 14, execFn);
+
+    expect(execFn).toHaveBeenCalledWith(
+      'gh',
+      ['pr', 'list', '--repo', 'acme/widgets', '--state', 'merged', '--limit', '30', '--json', 'number,mergedAt,files'],
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+
+    assert.strictEqual(result.reworkRate, Math.round((1 / 3) * 100));
+    assert.strictEqual(result.reworkedPRs.length, 1);
+    assert.strictEqual(result.reworkedPRs[0].number, 2);
+    assert.deepStrictEqual(result.reworkedPRs[0].files, ['src/a.js']);
+    assert.deepStrictEqual(result.hotFiles, [{ file: 'src/a.js', count: 1 }]);
+  });
+
+  test('does not flag overlap outside the merge-date window', () => {
+    const day = 24 * 60 * 60 * 1000;
+    const base = new Date('2026-01-15T00:00:00Z').getTime();
+    const prs = [
+      { number: 1, mergedAt: new Date(base).toISOString(), files: [{ path: 'src/a.js' }] },
+      // Merged 30 days later — outside a 14-day window
+      { number: 2, mergedAt: new Date(base + 30 * day).toISOString(), files: [{ path: 'src/a.js' }] },
+    ];
+    const execFn = jest.fn().mockReturnValue(JSON.stringify(prs));
+    const result = computeReworkRate('acme/widgets', 14, execFn);
+    assert.strictEqual(result.reworkRate, 0);
+    assert.deepStrictEqual(result.reworkedPRs, []);
+  });
+});
+
+describe('generateOrchestratorInsights rework rate', () => {
+  test('does not throw and adds no rework insight when repo cannot be resolved', () => {
+    const summary = {
+      totalRuns: 3,
+      avgQualityIterations: 0,
+      avgTestIterations: 0,
+      completionRate: 100,
+      errorRuns: 0,
+      maxIterationsRuns: 0,
+      stageAvgs: [],
+      escalationCount: 0,
+      runsWithEscalations: 0,
+      allEscalations: [],
+      stageModelTotals: {},
+    };
+    const runs = [
+      { project: 'demo', projectPath: '/nonexistent/path/for/test', issue: 1, state: 'completed', qualityIterations: 0, testIterations: 0, prReviewIterations: 0, taskCount: 1, stageDurations: {}, date: '2026-01-01' },
+      { project: 'demo', projectPath: '/nonexistent/path/for/test', issue: 2, state: 'completed', qualityIterations: 0, testIterations: 0, prReviewIterations: 0, taskCount: 1, stageDurations: {}, date: '2026-01-02' },
+      { project: 'demo', projectPath: '/nonexistent/path/for/test', issue: 3, state: 'completed', qualityIterations: 0, testIterations: 0, prReviewIterations: 0, taskCount: 1, stageDurations: {}, date: '2026-01-03' },
+    ];
+    const insights = generateOrchestratorInsights({ summary, runs });
+    assert.ok(!insights.some(i => i.id.startsWith('rework-rate-')));
   });
 });
 
