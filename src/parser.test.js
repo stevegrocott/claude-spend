@@ -1445,7 +1445,7 @@ describe('computeReworkRate', () => {
     expect(execFn).toHaveBeenCalledWith(
       'gh',
       ['pr', 'list', '--repo', 'acme/widgets', '--state', 'merged', '--limit', '30', '--json', 'number,mergedAt,files'],
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 10000 },
     );
 
     assert.strictEqual(result.reworkRate, Math.round((1 / 3) * 100));

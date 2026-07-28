@@ -952,7 +952,7 @@ function resolveRepoFromPath(projectPath, execFn = execFileSync) {
     const remote = execFn(
       'git',
       ['-C', projectPath, 'remote', 'get-url', 'origin'],
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 10000 }
     ).trim();
     const match = remote.match(/github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
     return match ? match[1] : null;
@@ -971,7 +971,7 @@ function computeReworkRate(projectRepo, windowDays = 14, execFn = execFileSync) 
     const result = execFn(
       'gh',
       ['pr', 'list', '--repo', projectRepo, '--state', 'merged', '--limit', '30', '--json', 'number,mergedAt,files'],
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 10000 }
     );
     prs = JSON.parse(result || '[]');
   } catch {
@@ -1227,7 +1227,7 @@ function generateOrchestratorInsights(orchestrator) {
   }
 
   // 8. Rework rate — merged PRs that touch files another PR already changed recently
-  const projectPaths = [...new Set(runs.map(r => r.projectPath).filter(Boolean))];
+  const projectPaths = [...new Set(runs.map(r => r.projectPath).filter(Boolean))].slice(0, 50); // Cap at 50
   for (const projectPath of projectPaths) {
     const repo = resolveRepoFromPath(projectPath);
     if (!repo) continue;
