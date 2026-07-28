@@ -332,6 +332,25 @@ const INSIGHT_MAPPINGS = {
     ],
   },
 
+  'high-rework-rate': {
+    titlePrefix: 'Reduce post-merge rework',
+    labels: ['spend-analysis', 'quality-optimization'],
+    targetFiles: [
+      '.claude/skills/subagent-driven-development/code-quality-reviewer-prompt.md',
+      '.claude/skills/test-driven-development/SKILL.md',
+    ],
+    section: 'Quality Gate Hardening',
+    tasks: [
+      { agent: 'default', size: 'M', desc: 'Add stricter acceptance-criteria validation checks to code-quality-reviewer-prompt.md' },
+      { agent: 'default', size: 'M', desc: 'Require E2E test coverage for hot files (frequently reworked post-merge) in test-driven-development/SKILL.md' },
+      { agent: 'default', size: 'S', desc: 'Document which files/areas see the most post-merge rework and target quality gates at them' },
+    ],
+    acceptanceCriteria: [
+      'code-quality-reviewer-prompt.md enforces stricter AC validation before approval',
+      'Hot files identified from rework history have required E2E test coverage documented in test-driven-development/SKILL.md',
+    ],
+  },
+
   'parallel-speedup-ratio': {
     titlePrefix: 'Maximize parallelization benefits in pipeline',
     labels: ['spend-analysis', 'pipeline-efficiency'],
